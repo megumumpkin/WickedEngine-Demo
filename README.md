@@ -2,9 +2,6 @@
 [![Ko-Fi](https://img.shields.io/badge/donate-kofi-blue?style=for-the-badge&logo=ko-fi&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://ko-fi.com/molasses)
 [![Patreon](https://img.shields.io/badge/donate-patreon-blue?style=for-the-badge&logo=patreon&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://www.patreon.com/molasseslover)
 
-A fully-fledged game made using [Wicked Engine](https://github.com/turanszkij/WickedEngine) 
-in order to battle-test features, mature the engine, and expand the community.  
-
  <html>
   <div class="container">
       <img src="https://user-images.githubusercontent.com/60114762/162796909-dc754428-c4d1-47f4-9c80-82d3e3b35d71.png"  style="width: 878px; min-width: 140px;">
@@ -13,6 +10,18 @@ in order to battle-test features, mature the engine, and expand the community.
 
 > Artwork by [@Megumumpkin](https://github.com/megumumpkin)
 
+A fully-fledged game made using [Wicked Engine](https://github.com/turanszkij/WickedEngine) 
+in order to battle-test features, mature the engine, and expand the community. 
+
+This repository contains submodules in the [`Library/`](Library/) directory, you 
+might want to clone those!
+
+```sh 
+git clone https://github.com/MolassesLover/WickedEngine-Demo.git --recursive
+cd WickedEngine-Demo
+submodule update Library/WickedEngine
+```
+
 ## Dependencies
 In order to build this project you will need a few pieces of software on your
 system. Depending on your operating system and its distribution, these dependencies
@@ -20,6 +29,7 @@ might already be met. In any case, dependencies are fairly minimal.
 
 Here is a full list of dependencies:
 
+- [Wicked Engine](https://github.com/turanszkij/WickedEngine)
 - [CMake](https://cmake.org/)
 - [Vulkan](https://www.vulkan.org/)
 - [SDL2](https://www.libsdl.org/download-2.0.php)
