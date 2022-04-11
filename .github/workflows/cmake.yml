@@ -46,5 +46,5 @@ jobs:
       run: |
         cd Source/Building/ 
         chmod +x Build.sh
-        && sh Build.sh
+        sh Build.sh
       
