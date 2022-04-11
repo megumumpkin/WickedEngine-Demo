@@ -24,8 +24,8 @@ might want to clone those!
 
 ## Dependencies
 In order to build this project you will need a few pieces of software on your
-system. Depending on your operating system and its distribution, these dependencies
-might already be met. In any case, dependencies are fairly minimal.
+system. Depending on your operating system and its distribution, some of these 
+dependencies might already be met. In any case, dependencies are fairly minimal.
 
 Here is a full list of dependencies:
 
