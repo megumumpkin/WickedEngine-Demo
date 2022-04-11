@@ -11,7 +11,7 @@ might want to clone those!
 ```sh 
 git clone https://github.com/MolassesLover/WickedEngine-Demo.git --recursive
 cd WickedEngine-Demo
-submodule update Library/WickedEngine
+git submodule update Library/WickedEngine
 ```
 
  <html>
