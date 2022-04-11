@@ -26,12 +26,11 @@ jobs:
       run: |
         git submodule update --init Library/WickedEngine]
         cd Library/WickedEngine/
-        git pull 
         mkdir build
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release
         make
-        cd ../../../
+        cd ../../
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake .
       
     - name: Build
