@@ -3,11 +3,20 @@
 [![Patreon](https://img.shields.io/badge/donate-patreon-blue?style=for-the-badge&logo=patreon&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://www.patreon.com/molasseslover)
 
 A fully-fledged game made using [Wicked Engine](https://github.com/turanszkij/WickedEngine) 
-in order to battle-test features, mature the engine, and expand the community.  
+in order to battle-test features, mature the engine, and expand the community. 
+
+This repository contains submodules in the [`Library/`](Library/) directory, you 
+might want to clone those!
+
+```sh 
+git clone https://github.com/MolassesLover/WickedEngine-Demo.git --recursive
+cd WickedEngine-Demo
+git submodule update Library/WickedEngine
+```
 
  <html>
   <div class="container">
-      <img src="https://user-images.githubusercontent.com/60114762/162796909-dc754428-c4d1-47f4-9c80-82d3e3b35d71.png"  style="width: 878px; min-width: 140px;">
+      <img src="https://user-images.githubusercontent.com/60114762/162796909-dc754428-c4d1-47f4-9c80-82d3e3b35d71.png">
   </div>
 </html>
 
@@ -20,6 +29,7 @@ might already be met. In any case, dependencies are fairly minimal.
 
 Here is a full list of dependencies:
 
+- [Wicked Engine](https://github.com/turanszkij/WickedEngine)
 - [CMake](https://cmake.org/)
 - [Vulkan](https://www.vulkan.org/)
 - [SDL2](https://www.libsdl.org/download-2.0.php)
@@ -36,6 +46,6 @@ This project also uses CMake, so do make sure that dependency is met.
 
 Replace `/path/to/wicked/build_folder/` with your Wicked Engine `build/` directory.
 ```sh
-$ cmake -B build -DWickedEngine_DIR=/path/to/wicked/build_folder/cmake .
-$ cmake --build build -j8
+$ cmake -B Build -DWickedEngine_DIR=/path/to/wicked/build_folder/cmake .
+$ cmake --build Build -j8
 ```
