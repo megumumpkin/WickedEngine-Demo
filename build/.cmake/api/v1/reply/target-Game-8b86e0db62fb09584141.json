@@ -1,0 +1,206 @@
+{
+	"artifacts" : 
+	[
+		{
+			"path" : "Game"
+		}
+	],
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_executable",
+			"target_link_libraries"
+		],
+		"files" : 
+		[
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 30,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 32,
+				"parent" : 0
+			}
+		]
+	},
+	"compileGroups" : 
+	[
+		{
+			"defines" : 
+			[
+				{
+					"backtrace" : 2,
+					"define" : "LUA_USE_POSIX=1"
+				},
+				{
+					"backtrace" : 2,
+					"define" : "SDL2=1"
+				},
+				{
+					"backtrace" : 2,
+					"define" : "WickedEngine_SHADER_DIR=\"/home/maeve/.scripts/Repositories/wicked-engine/WickedEngine/shaders/\""
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 2,
+					"isSystem" : true,
+					"path" : "/home/maeve/.scripts/Repositories/wicked-engine/WickedEngine"
+				},
+				{
+					"backtrace" : 2,
+					"isSystem" : true,
+					"path" : "/usr/include/SDL2"
+				},
+				{
+					"backtrace" : 2,
+					"isSystem" : true,
+					"path" : "/home/maeve/.scripts/Repositories/wicked-engine/WickedEngine/BULLET"
+				},
+				{
+					"backtrace" : 2,
+					"isSystem" : true,
+					"path" : "/home/maeve/.scripts/Repositories/wicked-engine/WickedEngine/Utility/FAudio/src"
+				},
+				{
+					"backtrace" : 2,
+					"isSystem" : true,
+					"path" : "/home/maeve/.scripts/Repositories/wicked-engine/WickedEngine/Utility/FAudio/include"
+				}
+			],
+			"language" : "CXX",
+			"sourceIndexes" : 
+			[
+				0,
+				1,
+				4
+			]
+		}
+	],
+	"id" : "Game::@6890427a1f51a3e7e1df",
+	"link" : 
+	{
+		"commandFragments" : 
+		[
+			{
+				"fragment" : "",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 2,
+				"fragment" : "/home/maeve/.scripts/Repositories/wicked-engine/build/WickedEngine/libWickedEngine_Linux.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/lib64/libvulkan.so",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/usr/lib64/libSDL2-2.0.so.0.18.2",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "-ldl",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/maeve/.scripts/Repositories/wicked-engine/build/WickedEngine/BULLET/libBullet.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/maeve/.scripts/Repositories/wicked-engine/build/WickedEngine/LUA/libLUA.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/maeve/.scripts/Repositories/wicked-engine/build/WickedEngine/Utility/libUtility.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/maeve/.scripts/Repositories/wicked-engine/build/WickedEngine/Utility/FAudio/libFAudio.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/usr/lib64/libSDL2main.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/usr/lib64/libSDL2-2.0.so.0.18.2",
+				"role" : "libraries"
+			}
+		],
+		"language" : "CXX"
+	},
+	"name" : "Game",
+	"nameOnDisk" : "Game",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "Source Files",
+			"sourceIndexes" : 
+			[
+				0,
+				1,
+				4
+			]
+		},
+		{
+			"name" : "Header Files",
+			"sourceIndexes" : 
+			[
+				2,
+				3
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Source/stdafx.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Source/Game.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"path" : "Source/Game.h",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 1,
+			"path" : "Source/stdafx.h",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "Source/main_SDL2.cpp",
+			"sourceGroupIndex" : 0
+		}
+	],
+	"type" : "EXECUTABLE"
+}
