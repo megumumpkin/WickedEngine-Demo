@@ -23,9 +23,14 @@ jobs:
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: 	cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake .
+      run: |
+        git submodule update --init Library/WickedEngine
+        cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake .
       
     - name: Build
       # Build your program with the given configuration
-      run: cd Source/Building/ && sh Build.sh
+      run: |
+        cd Source/Building/ 
+        chmod +x Build.sh
+        && sh Build.sh
       
