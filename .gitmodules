@@ -1,0 +1,3 @@
+[submodule "Library/WickedEngine"]
+	path = Library/WickedEngine
+	url = https://github.com/MolassesLover/WickedEngine.git
