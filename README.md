@@ -5,6 +5,14 @@
 A fully-fledged game made using [Wicked Engine](https://github.com/turanszkij/WickedEngine) 
 in order to battle-test features, mature the engine, and expand the community.  
 
+ <html>
+  <div class="container">
+      <img src="https://user-images.githubusercontent.com/60114762/162796909-dc754428-c4d1-47f4-9c80-82d3e3b35d71.png"  style="width: 878px; min-width: 140px;">
+  </div>
+</html>
+
+> Artwork by [@Megumumpkin](https://github.com/megumumpkin)
+
 ## Dependencies
 In order to build this project you will need a few pieces of software on your
 system. Depending on your operating system and its distribution, these dependencies
