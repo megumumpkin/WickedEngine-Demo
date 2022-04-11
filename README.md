@@ -9,9 +9,9 @@ This repository contains submodules in the [`Library/`](Library/) directory, you
 might want to clone those!
 
 ```sh 
-git clone https://github.com/MolassesLover/WickedEngine-Demo.git --recursive
-cd WickedEngine-Demo
-git submodule update Library/WickedEngine
+➜ git clone https://github.com/MolassesLover/WickedEngine-Demo.git --recursive
+➜ cd WickedEngine-Demo
+➜ git submodule update Library/WickedEngine
 ```
 
  <html>
@@ -35,7 +35,6 @@ Here is a full list of dependencies:
 - [SDL2](https://www.libsdl.org/download-2.0.php)
 - [DXC](https://github.com/Microsoft/DirectXShaderCompiler)
 
-
 ## Building
 
 First things first, make sure you have a fully-built version of 
@@ -44,8 +43,19 @@ your system. It's also worth mentioning that it should be compiled using CMake.
 
 This project also uses CMake, so do make sure that dependency is met.
 
+### Manually
 Replace `/path/to/wicked/build_folder/` with your Wicked Engine `build/` directory.
 ```sh
-$ cmake -B Build -DWickedEngine_DIR=/path/to/wicked/build_folder/cmake .
-$ cmake --build Build -j8
+➜ cmake -B Build -DWickedEngine_DIR=/path/to/wicked/build_folder/cmake .
+➜ cmake --build Build -j8
+```
+
+### Automatically
+You can run the [`Build.sh`](Source/Building/Build.sh) script in order to build
+both [Wicked Engine](https://github.com/turanszkij/WickedEngine)  and this demo project. 
+Just make sure you have the [Wicked Engine submodule](Library/WickedEngine/) in the 
+root directory of this repository. Otherwise, you can clone it with this command:
+
+```sh 
+➜ git submodule update --init Library/WickedEngine
 ```
