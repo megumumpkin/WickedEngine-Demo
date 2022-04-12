@@ -5,3 +5,5 @@ if pcall(getfenv, 4) then
 else
     print("Running the startup script as a program.")
 end
+
+LoadModel('Assets/World.wiscene')
