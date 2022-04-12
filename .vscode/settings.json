@@ -6,8 +6,11 @@
         "**/.hg/store/**": true,
         ".flatpak/**": true,
         "_build/**": true,
-        "cmake.configureOnOpen": true,
-        "cmake.buildDirectory": "${workspaceFolder}/Build",
-        "cmake.buildTask": true
+    },
+
+    "CMake": {
+    "cmake.configureOnOpen": true,
+    "cmake.buildDirectory": "${workspaceFolder}/Build",
+    "cmake.buildTask": true
     }
 }
