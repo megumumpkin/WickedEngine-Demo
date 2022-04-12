@@ -1,10 +1,10 @@
 #pragma once
 #include "WickedEngine.h"
 
-
-class TestsRenderer : public wi::RenderPath3D
+class Renderer : public wi::RenderPath3D
 {
     wi::ecs::Entity testEntity = wi::ecs::INVALID_ENTITY;
+
 public:
     void Load() override;
     void Update(float dt) override;
@@ -12,7 +12,8 @@ public:
 
 class Game : public wi::Application
 {
-    TestsRenderer renderer;
+    Renderer renderer;
+
 public:
     void Initialize() override;
 };

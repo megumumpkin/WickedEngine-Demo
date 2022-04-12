@@ -1,10 +1,13 @@
 #include "stdafx.h"
 #include "Game.h"
 
+#include <iostream>
 #include <string>
 #include <sstream>
 #include <fstream>
 #include <thread>
+
+using std::cout;
 
 void Game::Initialize()
 {
@@ -23,7 +26,7 @@ void Game::Initialize()
 	ActivatePath(&renderer);
 }
 
-void TestsRenderer::Load()
+void Renderer::Load()
 {
     setSSREnabled(false);
     setReflectionsEnabled(true);
@@ -57,7 +60,7 @@ void TestsRenderer::Load()
 
     RenderPath3D::Load();
 }
-void TestsRenderer::Update(float dt)
+void Renderer::Update(float dt)
 {
     RenderPath3D::Update(dt);
 }
