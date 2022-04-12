@@ -28,9 +28,9 @@ void Game::Initialize()
 
 void Renderer::Load()
 {
-    setSSREnabled(false);
+    setSSREnabled(true);
     setReflectionsEnabled(true);
-    setFXAAEnabled(false);
+    setFXAAEnabled(true);
 
     static wi::audio::Sound sound;
     static wi::audio::SoundInstance soundinstance;
@@ -38,7 +38,7 @@ void Renderer::Load()
     // Reset all state that tests might have modified:
     wi::eventhandler::SetVSync(true);
     wi::renderer::SetToDrawGridHelper(false);
-    wi::renderer::SetTemporalAAEnabled(false);
+    wi::renderer::SetTemporalAAEnabled(true);
     wi::renderer::ClearWorld(wi::scene::GetScene());
     wi::scene::GetScene().weather = wi::scene::WeatherComponent();
     this->ClearSprites();
