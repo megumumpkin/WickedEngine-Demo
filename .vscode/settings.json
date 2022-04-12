@@ -5,6 +5,9 @@
         "**/node_modules/*/**": true,
         "**/.hg/store/**": true,
         ".flatpak/**": true,
-        "_build/**": true
+        "_build/**": true,
+        "cmake.configureOnOpen": true,
+        "cmake.buildDirectory": "${workspaceFolder}/Build",
+        "cmake.buildTask": true
     }
 }
