@@ -16,7 +16,8 @@ if [ -d '../../Library/WickedEngine/build' ]; then
 	cd ../../
 	cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake .
 else
-	echo "Wicked Engine build directory not found!"
+	echo "Wicked Engine build directory not found."
+	echo "You might want to run this script again!"
 fi
 
 cmake --build Build -j$(nproc)
