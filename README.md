@@ -6,7 +6,8 @@ A fully-fledged game made using [Wicked Engine](https://github.com/turanszkij/Wi
 in order to battle-test features, mature the engine, and expand the community. 
 
 This repository contains submodules in the [`Library/`](Library/) directory, you 
-might want to clone those!
+might want to clone those! It's also worth noting that this repository uses
+the [Git LFS](https://git-lfs.github.com/) extension.
 
 ```sh 
 ➜ git clone https://github.com/MolassesLover/WickedEngine-Demo.git --recursive
