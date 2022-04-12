@@ -56,8 +56,6 @@ void Renderer::Load()
     float screenW = GetLogicalWidth();
     float screenH = GetLogicalHeight();
 
-    testEntity = wi::ecs::CreateEntity();
-
     RenderPath3D::Load();
 }
 void Renderer::Update(float dt)
