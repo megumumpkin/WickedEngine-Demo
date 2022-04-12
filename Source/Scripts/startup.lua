@@ -6,4 +6,4 @@ else
     print("Running the startup script as a program.")
 end
 
-LoadModel('Assets/World.wiscene')
+LoadModel('Assets/Scenes/World.wiscene')
