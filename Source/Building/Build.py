@@ -1,6 +1,7 @@
 #region Modules
 
 import argparse
+import os
 import subprocess 
 from sys import platform
 import warnings
@@ -34,6 +35,7 @@ def Build():
 
 def Play():
     print("Running the Wicked Engine demo!")
+    os.system('cd ../../Build/ && ./Game')
 
 #endregion
 
