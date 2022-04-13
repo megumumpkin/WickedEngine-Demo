@@ -36,15 +36,6 @@
 
 # Backup Blender files
 *.blend*
-*.blend1
-*.blend2
-*.blend3
-*.blend4
-*.blend5
-*.blend6
-*.blend7
-*.blend8
-*.blend9
 
 # Building
 CMakeLists.txt.user
