@@ -44,7 +44,7 @@ def Play():
 if __name__ == "__main__":
     Build()
 
-    if arguments.playGame == "true" or "True":
+    if arguments.playGame ==  "True":
         Play()
 
 #endregion
