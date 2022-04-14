@@ -21,3 +21,9 @@ else
 fi
 
 cmake --build Build -j$(nproc)
+
+rm -f Build/startup.lua
+cp Source/Scripts/Initialisation/startup.lua Build/startup.lua
+rm -r -f Build/Assets
+cp -r Assets/ Build/Assets
+rm -f Build/Assets/Scripts

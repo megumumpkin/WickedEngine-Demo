@@ -1,5 +1,3 @@
-#!/usr/bin/lua
-
 if pcall(getfenv, 4) then
     error("Running the startup script as a library!")
 else
@@ -7,3 +5,5 @@ else
 end
 
 LoadModel('Assets/Scenes/World.wiscene')
+
+CreateEntity("Player")
