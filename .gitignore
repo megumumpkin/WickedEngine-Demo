@@ -58,5 +58,8 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 
+# Editor files
+*.code-workspace
+
 # Logging
 *.log
