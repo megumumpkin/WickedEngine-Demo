@@ -24,6 +24,13 @@ void Game::Initialize()
     renderer.Load();
 
 	ActivatePath(&renderer);
+
+    static wi::audio::Sound sound;
+    static wi::audio::SoundInstance soundinstance;
+
+    wi::audio::CreateSound("Assets/Audio/Music/Test.wav", &sound);
+    wi::audio::CreateSoundInstance(&sound, &soundinstance);
+    wi::audio::Play(&soundinstance);
 }
 
 void Renderer::Load()
