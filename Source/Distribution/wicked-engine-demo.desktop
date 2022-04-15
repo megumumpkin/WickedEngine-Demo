@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Wicked Engine Demo
+Name[ja]=ウィケッドエンジン
+GenericName=Game engine
+GenericName[ja]=ゲームエンジン
+Comment=A fully-fledged game made in Wicked Engine.
+Keywords=3d;cg;modeling;animation;painting;texturing;rendering;render engine;game engine;lua;
+Exec=wicked-engine-demo
+Icon=wicked-demo
+Terminal=true
+Type=Application
+Categories=Game;Graphics;3DGraphics;
