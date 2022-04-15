@@ -45,7 +45,8 @@ your system. It's also worth mentioning that it should be compiled using CMake.
 This project also uses CMake, so do make sure that dependency is met.
 
 ### Manually
-Replace `/path/to/wicked/build_folder/` with your Wicked Engine `build/` directory.
+Replace `/path/to/wicked/build_folder/` with your 
+[Wicked Engine](https://github.com/turanszkij/WickedEngine) `build/` directory.
 ```sh
 ➜ cmake -B Build -DWickedEngine_DIR=/path/to/wicked/build_folder/cmake .
 ➜ cmake --build Build -j$(nproc)
