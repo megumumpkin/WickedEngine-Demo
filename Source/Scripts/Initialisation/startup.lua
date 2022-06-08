@@ -4,6 +4,4 @@ else
     print("Running the startup script as a program.")
 end
 
-LoadModel('Assets/Scenes/World.wiscene')
-
 CreateEntity("Player")
