@@ -9,7 +9,7 @@ if [ ! -d '../../Library/WickedEngine/build' ]; then
 	mkdir 'build'
 	cd '../../Library/WickedEngine/build'
 	cmake .. -DCMAKE_BUILD_TYPE=Release
-	make
+	make -j$(nproc)
 fi
 
 if [ -d '../../Library/WickedEngine/build' ]; then
