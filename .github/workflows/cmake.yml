@@ -31,9 +31,9 @@ jobs:
         mkdir build
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release
-        make
+        make -j$(nproc)
         cd ../../../ && ls
-        cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake .
+        cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
       
     - name: Build game
       run: |
