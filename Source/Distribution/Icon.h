@@ -1,3 +1,6 @@
+#include <iostream>
+#include <SDL2/SDL.h>
+
 /* GIMP RGBA C-Source image dump (icon.c) */
 
 static const struct {

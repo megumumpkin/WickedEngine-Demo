@@ -1,10 +1,10 @@
-#include "stdafx.h"
 #include "Game.h"
+#include "stdafx.h"
 
-#include <iostream>
-#include <string>
-#include <sstream>
 #include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
 #include <thread>
 
 using std::cout;
@@ -24,13 +24,6 @@ void Game::Initialize()
     renderer.Load();
 
 	ActivatePath(&renderer);
-
-    static wi::audio::Sound sound;
-    static wi::audio::SoundInstance soundinstance;
-
-    wi::audio::CreateSound("Assets/Audio/Music/Test.wav", &sound);
-    wi::audio::CreateSoundInstance(&sound, &soundinstance);
-    wi::audio::Play(&soundinstance);
 }
 
 void Renderer::Load()
@@ -38,6 +31,7 @@ void Renderer::Load()
     setSSREnabled(true);
     setReflectionsEnabled(true);
     setFXAAEnabled(true);
+    setBloomEnabled(false);
 
     static wi::audio::Sound sound;
     static wi::audio::SoundInstance soundinstance;
@@ -45,12 +39,13 @@ void Renderer::Load()
     // Reset all state that tests might have modified:
     wi::eventhandler::SetVSync(true);
     wi::renderer::SetToDrawGridHelper(false);
-    wi::renderer::SetTemporalAAEnabled(true);
     wi::renderer::ClearWorld(wi::scene::GetScene());
     wi::scene::GetScene().weather = wi::scene::WeatherComponent();
     this->ClearSprites();
     this->ClearFonts();
-    if (wi::lua::GetLuaState() != nullptr) {
+    
+    if (wi::lua::GetLuaState() != nullptr) 
+    {
         wi::lua::KillProcesses();
     }
 
@@ -65,6 +60,7 @@ void Renderer::Load()
 
     RenderPath3D::Load();
 }
+
 void Renderer::Update(float dt)
 {
     RenderPath3D::Update(dt);
