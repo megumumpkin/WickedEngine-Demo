@@ -28,7 +28,6 @@ local player = Player
 
 function Start()
     LoadModel('Assets/Scenes/Main.wiscene')
-    player:Create(LoadModel('Assets/Prefabs/Bird.wiscene'))
 end
 
 text_color = Vector(1,1,1,1)
