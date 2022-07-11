@@ -16,7 +16,7 @@
         {
             "label": "Playtest",
             "type": "shell",
-            "command": "cd Source/Building && python Build.py -p true",
+            "command": "cd Source/Building && python Build.py -p True",
             "problemMatcher": [
                 "$gcc"
             ],
