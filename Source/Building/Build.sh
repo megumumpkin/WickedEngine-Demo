@@ -23,7 +23,8 @@ fi
 cmake --build Build -j$(nproc)
 
 rm -f Build/startup.lua
-cp Source/Scripts/Initialisation/startup.lua Build/startup.lua
-rm -r -f Build/Assets
-cp -r Assets/ Build/Assets
-rm -f Build/Assets/Scripts
+rm -f Build/editor.lua
+cp Source/Scripts/Root/startup.lua Build/startup.lua
+cp Source/Scripts/Root/editor.lua Build/editor.lua
+rm -r -f Build/Data
+cp -r Data/ Build/Data
