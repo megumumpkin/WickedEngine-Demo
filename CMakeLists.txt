@@ -106,8 +106,21 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/ffx-fsr/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/ffx-fsr"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/ffx-shadows-dnsr/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/ffx-shadows-dnsr"
-
-	# Create symlink of root scripts
-	COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/Source/Scripts/Root/startup.lua" "${CMAKE_CURRENT_BINARY_DIR}/startup.lua"
-	COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/Source/Scripts/Root/editor.lua" "${CMAKE_CURRENT_BINARY_DIR}/editor.lua"
 )
+
+# Sync back and forth scripts
+if(EXISTS "build/startup.lua")
+	add_custom_command(
+		TARGET Game POST_BUILD
+		# Copy back scripts
+		COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/startup.lua" "${CMAKE_CURRENT_SOURCE_DIR}/Source/Scripts/Root/startup.lua" 
+		COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/editor.lua" "${CMAKE_CURRENT_SOURCE_DIR}/Source/Scripts/Root/editor.lua"
+	)
+else()
+	add_custom_command(
+		TARGET Game POST_BUILD
+		# Copy forth scripts
+		COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/Source/Scripts/Root/startup.lua" "${CMAKE_CURRENT_BINARY_DIR}/startup.lua" 
+		COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/Source/Scripts/Root/editor.lua" "${CMAKE_CURRENT_BINARY_DIR}/editor.lua"
+	)
+endif()

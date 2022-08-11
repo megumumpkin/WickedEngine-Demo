@@ -68,7 +68,7 @@ void Game::LiveUpdate::Init(){
     filewatcher = std::make_shared<efsw::FileWatcher>();
     fwlistener = std::make_shared<FSUpdateListener>();
     watch_front = filewatcher->addWatch(wi::helper::GetCurrentPath(), fwlistener.get(), true);
-    watch_asset = filewatcher->addWatch(wi::helper::GetCurrentPath()+"/data/asset", fwlistener.get(), true);
+    watch_asset = filewatcher->addWatch(wi::helper::GetCurrentPath()+"/Data/Asset", fwlistener.get(), true);
     filewatcher->watch();
 }
 
