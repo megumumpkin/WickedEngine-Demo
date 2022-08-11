@@ -1,4 +1,5 @@
 #include "main_Windows.h"
+#include "Game.h"
 #include "stdafx.h"
 
 #define MAX_LOADSTRING 100
@@ -7,7 +8,7 @@
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-Tests tests;
+Game::Application app;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -53,7 +54,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 		else {
 
-			tests.Run();
+			app.Run();
 
 		}
 	}
@@ -111,7 +112,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
-   tests.SetWindow(hWnd);
+   app.SetWindow(hWnd);
 
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
@@ -133,7 +134,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
-          case WM_COMMAND:
+        case WM_COMMAND:
             {
                 int wmId = LOWORD(wParam);
                 // Parse the menu selections:
@@ -152,8 +153,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             break;
         case WM_SIZE:
         case WM_DPICHANGED:
-            if (tests.is_window_active)
-                tests.SetWindow(hWnd);
+            if (app.is_window_active)
+                app.SetWindow(hWnd);
             break;
         case WM_CHAR:
             switch (wParam)
@@ -180,12 +181,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         case WM_INPUT:
             wiRawInput::ParseMessage((void*)lParam);
             break;
+        /* Nay
         case WM_KILLFOCUS:
-            tests.is_window_active = false;
+            app.is_window_active = false;
             break;
         case WM_SETFOCUS:
-            tests.is_window_active = true;
+            app.is_window_active = true;
             break;
+        */
         case WM_PAINT:
             {
                 PAINTSTRUCT ps;

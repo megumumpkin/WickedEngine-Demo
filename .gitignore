@@ -63,3 +63,11 @@ _deps
 
 # Logging
 *.log
+
+# Build/Generated data files that are too big to sync
+# You don't want devs to carry all that heavy load when cloning this project don't you?
+# No worries, this all stuff will be rebuilt again when devs run the esteemed cmake
+# It's in everybody's best interest to keep things nice and slim
+build/
+.cache/
+Data/Shader

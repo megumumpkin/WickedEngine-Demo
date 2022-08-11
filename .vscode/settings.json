@@ -12,5 +12,6 @@
     "cmake.configureOnOpen": true,
     "cmake.buildDirectory": "${workspaceFolder}/Build",
     "cmake.buildTask": true
-    }
+    },
+    "cmake.configureOnOpen": true
 }

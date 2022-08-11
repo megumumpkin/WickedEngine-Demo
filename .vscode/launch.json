@@ -1,0 +1,24 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Game",
+            "type": "gdb",
+            "request": "launch",
+            "target": "./Game",
+            "cwd": "${workspaceRoot}/build",
+            "valuesFormatting": "parseText"
+        },
+        {
+            "name": "Debug DevTool",
+            "type": "gdb",
+            "request": "launch",
+            "target": "./Dev",
+            "cwd": "${workspaceRoot}/build",
+            "valuesFormatting": "parseText"
+        }
+    ]
+}
