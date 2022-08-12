@@ -1,6 +1,12 @@
 # Wicked Engine - Demo
-[![Ko-Fi](https://img.shields.io/badge/donate-kofi-blue?style=for-the-badge&logo=ko-fi&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://ko-fi.com/molasses)
-[![Patreon](https://img.shields.io/badge/donate-patreon-blue?style=for-the-badge&logo=patreon&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://www.patreon.com/molasseslover)
+## STATUS: Still in development - Game backend development 30%
+
+## Support Devs
+|Contributor|Support|
+|---|---|
+|Megumumpkin|N/A|
+|MolassesLover|[![Ko-Fi](https://img.shields.io/badge/donate-kofi-blue?style=for-the-badge&logo=ko-fi&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://ko-fi.com/molasses) [![Patreon](https://img.shields.io/badge/donate-patreon-blue?style=for-the-badge&logo=patreon&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://www.patreon.com/molasseslover)|
+
 
 A fully-fledged game made using [Wicked Engine](https://github.com/turanszkij/WickedEngine) 
 in order to battle-test features, mature the engine, and expand the community. 
