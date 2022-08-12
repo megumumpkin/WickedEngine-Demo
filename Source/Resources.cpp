@@ -1,6 +1,8 @@
 #include "Resources.h"
 #include <mutex>
+#include <set>
 #include <wiBacklog.h>
+#include <wiECS.h>
 #include <wiHelper.h>
 #include <wiJobSystem.h>
 
@@ -155,6 +157,7 @@ uint32_t Library::Load(std::string file, std::string subresource, uint32_t loadi
         auto& instance = GetLibraryData()->instances.back();
         instance.instance_uuid = _resources_internal_generateUUID();
         instance.collection_name = _collection->name;
+        if(_collection->keep_alive) instance.keep_alive = true;
 
         instance_uuid = instance.instance_uuid;
 
@@ -341,6 +344,7 @@ void Library::Entity_Disable(wi::ecs::Entity entity){
         GetLibraryData()->scene->Entity_Remove(entity,false);
     }
 }
+
 wi::ecs::Entity Library::Entity_Enable(wi::ecs::Entity entity, bool clone){
     auto found_disabled = Library::GetLibraryData()->disabled_entities.find(entity);
     if(found_disabled != Library::GetLibraryData()->disabled_entities.end()){
@@ -358,6 +362,7 @@ wi::ecs::Entity Library::Entity_Enable(wi::ecs::Entity entity, bool clone){
     }
     return wi::ecs::INVALID_ENTITY;
 }
+
 void Library::Entity_ApplyConfig(wi::ecs::Entity target, wi::ecs::Entity config, COMPONENT_FILTER componentfilter){
     bool remove_config_after = (componentfilter & COMPONENT_FILTER_REMOVE_CONFIG_AFTER);
     bool use_layer_transform = (componentfilter & COMPONENT_FILTER_USE_LAYER_TRANSFORM);
@@ -439,12 +444,70 @@ void Library::Entity_ApplyConfig(wi::ecs::Entity target, wi::ecs::Entity config,
 
 
 
+uint32_t Library::CreateCollection(std::string& name){
+    bool name_avail = (GetLibraryData()->collections_map.find(name) != GetLibraryData()->collections_map.end());
+    if(name_avail) {
+        auto new_collection = GetLibraryData()->collections.emplace_back();
+        new_collection.keep_alive = true;
+        auto new_instance = GetLibraryData()->instances.emplace_back();
+        new_instance.instance_uuid = _resources_internal_generateUUID();
+        new_instance.collection_name = name;
+        new_instance.keep_alive = true;
+        new_collection.instance_count++;
+        RebuildInfoMap();
+        return new_instance.instance_uuid;
+    }
+    return 0;
+}
+
+Library::Collection* Library::GetCollection(std::string& name){
+    auto collection_find = GetLibraryData()->collections_map.find(name);
+    if(collection_find != GetLibraryData()->collections_map.end()){
+        return &GetLibraryData()->collections[collection_find->second];
+    }
+    return nullptr;
+}
+
 Library::Instance* Library::GetInstance(uint32_t instance_uuid){
     auto instance_find = GetLibraryData()->instances_map.find(instance_uuid);
     if(instance_find != GetLibraryData()->instances_map.end()){
         return &GetLibraryData()->instances[instance_find->second];
     }
     return nullptr;
+}
+
+void Library::SyncInstance(uint32_t instance_uuid){
+    auto instance_find = GetLibraryData()->instances_map.find(instance_uuid);
+    if(instance_find != GetLibraryData()->instances_map.end()){
+        auto& instance = GetLibraryData()->instances[instance_find->second];
+        auto collection_find = GetLibraryData()->collections_map.find(instance.collection_name);
+        auto& collection = GetLibraryData()->collections[collection_find->second];
+        // Phase 1 : Verification
+        bool sync_original = false;
+        std::set<wi::ecs::Entity> collection_ent;
+        for(auto& entity : collection.entities){
+            collection_ent.insert(entity);
+        }
+        for(auto& entity_kval : instance.entities){
+            auto entity = entity_kval.second;
+            if(!sync_original){
+                if(collection_ent.find(entity) != collection_ent.end()){
+                    sync_original = true;
+                    break;
+                }
+            }
+        }
+        // Phase 2 : Syncing
+        for(auto& entity : collection_ent){
+            if(instance.entities.find(entity) == instance.entities.end()){
+                if(sync_original){
+                    instance.entities[entity] = entity;
+                }else{
+                    _resources_internal_cloneEntity(entity, instance, false);
+                }
+            }
+        }
+    }
 }
 
 

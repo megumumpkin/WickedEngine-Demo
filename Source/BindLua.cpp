@@ -78,7 +78,7 @@ namespace Game::ScriptBindings{
 		return PID;
 	}
 
-	//Script's system side async jobs
+	// Script's system side async jobs
 	wi::jobsystem::context script_sys_jobs;
 	std::mutex script_sys_mutex;
 
@@ -194,9 +194,10 @@ namespace Game::ScriptBindings{
         Resources::Bind();
     }
 
-	//For sending any messaging events
+	// 
 	void Update(float dt){
-		//filedialog messages
+		// For sending any messaging events
+		// filedialog messages
 		for(auto& fd_msg_kval : filedialog_msg){
 			auto L = wi::lua::GetLuaState();
 			lua_getglobal(L, "fd_setresult");
