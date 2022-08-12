@@ -5,6 +5,7 @@
 #include "Resources.h"
 
 namespace Game::ScriptBindings::Resources{
+    void Update();
     void Bind();
     
     //Library

@@ -1,10 +1,6 @@
 #include "Resources.h"
 #include <mutex>
 #include <set>
-#include <wiBacklog.h>
-#include <wiECS.h>
-#include <wiHelper.h>
-#include <wiJobSystem.h>
 
 using namespace Game::Resources;
 
@@ -118,7 +114,7 @@ void Library::Init(){
     GetLibraryData()->scene = &wi::scene::GetScene();
 }
 
-uint32_t Library::Load(std::string file, std::string subresource, uint32_t loadingstrategy, uint32_t loadingflags){
+uint32_t Library::Load(std::string file, std::string subresource, wi::ecs::Entity root, uint32_t loadingstrategy, uint32_t loadingflags){
     std::scoped_lock lock (GetLibraryData()->load_protect);
 
     bool ld_full = (loadingstrategy & LOADING_STRATEGY_FULL);
@@ -256,12 +252,14 @@ uint32_t Library::Load(std::string file, std::string subresource, uint32_t loadi
 
     Library::RebuildInfoMap();
 
+    // Attach entities to root if exists
+
     return instance_uuid;
 }
 
-void Library::Load_Async(std::string file, std::function<void(uint32_t)> callback, std::string subresource, uint32_t loadingstrategy, uint32_t loadingflags){
+void Library::Load_Async(std::string file, std::function<void(uint32_t)> callback, std::string subresource, wi::ecs::Entity root, uint32_t loadingstrategy, uint32_t loadingflags){
     wi::jobsystem::Execute(GetLibraryData()->jobs, [=](wi::jobsystem::JobArgs args){
-        uint32_t instance_uuid = Load(file, subresource, loadingstrategy, loadingflags);
+        uint32_t instance_uuid = Load(file, subresource, root, loadingstrategy, loadingflags);
         if(callback != nullptr) wi::eventhandler::Subscribe_Once(wi::eventhandler::EVENT_THREAD_SAFE_POINT, [=](uint64_t userdata){
             callback(instance_uuid);
         });
@@ -476,40 +474,6 @@ Library::Instance* Library::GetInstance(uint32_t instance_uuid){
     return nullptr;
 }
 
-void Library::SyncInstance(uint32_t instance_uuid){
-    auto instance_find = GetLibraryData()->instances_map.find(instance_uuid);
-    if(instance_find != GetLibraryData()->instances_map.end()){
-        auto& instance = GetLibraryData()->instances[instance_find->second];
-        auto collection_find = GetLibraryData()->collections_map.find(instance.collection_name);
-        auto& collection = GetLibraryData()->collections[collection_find->second];
-        // Phase 1 : Verification
-        bool sync_original = false;
-        std::set<wi::ecs::Entity> collection_ent;
-        for(auto& entity : collection.entities){
-            collection_ent.insert(entity);
-        }
-        for(auto& entity_kval : instance.entities){
-            auto entity = entity_kval.second;
-            if(!sync_original){
-                if(collection_ent.find(entity) != collection_ent.end()){
-                    sync_original = true;
-                    break;
-                }
-            }
-        }
-        // Phase 2 : Syncing
-        for(auto& entity : collection_ent){
-            if(instance.entities.find(entity) == instance.entities.end()){
-                if(sync_original){
-                    instance.entities[entity] = entity;
-                }else{
-                    _resources_internal_cloneEntity(entity, instance, false);
-                }
-            }
-        }
-    }
-}
-
 
 
 void Library::Collection::KeepResources(){
@@ -601,6 +565,40 @@ void Library::Instance::Entities_Wipe(){
 
 bool Library::Instance::Empty(){
     return (entities.size() == 0);
+}
+
+void Library::Instance::Sync(){
+    auto instance_find = GetLibraryData()->instances_map.find(instance_uuid);
+    if(instance_find != GetLibraryData()->instances_map.end()){
+        auto& instance = GetLibraryData()->instances[instance_find->second];
+        auto collection_find = GetLibraryData()->collections_map.find(instance.collection_name);
+        auto& collection = GetLibraryData()->collections[collection_find->second];
+        // Phase 1 : Verification
+        bool sync_original = false;
+        std::set<wi::ecs::Entity> collection_ent;
+        for(auto& entity : collection.entities){
+            collection_ent.insert(entity);
+        }
+        for(auto& entity_kval : instance.entities){
+            auto entity = entity_kval.second;
+            if(!sync_original){
+                if(collection_ent.find(entity) != collection_ent.end()){
+                    sync_original = true;
+                    break;
+                }
+            }
+        }
+        // Phase 2 : Syncing
+        for(auto& entity : collection_ent){
+            if(instance.entities.find(entity) == instance.entities.end()){
+                if(sync_original){
+                    instance.entities[entity] = entity;
+                }else{
+                    _resources_internal_cloneEntity(entity, instance, false);
+                }
+            }
+        }
+    }
 }
 
 void LiveUpdate::Update(float dt){

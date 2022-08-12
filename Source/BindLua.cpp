@@ -3,16 +3,8 @@
 #include "Resources_BindLua.h"
 #include "WickedEngine.h"
 #include <LUA/lua.h>
-#include <mutex>
-#include <string>
-#include <wiBacklog.h>
-#include <wiHelper.h>
-#include <wiJobSystem.h>
-#include <wiLua.h>
-
 #include <filesystem>
-#include <wiRenderer.h>
-#include <wiUnorderedMap.h>
+#include <string>
 
 #if IS_DEV
 #include "ImGui/imgui_BindLua.h"
@@ -82,7 +74,8 @@ namespace Game::ScriptBindings{
 	wi::jobsystem::context script_sys_jobs;
 	std::mutex script_sys_mutex;
 
-	wi::unordered_map<std::string, std::string> filedialog_msg;
+	wi::unordered_map<std::string, std::function<void(std::string,wi::Archive)>> async_callback_solvers;
+	wi::unordered_map<std::string, wi::Archive> async_callbacks;
 
 	int Internal_DoFile(lua_State* L)
 	{
@@ -151,13 +144,23 @@ namespace Game::ScriptBindings{
 					wi::backlog::post(token);
 				}
 			}
-			auto UID = wi::lua::SGetString(L, 4);
+			std::string TID = "FILEDIALOG";
+			lua_getglobal(L, "async_callback_listen");
+			lua_pushstring(L, TID.c_str());
+			lua_pushvalue(L, 4);
+			lua_call(L,2,0);
 
 			wi::jobsystem::Execute(script_sys_jobs, [=](wi::jobsystem::JobArgs){
 				wi::helper::FileDialog({(wi::helper::FileDialogParams::TYPE) mode, desc, type_list}, [&](std::string fileName) {
 					wi::eventhandler::Subscribe_Once(wi::eventhandler::EVENT_THREAD_SAFE_POINT, [=](uint64_t userdata){
 						std::scoped_lock lock (script_sys_mutex);
-						filedialog_msg[UID] = fileName;
+						
+						wi::Archive callback_data;
+						callback_data.SetReadModeAndResetPos(false);
+						callback_data << "filedialog";
+						callback_data << fileName;
+
+						Push_AsyncCallback(TID, callback_data);
 					});
 				});
 			});
@@ -183,30 +186,58 @@ namespace Game::ScriptBindings{
 	}
 #endif
 
+	// Script bindings need to initialize themselves here
     void Init(){
         wi::lua::RunText(ScriptBindings_Globals);
 		wi::lua::RegisterFunc("dofile", Internal_DoFile);
 #if IS_DEV
-		wi::lua::RegisterFunc("Internal_filedialog", Internal_FileDialog);
+		wi::lua::RegisterFunc("filedialog", Internal_FileDialog);
+		Register_AsyncCallback("filedialog",[=](std::string tid, wi::Archive archive){
+			std::string filepath;
+			archive >> filepath;
+			auto L = wi::lua::GetLuaState();
+			lua_getglobal(L, "async_callback_setdata");
+			lua_pushstring(L, tid.c_str());
+			lua_newtable(L);
+			lua_pushstring(L, filepath.c_str());
+			lua_setfield(L, -2, "filepath");
+			lua_pushstring(L, wi::helper::toUpper(wi::helper::GetExtensionFromFileName(filepath)).c_str());
+			lua_setfield(L, -2, "type");
+			lua_call(L,2,0);
+		});
 		wi::lua::RegisterFunc("editor_dev_griddraw", Internal_EditorDevGridDraw);
         ImGui::Bind();
 #endif
         Resources::Bind();
     }
 
-	// 
+	// Updates stuff which needs synchronization from Lua
 	void Update(float dt){
-		// For sending any messaging events
-		// filedialog messages
-		for(auto& fd_msg_kval : filedialog_msg){
-			auto L = wi::lua::GetLuaState();
-			lua_getglobal(L, "fd_setresult");
-			lua_pushstring(L, fd_msg_kval.first.c_str());
-			lua_pushstring(L, fd_msg_kval.second.c_str());
-			lua_pushstring(L, wi::helper::toUpper(wi::helper::GetExtensionFromFileName(fd_msg_kval.second)).c_str());
-			lua_call(L,3,0);
+		// Updates all async callbacks from lua here
+		/*
+		for(auto& callback : async_callbacks){
+			auto& UID = callback.first;
+			auto& archive = callback.second;
+			archive.SetReadModeAndResetPos(true);
+
+			std::string callback_solver_type;
+			archive >> callback_solver_type;
+
+			auto find_callback = async_callback_solvers.find(callback_solver_type);
+			if(find_callback != async_callback_solvers.end()){
+				find_callback->second(UID,archive);
+			}
 		}
-		filedialog_msg.clear();
+		async_callbacks.clear();
+		*/
+	}
+
+	void Register_AsyncCallback(std::string callback_type, std::function<void(std::string, wi::Archive)> callback_solver){
+		async_callback_solvers[callback_type] = callback_solver;
+	}
+
+	void Push_AsyncCallback(std::string callback_UID, wi::Archive& async_data){
+		async_callbacks[callback_UID] = async_data;
 	}
 }
 

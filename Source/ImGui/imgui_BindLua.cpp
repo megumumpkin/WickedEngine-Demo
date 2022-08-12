@@ -610,15 +610,6 @@ void LoadImguiBindings() {
     PushImguiEnums(lState, "constant");
     lua_setglobal(lState, "imgui");
 }
-/*
-std::vector<int> drawList;
-
-int imgui_draw(lua_State *L){
-    lua_pushvalue(L, 1);
-    auto ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    drawList.push_back(ref);
-    return 1;
-}*/
 
 void Game::ScriptBindings::ImGui::Bind(){
     lState = wi::lua::GetLuaState();

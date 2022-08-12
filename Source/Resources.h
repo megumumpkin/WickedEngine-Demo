@@ -2,6 +2,7 @@
 
 #include <WickedEngine.h>
 #include <mutex>
+#include <wiECS.h>
 #include <wiHelper.h>
 
 namespace Game::Resources{
@@ -35,10 +36,11 @@ namespace Game::Resources{
         struct Instance{
             uint32_t instance_uuid; // Unique ID for every instances of a collection
             std::string collection_name; // Reference to the related collection
+            wi::ecs::Entity root_entity; // Root entity which manages the overall object transforms
             wi::unordered_map<uint64_t, wi::ecs::Entity> entities; // List of instanced entities
             bool keep_alive = false; // Keep instance alive event if it is empty!
 
-            // Helper functions for easier access to components
+            // Down below are helper functions for easier access to components
 
             // Get entity list of an instance
             wi::vector<wi::ecs::Entity> GetEntities();
@@ -50,6 +52,12 @@ namespace Game::Resources{
             void Entities_Wipe(); 
             // Check if instance is empty
             bool Empty(); 
+
+            // Down below are helper functions related to managing the instance
+
+            // Sync instance data to collection
+            void Sync();
+
         };
         struct Data{
             wi::vector<Collection> collections;
@@ -78,9 +86,9 @@ namespace Game::Resources{
         // Init library system first before using
         void Init();
         // Load scene as collection
-        uint32_t Load(std::string file, std::string subresource = "", uint32_t loadstrategy = LOADING_STRATEGY_SHALLOW, uint32_t loadingflags = LOADING_FLAGS_NONE);
+        uint32_t Load(std::string file, std::string subresource = "", wi::ecs::Entity root = wi::ecs::INVALID_ENTITY, uint32_t loadstrategy = LOADING_STRATEGY_SHALLOW, uint32_t loadingflags = LOADING_FLAGS_NONE);
         // Load scene as collection asynchronously
-        void Load_Async(std::string file, std::function<void(uint32_t)> callback = nullptr, std::string subresource = "", uint32_t loadstrategy = LOADING_STRATEGY_SHALLOW, uint32_t loadingflags = LOADING_FLAGS_NONE);
+        void Load_Async(std::string file, std::function<void(uint32_t)> callback = nullptr, std::string subresource = "", wi::ecs::Entity root = wi::ecs::INVALID_ENTITY, uint32_t loadstrategy = LOADING_STRATEGY_SHALLOW, uint32_t loadingflags = LOADING_FLAGS_NONE);
         // Check if collection exists
         bool Exist(std::string file, std::string subresource = "");
         // Create collection, returns the first instance of that collection
@@ -89,8 +97,6 @@ namespace Game::Resources{
         Collection* GetCollection(std::string& name);
         // Get instance from library
         Instance* GetInstance(uint32_t instance_uuid);
-        // Sync instance from with collection ?
-        void SyncInstance(uint32_t instance_uuid);
         // Remove instance and its entities from scene and library
         bool RemoveInstance(uint32_t instance_uuid);
         // Rebuild access cache, for faster data access

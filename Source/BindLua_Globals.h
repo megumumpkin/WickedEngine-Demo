@@ -22,24 +22,17 @@ function Internal_SyncSubTable(storage,source)
     end
 end
 
--- filedialog functions
-local fd_tid_counter = 0
-fd_tid_result = {}
-function fd_createTID()
-    fd_tid_counter = fd_tid_counter + 1
-    return fd_tid_counter
-end
-function fd_setresult(tid, path, type)
-    fd_tid_result[tid] = { path, type }
-    signal(tid)
-end
-function filedialog(mode, desc, ext, func)
-    local tid = "FD_"..fd_createTID()
-    Internal_filedialog(mode,desc,ext,tid)
+Async_Callback_Data = {}
+function async_callback_listen(tid, func)
     runProcess(function()
         waitSignal(tid)
-        func(fd_tid_result[tid][1],fd_tid_result[tid][2])
-        fd_tid_result[tid] = nil
+        func(Async_Callback_Data[tid])
+        Async_Callback_Data[tid] = nil
     end)
 end
+function async_callback_setdata(tid, data)
+    Async_Callback_Data[tid] = data
+    signal(tid)
+end
 )";
+

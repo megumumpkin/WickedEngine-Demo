@@ -1,9 +1,15 @@
+#include "BindLua.h"
 #include "Resources.h"
 #include "Resources_BindLua.h"
+#include <wiLua.h>
 #include <wiScene_BindLua.h>
+#include <set>
+#include <filesystem>
 
 namespace Game::ScriptBindings::Resources{
 
+    std::set<std::string> async_callbacks;
+    
     void Bind(){
         Library_BindLua::Bind();
 
@@ -23,6 +29,16 @@ namespace Game::ScriptBindings::Resources{
         wi::lua::RunText("Resources.LibraryFlags.COMPONENT_FILTER_USE_BASE = "+std::to_string(Game::Resources::Library::COMPONENT_FILTER_USE_BASE));
         wi::lua::RunText("Resources.LibraryFlags.COMPONENT_FILTER_USE_LAYER_TRANSFORM = "+std::to_string(Game::Resources::Library::COMPONENT_FILTER_USE_LAYER_TRANSFORM));
         wi::lua::RunText("Resources.LibraryFlags.COMPONENT_FILTER_REMOVE_CONFIG_AFTER = "+std::to_string(Game::Resources::Library::COMPONENT_FILTER_REMOVE_CONFIG_AFTER));
+
+        // Game::ScriptBindings::Register_AsyncCallback("asyncload",[=](std::string tid, wi::Archive archive){
+		//     uint32_t instance_uuid;
+		// 	archive >> instance_uuid;
+		// 	auto L = wi::lua::GetLuaState();
+		// 	lua_getglobal(L, "asyncload_setresult");
+		// 	lua_pushstring(L, tid.c_str());
+		// 	lua_pushnumber(L, instance_uuid);
+		// 	lua_call(L,3,0);
+		// });
     }
 
     const char Library_BindLua::className[] = "Library";
@@ -58,11 +74,13 @@ namespace Game::ScriptBindings::Resources{
             std::string filepath = wi::lua::SGetString(L, 1);
             std::string subresource = "";
             if(argc > 1) subresource = wi::lua::SGetString(L, 2);
+            wi::ecs::Entity root = wi::ecs::INVALID_ENTITY;
+            if(argc > 2) root = wi::lua::SGetInt(L, 3);
             uint32_t loadingstrategy = 0;
-            if(argc > 2) loadingstrategy = wi::lua::SGetInt(L, 3);
+            if(argc > 3) loadingstrategy = wi::lua::SGetInt(L, 4);
             uint32_t loadingflags = 0;
-            if(argc > 3) loadingflags = wi::lua::SGetInt(L, 4);
-            uint32_t result = Game::Resources::Library::Load(filepath, subresource, loadingstrategy, loadingflags);
+            if(argc > 4) loadingflags = wi::lua::SGetInt(L, 5);
+            uint32_t result = Game::Resources::Library::Load(filepath, subresource, root, loadingstrategy, loadingflags);
             wi::lua::SSetInt(L, result);
 
             return 1;
@@ -71,26 +89,35 @@ namespace Game::ScriptBindings::Resources{
         }
         return 0;
     }
+    uint32_t _internal_LoadAsync_genPID(){
+        static std::atomic<uint32_t> LoadAsyncTID_next{ 0 + 1 };
+		return LoadAsyncTID_next.fetch_add(1);
+    };
     int Library_BindLua::Load_Async(lua_State *L){
         int argc = wi::lua::SGetArgCount(L);
         if(argc > 0){
             std::string filepath = wi::lua::SGetString(L, 1);
+            std::string TID = "ASYNCLOAD_"+std::to_string(_internal_LoadAsync_genPID());
             std::string subresource = "";
             if(argc >= 3) subresource = wi::lua::SGetString(L, 3);
+            wi::ecs::Entity root = wi::ecs::INVALID_ENTITY;
+            if(argc >= 4) root = wi::lua::SGetInt(L, 4);
             uint32_t loadingstrategy = 0;
-            if(argc >= 4) loadingstrategy = wi::lua::SGetInt(L, 4);
+            if(argc >= 5) loadingstrategy = wi::lua::SGetInt(L, 5);
             uint32_t loadingflags = 0;
-            if(argc >= 5) loadingflags = wi::lua::SGetInt(L, 5);
-            lua_pushvalue(L, 2);
-            auto ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            if(argc >= 6) loadingflags = wi::lua::SGetInt(L, 6);
             Game::Resources::Library::Load_Async(filepath, [=](uint32_t instance_uuid){
-                lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-                lua_pushinteger(L, instance_uuid);
-                lua_call(L, 1, 0);
-            }, subresource, loadingstrategy, loadingflags);
+                /*
+                wi::Archive callback_data;
+                callback_data.SetReadModeAndResetPos(false);
+                callback_data << "asyncload";
+                callback_data << instance_uuid;
+                Push_AsyncCallback(TID, callback_data);
+                */
+            }, subresource, root, loadingstrategy, loadingflags);
             return 1;
         }else{
-            wi::lua::SError(L, "Load_Async(string filepath) not enough arguments!");
+            wi::lua::SError(L, "Load_Async(string filepath, func callback) not enough arguments!");
         }
         return 0;
     }
