@@ -146,6 +146,9 @@ local update_sysmenu_actions = function()
     -- File menu actions
     if D.editor_data.actions.resource_new then
         backlog_post("ACT_STUB: new resource not working")
+        filedialog(0,"Wicked Engine Scene","wiscene",function(data)
+            backlog_post(data.filepath)
+        end)
         D.editor_data.actions.resource_new = false
     end
     if D.editor_data.actions.resource_rename then
@@ -160,48 +163,45 @@ local update_sysmenu_actions = function()
 end
 
 local update_navigation = function()
-    editor_dev_griddraw(true)
-    while true do
-        local camera_pos_delta = Vector()
-        local camera_rot_delta = Vector()
-        
-        -- Camera movement WASDQE
-        if(input.Down(string.byte('W'))) then camera_pos_delta.SetZ(1.0*CAM_MOVE_SPD) end
-        if(input.Down(string.byte('S'))) then camera_pos_delta.SetZ(-1.0*CAM_MOVE_SPD) end
-        if(input.Down(string.byte('A'))) then camera_pos_delta.SetX(-1.0*CAM_MOVE_SPD) end
-        if(input.Down(string.byte('D'))) then camera_pos_delta.SetX(1.0*CAM_MOVE_SPD) end
-        if(input.Down(string.byte('Q'))) then camera_pos_delta.SetY(-1.0*CAM_MOVE_SPD) end
-        if(input.Down(string.byte('E'))) then camera_pos_delta.SetY(1.0*CAM_MOVE_SPD) end
-        -- Camera rotation keyboard
-        if(input.Down(KEYBOARD_BUTTON_UP)) then camera_rot_delta.SetX(-1.0*CAM_ROT_SPD) end
-        if(input.Down(KEYBOARD_BUTTON_DOWN)) then camera_rot_delta.SetX(1.0*CAM_ROT_SPD) end
-        if(input.Down(KEYBOARD_BUTTON_LEFT)) then camera_rot_delta.SetY(-1.0*CAM_ROT_SPD) end
-        if(input.Down(KEYBOARD_BUTTON_RIGHT)) then camera_rot_delta.SetY(1.0*CAM_ROT_SPD) end
-        -- Get rotated movement
-        local camera_rot_matrix = matrix.Rotation(D.editor_data.navigation.camera_rot)
-        camera_pos_delta = vector.Transform(camera_pos_delta, camera_rot_matrix)
+    local camera_pos_delta = Vector()
+    local camera_rot_delta = Vector()
+    
+    -- Camera movement WASDQE
+    if(input.Down(string.byte('W'))) then camera_pos_delta.SetZ(1.0*CAM_MOVE_SPD) end
+    if(input.Down(string.byte('S'))) then camera_pos_delta.SetZ(-1.0*CAM_MOVE_SPD) end
+    if(input.Down(string.byte('A'))) then camera_pos_delta.SetX(-1.0*CAM_MOVE_SPD) end
+    if(input.Down(string.byte('D'))) then camera_pos_delta.SetX(1.0*CAM_MOVE_SPD) end
+    if(input.Down(string.byte('Q'))) then camera_pos_delta.SetY(-1.0*CAM_MOVE_SPD) end
+    if(input.Down(string.byte('E'))) then camera_pos_delta.SetY(1.0*CAM_MOVE_SPD) end
+    -- Camera rotation keyboard
+    if(input.Down(KEYBOARD_BUTTON_UP)) then camera_rot_delta.SetX(-1.0*CAM_ROT_SPD) end
+    if(input.Down(KEYBOARD_BUTTON_DOWN)) then camera_rot_delta.SetX(1.0*CAM_ROT_SPD) end
+    if(input.Down(KEYBOARD_BUTTON_LEFT)) then camera_rot_delta.SetY(-1.0*CAM_ROT_SPD) end
+    if(input.Down(KEYBOARD_BUTTON_RIGHT)) then camera_rot_delta.SetY(1.0*CAM_ROT_SPD) end
+    -- Get rotated movement
+    local camera_rot_matrix = matrix.Rotation(D.editor_data.navigation.camera_rot)
+    camera_pos_delta = vector.Transform(camera_pos_delta, camera_rot_matrix)
 
-        -- Apply rotation delta
-        D.editor_data.navigation.camera_rot.SetX(D.editor_data.navigation.camera_rot.GetX() + camera_rot_delta.GetX())
-        D.editor_data.navigation.camera_rot.SetY(D.editor_data.navigation.camera_rot.GetY() + camera_rot_delta.GetY())
-        -- Apply movement delta
-        D.editor_data.navigation.camera_pos.SetZ(D.editor_data.navigation.camera_pos.GetZ() + camera_pos_delta.GetZ())
-        D.editor_data.navigation.camera_pos.SetX(D.editor_data.navigation.camera_pos.GetX() + camera_pos_delta.GetX())
-        D.editor_data.navigation.camera_pos.SetY(D.editor_data.navigation.camera_pos.GetY() + camera_pos_delta.GetY())
+    -- Apply rotation delta
+    D.editor_data.navigation.camera_rot.SetX(D.editor_data.navigation.camera_rot.GetX() + camera_rot_delta.GetX())
+    D.editor_data.navigation.camera_rot.SetY(D.editor_data.navigation.camera_rot.GetY() + camera_rot_delta.GetY())
+    -- Apply movement delta
+    D.editor_data.navigation.camera_pos.SetZ(D.editor_data.navigation.camera_pos.GetZ() + camera_pos_delta.GetZ())
+    D.editor_data.navigation.camera_pos.SetX(D.editor_data.navigation.camera_pos.GetX() + camera_pos_delta.GetX())
+    D.editor_data.navigation.camera_pos.SetY(D.editor_data.navigation.camera_pos.GetY() + camera_pos_delta.GetY())
 
-        -- Camera transform update
-        D.editor_data.navigation.camera_transform.ClearTransform()
-        D.editor_data.navigation.camera_transform.Translate(D.editor_data.navigation.camera_pos)
-        D.editor_data.navigation.camera_transform.Rotate(D.editor_data.navigation.camera_rot)
-        D.editor_data.navigation.camera_transform.UpdateTransform()
-        D.editor_data.navigation.camera.TransformCamera(D.editor_data.navigation.camera_transform)
-        D.editor_data.navigation.camera.UpdateCamera()
+    -- Camera transform update
+    D.editor_data.navigation.camera_transform.ClearTransform()
+    D.editor_data.navigation.camera_transform.Translate(D.editor_data.navigation.camera_pos)
+    D.editor_data.navigation.camera_transform.Rotate(D.editor_data.navigation.camera_rot)
+    D.editor_data.navigation.camera_transform.UpdateTransform()
+    D.editor_data.navigation.camera.TransformCamera(D.editor_data.navigation.camera_transform)
+    D.editor_data.navigation.camera.UpdateCamera()
 
-        update()
-    end
 end
 
 runProcess(function()
+    editor_dev_griddraw(true)
     while true do
         update_sysmenu_actions()
         update_navigation()
