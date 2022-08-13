@@ -5,8 +5,7 @@ if [ ! -d '../../Build' ]; then
 fi
 
 if [ ! -d '../../Data/Shader' ]; then
-	cd '../../Data/'
-	mkdir 'Shader'
+	mkdir -p '../../Data/Shader'
 fi
 
 if [ ! -d '../../Library/WickedEngine/build' ]; then
