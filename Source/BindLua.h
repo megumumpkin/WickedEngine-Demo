@@ -6,8 +6,8 @@
 namespace Game::ScriptBindings{
     void Init();
     void Update(float dt);
-    void Register_AsyncCallback(std::string callback_type, std::function<void(std::string, wi::Archive)>);
-    void Push_AsyncCallback(std::string callback_UID, wi::Archive& async_data);
+    void Register_AsyncCallback(std::string callback_type, std::function<void(std::string, std::shared_ptr<wi::Archive>)>);
+    void Push_AsyncCallback(std::string callback_UID, std::shared_ptr<wi::Archive> async_data);
     namespace LiveUpdate{
         struct ScriptReloadEvent{
             enum MODE{

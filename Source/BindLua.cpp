@@ -4,7 +4,9 @@
 #include "WickedEngine.h"
 #include <LUA/lua.h>
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <wiArchive.h>
 
 #if IS_DEV
 #include "ImGui/imgui_BindLua.h"
@@ -74,8 +76,8 @@ namespace Game::ScriptBindings{
 	wi::jobsystem::context script_sys_jobs;
 	std::mutex script_sys_mutex;
 
-	wi::unordered_map<std::string, std::function<void(std::string,wi::Archive)>> async_callback_solvers;
-	wi::unordered_map<std::string, wi::Archive> async_callbacks;
+	wi::unordered_map<std::string, std::function<void(std::string,std::shared_ptr<wi::Archive>)>> async_callback_solvers;
+	wi::unordered_map<std::string, std::shared_ptr<wi::Archive>> async_callbacks;
 
 	int Internal_DoFile(lua_State* L)
 	{
@@ -141,7 +143,6 @@ namespace Game::ScriptBindings{
 				std::stringstream ss(types);
 				while(std::getline(ss, token, ';')){
 					type_list.push_back(token);
-					wi::backlog::post(token);
 				}
 			}
 			std::string TID = "FILEDIALOG";
@@ -155,12 +156,14 @@ namespace Game::ScriptBindings{
 					wi::eventhandler::Subscribe_Once(wi::eventhandler::EVENT_THREAD_SAFE_POINT, [=](uint64_t userdata){
 						std::scoped_lock lock (script_sys_mutex);
 						
-						wi::Archive callback_data;
+						std::shared_ptr<wi::Archive> callback_data_ptr = std::make_shared<wi::Archive>();
+						auto& callback_data = *callback_data_ptr;
 						callback_data.SetReadModeAndResetPos(false);
-						callback_data << "filedialog";
+						std::string callback_type = "filedialog";
+						callback_data << callback_type;
 						callback_data << fileName;
 
-						Push_AsyncCallback(TID, callback_data);
+						Push_AsyncCallback(TID, callback_data_ptr);
 					});
 				});
 			});
@@ -192,7 +195,8 @@ namespace Game::ScriptBindings{
 		wi::lua::RegisterFunc("dofile", Internal_DoFile);
 #if IS_DEV
 		wi::lua::RegisterFunc("filedialog", Internal_FileDialog);
-		Register_AsyncCallback("filedialog",[=](std::string tid, wi::Archive archive){
+		Register_AsyncCallback("filedialog",[=](std::string tid, std::shared_ptr<wi::Archive> archive_ptr){
+			auto& archive = *archive_ptr;
 			std::string filepath;
 			archive >> filepath;
 			auto L = wi::lua::GetLuaState();
@@ -214,10 +218,10 @@ namespace Game::ScriptBindings{
 	// Updates stuff which needs synchronization from Lua
 	void Update(float dt){
 		// Updates all async callbacks from lua here
-		/*
 		for(auto& callback : async_callbacks){
 			auto& UID = callback.first;
-			auto& archive = callback.second;
+			auto& archive = *callback.second;
+			auto archive_ptr = callback.second;
 			archive.SetReadModeAndResetPos(true);
 
 			std::string callback_solver_type;
@@ -225,18 +229,17 @@ namespace Game::ScriptBindings{
 
 			auto find_callback = async_callback_solvers.find(callback_solver_type);
 			if(find_callback != async_callback_solvers.end()){
-				find_callback->second(UID,archive);
+				find_callback->second(UID,archive_ptr);
 			}
 		}
-		async_callbacks.clear();
-		*/
+		async_callbacks.clear(); 
 	}
 
-	void Register_AsyncCallback(std::string callback_type, std::function<void(std::string, wi::Archive)> callback_solver){
+	void Register_AsyncCallback(std::string callback_type, std::function<void(std::string, std::shared_ptr<wi::Archive>)> callback_solver){
 		async_callback_solvers[callback_type] = callback_solver;
 	}
 
-	void Push_AsyncCallback(std::string callback_UID, wi::Archive& async_data){
+	void Push_AsyncCallback(std::string callback_UID, std::shared_ptr<wi::Archive> async_data){
 		async_callbacks[callback_UID] = async_data;
 	}
 }

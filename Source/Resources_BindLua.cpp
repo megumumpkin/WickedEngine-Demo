@@ -1,6 +1,8 @@
 #include "BindLua.h"
 #include "Resources.h"
 #include "Resources_BindLua.h"
+#include <memory>
+#include <wiArchive.h>
 #include <wiLua.h>
 #include <wiScene_BindLua.h>
 #include <set>
@@ -30,15 +32,16 @@ namespace Game::ScriptBindings::Resources{
         wi::lua::RunText("Resources.LibraryFlags.COMPONENT_FILTER_USE_LAYER_TRANSFORM = "+std::to_string(Game::Resources::Library::COMPONENT_FILTER_USE_LAYER_TRANSFORM));
         wi::lua::RunText("Resources.LibraryFlags.COMPONENT_FILTER_REMOVE_CONFIG_AFTER = "+std::to_string(Game::Resources::Library::COMPONENT_FILTER_REMOVE_CONFIG_AFTER));
 
-        // Game::ScriptBindings::Register_AsyncCallback("asyncload",[=](std::string tid, wi::Archive archive){
-		//     uint32_t instance_uuid;
-		// 	archive >> instance_uuid;
-		// 	auto L = wi::lua::GetLuaState();
-		// 	lua_getglobal(L, "asyncload_setresult");
-		// 	lua_pushstring(L, tid.c_str());
-		// 	lua_pushnumber(L, instance_uuid);
-		// 	lua_call(L,3,0);
-		// });
+        Game::ScriptBindings::Register_AsyncCallback("asyncload",[=](std::string tid, std::shared_ptr<wi::Archive> archive_ptr){
+		    auto& archive = *archive_ptr;
+            uint32_t instance_uuid;
+			archive >> instance_uuid;
+			auto L = wi::lua::GetLuaState();
+			lua_getglobal(L, "asyncload_setresult");
+			lua_pushstring(L, tid.c_str());
+			lua_pushnumber(L, instance_uuid);
+			lua_call(L,3,0);
+		});
     }
 
     const char Library_BindLua::className[] = "Library";
@@ -107,13 +110,12 @@ namespace Game::ScriptBindings::Resources{
             uint32_t loadingflags = 0;
             if(argc >= 6) loadingflags = wi::lua::SGetInt(L, 6);
             Game::Resources::Library::Load_Async(filepath, [=](uint32_t instance_uuid){
-                /*
-                wi::Archive callback_data;
+                std::shared_ptr<wi::Archive> callback_data_ptr = std::make_shared<wi::Archive>();
+                auto& callback_data = *callback_data_ptr;
                 callback_data.SetReadModeAndResetPos(false);
                 callback_data << "asyncload";
                 callback_data << instance_uuid;
-                Push_AsyncCallback(TID, callback_data);
-                */
+                Push_AsyncCallback(TID, callback_data_ptr);
             }, subresource, root, loadingstrategy, loadingflags);
             return 1;
         }else{
