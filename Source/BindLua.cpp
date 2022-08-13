@@ -30,7 +30,7 @@ namespace Game::ScriptBindings{
 		}
 	}
 
-	uint32_t script_inject(std::string& script, std::string filename = "", uint32_t PID = 0){
+	uint32_t script_inject(std::string& script, std::string filename, uint32_t PID){
 		static const std::string persistent_inject = R"(
 			local runProcess = function(func) 
 				success, co = Internal_runProcess(script_file(), script_pid(), func)
@@ -215,7 +215,6 @@ namespace Game::ScriptBindings{
         Resources::Bind();
     }
 
-	// Updates stuff which needs synchronization from Lua
 	void Update(float dt){
 		// Updates all async callbacks from lua here
 		for(auto& callback : async_callbacks){

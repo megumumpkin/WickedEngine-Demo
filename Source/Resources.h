@@ -7,9 +7,9 @@
 
 namespace Game::Resources{
     namespace DataType{
-        static inline const std::string SCENE_RESOURCE = ".scres";
+        static inline const std::string SCENE_DATA = ".wiscene";
         static inline const std::string SCENE_OBJECT = ".sco";
-        static inline const std::string SCRIPT_GENERIC = ".lua";
+        static inline const std::string SCRIPT = ".lua";
     }
     namespace SourcePath{
         static inline const std::string SHADER = "Data/Shader";

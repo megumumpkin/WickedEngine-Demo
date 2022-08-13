@@ -7,6 +7,11 @@
 namespace Game::ScriptBindings::Resources{
     void Update();
     void Bind();
+
+    //SceneObject file
+    namespace SceneObject{
+        void Bind();
+    }
     
     //Library
     class Library_BindLua{

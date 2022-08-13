@@ -4,10 +4,18 @@
 #include "Resources_BindLua.h"
 
 namespace Game::ScriptBindings{
+    // For scripting to work you have to initialize them first
     void Init();
+    // Updates stuff which needs synchronization from Lua
     void Update(float dt);
+    // To add new callbacks for any async processes that communicate with the scripting system
     void Register_AsyncCallback(std::string callback_type, std::function<void(std::string, std::shared_ptr<wi::Archive>)>);
+    // To push a callback event for any async processes that calls c function from lua and wants results back
     void Push_AsyncCallback(std::string callback_UID, std::shared_ptr<wi::Archive> async_data);
+
+    // For other script system to adapt the base injection
+    uint32_t script_inject(std::string& script, std::string filename = "", uint32_t PID = 0);
+
     namespace LiveUpdate{
         struct ScriptReloadEvent{
             enum MODE{

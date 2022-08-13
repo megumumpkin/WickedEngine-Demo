@@ -2,6 +2,7 @@
 #include "Resources.h"
 #include "Resources_BindLua.h"
 #include <memory>
+#include <mutex>
 #include <wiArchive.h>
 #include <wiLua.h>
 #include <wiScene_BindLua.h>
@@ -9,13 +10,16 @@
 #include <filesystem>
 
 namespace Game::ScriptBindings::Resources{
-
-    std::set<std::string> async_callbacks;
+    std::mutex resources_mutex;
     
     void Bind(){
         Library_BindLua::Bind();
 
         wi::lua::RunText("Resources = Resources or {}");
+        wi::lua::RunText("Resources.DataType = DataType or {}");
+        wi::lua::RunText("Resources.DataType.SCENE_DATA = \""+Game::Resources::DataType::SCENE_DATA+"\"");
+        wi::lua::RunText("Resources.DataType.SCENE_OBJECT = \""+Game::Resources::DataType::SCENE_OBJECT+"\"");
+        wi::lua::RunText("Resources.DataType.SCRIPT = \""+Game::Resources::DataType::SCRIPT+"\"");
         wi::lua::RunText("Resources.SourcePath = SourcePath or {}");
         wi::lua::RunText("Resources.SourcePath.SHADER = \""+Game::Resources::SourcePath::SHADER+"\"");
         wi::lua::RunText("Resources.SourcePath.INTERFACE = \""+Game::Resources::SourcePath::INTERFACE+"\"");
@@ -110,12 +114,15 @@ namespace Game::ScriptBindings::Resources{
             uint32_t loadingflags = 0;
             if(argc >= 6) loadingflags = wi::lua::SGetInt(L, 6);
             Game::Resources::Library::Load_Async(filepath, [=](uint32_t instance_uuid){
+                std::scoped_lock lock (resources_mutex);
+
                 std::shared_ptr<wi::Archive> callback_data_ptr = std::make_shared<wi::Archive>();
                 auto& callback_data = *callback_data_ptr;
                 callback_data.SetReadModeAndResetPos(false);
                 callback_data << "asyncload";
                 callback_data << instance_uuid;
                 Push_AsyncCallback(TID, callback_data_ptr);
+                
             }, subresource, root, loadingstrategy, loadingflags);
             return 1;
         }else{
