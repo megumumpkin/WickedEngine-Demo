@@ -1,6 +1,7 @@
 [submodule "Library/WickedEngine"]
 	path = Library/WickedEngine
-	url = https://github.com/turanszkij/WickedEngine.git
+	url = https://github.com/turanszkij/WickedEngine
+	branch = ecs-improvement
 [submodule "Library/efsw"]
 	path = Library/efsw
 	url = https://github.com/SpartanJ/efsw.git
