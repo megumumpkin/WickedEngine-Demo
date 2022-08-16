@@ -27,7 +27,7 @@ jobs:
 
     - name: Build engine
       run: |
-        git submodule update --init Library/WickedEngine
+        git submodule update --init --no-recurse-submodules Library/WickedEngine
         cd Library/WickedEngine/
         mkdir build
         cd build
