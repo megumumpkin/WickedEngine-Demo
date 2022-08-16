@@ -4,6 +4,7 @@ add_subdirectory(efsw)
 
 set (SOURCE_FILES
     main_${PLATFORM}.cpp
+	json.hpp
 	Resources.h
 	Resources.cpp
 	Resources_BindLua.h

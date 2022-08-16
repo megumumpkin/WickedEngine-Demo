@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <wiArchive.h>
+#include <wiLua.h>
 
 #if IS_DEV
 #include "ImGui/imgui_BindLua.h"

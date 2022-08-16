@@ -34,5 +34,9 @@ function async_callback_setdata(tid, data)
     Async_Callback_Data[tid] = data
     signal(tid)
 end
+
+function uploadScriptData(pid, data)
+    Internal_SyncSubTable(PROCESSES_DATA[pid],data_table)
+end
 )";
 

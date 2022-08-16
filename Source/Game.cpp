@@ -3,6 +3,8 @@
 #include "Resources.h"
 #include "RenderPipeline.h"
 #include "BindLua.h"
+#include <memory>
+#include <wiScene.h>
 
 #ifdef IS_DEV
 #include "Editor.h"
@@ -125,7 +127,6 @@ void Application::Initialize(){
     Initialize_ImGUI();
 #endif
     wi::Application::Initialize();
-	Resources::Library::Init();
 	ScriptBindings::Init();
 	LiveUpdate::Init();
 #ifdef IS_DEV
@@ -330,6 +331,7 @@ void ApplicationView::SetRenderPath(RENDERPATH path){
 			assert(0);
 			break;
 	}
+	renderPath->scene = &Resources::GetScene().scene;
 	renderPath->resolutionScale = resolutionScale;
 	renderPath->Load();
 #ifdef IS_DEV
@@ -430,7 +432,6 @@ void ApplicationView::FixedUpdate(){
 
 void ApplicationView::Update(float dt){
     ApplicationView::Update_ImGUI();
-	Resources::Library::Update(dt);
 	Game::ScriptBindings::Update(dt);
 	LiveUpdate::Update(dt);
 

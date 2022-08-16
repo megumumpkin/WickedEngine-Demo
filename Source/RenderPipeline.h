@@ -7,6 +7,7 @@ namespace Game{
         class DefaultPipeline : public wi::RenderPath3D{
         private:
         public:
+            void Update(float dt);
         };
     }
 }
