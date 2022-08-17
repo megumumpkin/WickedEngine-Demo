@@ -331,7 +331,7 @@ void ApplicationView::SetRenderPath(RENDERPATH path){
 			assert(0);
 			break;
 	}
-	renderPath->scene = &Resources::GetScene().scene;
+	renderPath->scene = &Resources::GetScene().wiscene;
 	renderPath->resolutionScale = resolutionScale;
 	renderPath->Load();
 #ifdef IS_DEV

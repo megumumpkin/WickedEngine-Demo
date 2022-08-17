@@ -91,11 +91,11 @@ namespace Game::Resources{
         };
     }
     struct Scene{
-        wi::scene::Scene scene;
-        wi::ecs::ComponentManager<Library::Instance>& instances = scene.componentLibrary.Register<Library::Instance>("instances");
-        wi::ecs::ComponentManager<Library::Disabled>& disabled = scene.componentLibrary.Register<Library::Disabled>("disabled");
-        wi::ecs::ComponentManager<Library::Stream>& streams = scene.componentLibrary.Register<Library::Stream>("streams");
-        wi::ecs::ComponentManager<Library::ScriptObject>& scriptobjects = scene.componentLibrary.Register<Library::ScriptObject>("scriptObjects");
+        wi::scene::Scene wiscene;
+        wi::ecs::ComponentManager<Library::Instance>& instances = wiscene.componentLibrary.Register<Library::Instance>("instances");
+        wi::ecs::ComponentManager<Library::Disabled>& disabled = wiscene.componentLibrary.Register<Library::Disabled>("disabled");
+        wi::ecs::ComponentManager<Library::Stream>& streams = wiscene.componentLibrary.Register<Library::Stream>("streams");
+        wi::ecs::ComponentManager<Library::ScriptObject>& scriptobjects = wiscene.componentLibrary.Register<Library::ScriptObject>("scriptObjects");
 
         // Library system data
         wi::unordered_map<uint32_t, wi::ecs::Entity> collections;

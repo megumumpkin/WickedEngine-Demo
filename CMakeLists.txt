@@ -16,7 +16,6 @@ set (SOURCE_FILES
 	Source/Resources.cpp
 	Source/Resources_BindLua.h
 	Source/Resources_BindLua.cpp
-	Source/Resources_SceneObject.cpp
 	Source/RenderPipeline.h
 	Source/RenderPipeline.cpp
 	Source/BindLua.h
