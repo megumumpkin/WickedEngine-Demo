@@ -148,6 +148,18 @@ void Library::Instance::Init(wi::jobsystem::context* joblist){
                 }
             }
         }
+
+        // For streaming objects, we need to track transition fx,
+        // so first we need to register objectComponents of the instance
+        // And then start the transition from zero!
+        auto streamComponent = scene->streams.GetComponent(instance_id);
+        if(streamComponent != nullptr)
+        {
+            for (auto& entity : entities){
+                auto objectComponent = scene->scene.objects.GetComponent(entity);
+                if(objectComponent != nullptr) streamComponent->instance_original_transparency[entity] = objectComponent->GetTransparency();
+            }
+        }
     });
 }
 
@@ -320,7 +332,8 @@ void Scene::Library_Update(float dt){
                     stream.transition += dt*stream_transition_time;
                     stream.transition = std::min(stream.transition,1.f);
 
-                    if(stream.transition > 0.f){
+                    if(stream.transition > 0.f) // Preload script after it is done!
+                    {
                         auto scriptobject = scriptobjects.GetComponent(stream_entity);
                         if(scriptobject != nullptr) scriptobject->Init();
                     }
@@ -343,6 +356,14 @@ void Scene::Library_Update(float dt){
                 }
                 auto scriptobject = scriptobjects.GetComponent(stream_entity);
                 if(scriptobject != nullptr) scriptobject->Unload();
+            }
+        }
+
+        // If transition is ongoing, we're going to manipulate the transition of tracked objects!
+        if(stream.transition > 0.f && stream.transition < 1.f){
+            for(auto& object_it : stream.instance_original_transparency){
+                auto objectComponent = scene.objects.GetComponent(object_it.first);
+                objectComponent->color.w = object_it.second * stream.transition;
             }
         }
     }
