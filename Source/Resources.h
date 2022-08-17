@@ -3,6 +3,12 @@
 #include <WickedEngine.h>
 #include <mutex>
 #include <any>
+#include <string>
+#include <wiECS.h>
+#include <wiJobSystem.h>
+#include <wiScene.h>
+#include <wiUnorderedMap.h>
+#include <wiUnorderedSet.h>
 
 namespace Game::Resources{
     namespace DataType{
@@ -24,14 +30,23 @@ namespace Game::Resources{
         struct Instance{
             std::string file; // Path to file
             std::string entity_name; // For cloning a specific entity
+            enum LOADING_STRATEGY{
+                LOAD_DIRECT,
+                LOAD_INSTANTIATE,
+                LOAD_PRELOAD
+            }strategy;
+            enum INSTANCE_TYPE{
+                DEFAULT,
+                LIBRARY
+            }type;
             
             // Non serialized attributes
             Scene* scene;
             wi::ecs::Entity instance_id;
             wi::ecs::Entity collection_id;
-            wi::vector<wi::ecs::Entity> entities;
+            wi::unordered_set<wi::ecs::Entity> entities;
 
-            void Init();
+            void Init(wi::jobsystem::context* joblist = nullptr);
             void Unload();
 
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
@@ -55,6 +70,7 @@ namespace Game::Resources{
 
             // Non serialized attributes
             float transition;
+            wi::unordered_map<wi::ecs::Entity, float> instance_original_transparency;
 
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
         };
@@ -76,14 +92,15 @@ namespace Game::Resources{
     }
     struct Scene{
         wi::scene::Scene scene;
-        wi::ecs::ComponentManager<Library::Instance>& instances = scene.componentLibrary.Register<Library::Instance>(1);
-        wi::ecs::ComponentManager<Library::Disabled>& disabled = scene.componentLibrary.Register<Library::Disabled>(1);
-        wi::ecs::ComponentManager<Library::Stream>& streams = scene.componentLibrary.Register<Library::Stream>(1);
-        wi::ecs::ComponentManager<Library::ScriptObject>& scriptobjects = scene.componentLibrary.Register<Library::ScriptObject>(1);
+        wi::ecs::ComponentManager<Library::Instance>& instances = scene.componentLibrary.Register<Library::Instance>("instances");
+        wi::ecs::ComponentManager<Library::Disabled>& disabled = scene.componentLibrary.Register<Library::Disabled>("disabled");
+        wi::ecs::ComponentManager<Library::Stream>& streams = scene.componentLibrary.Register<Library::Stream>("streams");
+        wi::ecs::ComponentManager<Library::ScriptObject>& scriptobjects = scene.componentLibrary.Register<Library::ScriptObject>("scriptObjects");
 
         // Library system data
         wi::unordered_map<uint32_t, wi::ecs::Entity> collections;
         wi::unordered_map<wi::ecs::Entity, wi::ecs::Entity> disabled_list;
+
         wi::primitive::AABB stream_boundary;
         float stream_transition_time = 0.5f;
 
@@ -92,9 +109,16 @@ namespace Game::Resources{
         wi::jobsystem::context job_scenestream;
 
         // Scene processing functions
-        Scene();
         void Init();
 
+        // Entity Creators
+        wi::ecs::Entity CreateInstance(std::string name);
+        
+        // Append Data
+        void SetStreamable(wi::ecs::Entity, bool set = true, wi::primitive::AABB bound = wi::primitive::AABB()); // True to enable, false to disable
+        void SetScript(wi::ecs::Entity, std::string file); // Insert empty string to remove
+
+        // Entity Management
         void Entity_Disable(wi::ecs::Entity entity);
         void Entity_Enable(wi::ecs::Entity entity);
         wi::ecs::Entity Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri);
