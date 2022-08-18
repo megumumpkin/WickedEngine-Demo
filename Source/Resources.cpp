@@ -242,6 +242,12 @@ Library::ScriptObject::~ScriptObject(){
     Unload();
 }
 
+void Library::ScriptObject::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri){
+    for(auto& script : scripts){
+        script.Serialize(archive, seri);
+    }
+}
+
 
 
 wi::ecs::Entity Scene::CreateInstance(std::string name){
@@ -253,6 +259,40 @@ wi::ecs::Entity Scene::CreateInstance(std::string name){
     instances.Create(entity);
 
     return entity;
+}
+
+void Scene::SetStreamable(wi::ecs::Entity entity, bool set, wi::primitive::AABB bound){
+    if(set)
+    {
+        auto& streamcomponent = streams.Create(entity);
+        streamcomponent.stream_zone = bound;
+    }
+    else
+    {
+        if(streams.Contains(entity))
+        {
+            streams.Remove(entity);
+        }
+    }
+}
+
+void Scene::SetScript(wi::ecs::Entity entity, bool set, std::string file){
+    if(set)
+    {
+        auto& scriptcomponent = scriptobjects.Create(entity);
+        if(file != "")
+        {
+            auto& scriptdata = scriptcomponent.scripts.emplace_back();
+            scriptdata.file = file;
+        }
+    }
+    else
+    {
+        if(scriptobjects.Contains(entity))
+        {
+            scriptobjects.Remove(entity);
+        }
+    }
 }
 
 void Scene::Entity_Disable(wi::ecs::Entity entity){

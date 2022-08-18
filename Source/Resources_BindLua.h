@@ -130,12 +130,11 @@ namespace Game::ScriptBindings::Resources
 		int Component_GetStream(lua_State* L);
 		int Component_GetScriptObject(lua_State* L);
 
-        int Component_CreateInstance(lua_State* L);
+        int Entity_CreateInstance(lua_State* L);
         int Entity_SetStreamable(lua_State* L);
         int Entity_SetScript(lua_State* L);
         
         int Entity_Disable(lua_State* L);
         int Entity_Enable(lua_State* L);
-        int Entity_Clone(lua_State* L);
     };
 }

@@ -106,10 +106,10 @@ namespace Game::Resources{
     }
     struct Scene{
         wi::scene::Scene wiscene;
-        wi::ecs::ComponentManager<Library::Instance>& instances = wiscene.componentLibrary.Register<Library::Instance>("instances");
-        wi::ecs::ComponentManager<Library::Disabled>& disabled = wiscene.componentLibrary.Register<Library::Disabled>("disabled");
-        wi::ecs::ComponentManager<Library::Stream>& streams = wiscene.componentLibrary.Register<Library::Stream>("streams");
-        wi::ecs::ComponentManager<Library::ScriptObject>& scriptobjects = wiscene.componentLibrary.Register<Library::ScriptObject>("scriptObjects");
+        wi::ecs::ComponentManager<Library::Instance>& instances = wiscene.componentLibrary.Register<Library::Instance>("game::component::instances");
+        wi::ecs::ComponentManager<Library::Disabled>& disabled = wiscene.componentLibrary.Register<Library::Disabled>("game::component::disabled");
+        wi::ecs::ComponentManager<Library::Stream>& streams = wiscene.componentLibrary.Register<Library::Stream>("game::component::streams");
+        wi::ecs::ComponentManager<Library::ScriptObject>& scriptobjects = wiscene.componentLibrary.Register<Library::ScriptObject>("game::component::scriptObjects");
 
         // Library system data
         wi::unordered_map<uint32_t, wi::ecs::Entity> collections;
@@ -126,8 +126,8 @@ namespace Game::Resources{
         wi::ecs::Entity CreateInstance(std::string name);
         
         // Append Data
-        void SetStreamable(wi::ecs::Entity, bool set = true, wi::primitive::AABB bound = wi::primitive::AABB()); // True to enable, false to disable
-        void SetScript(wi::ecs::Entity, std::string file); // Insert empty string to remove
+        void SetStreamable(wi::ecs::Entity entity, bool set = true, wi::primitive::AABB bound = wi::primitive::AABB()); // True to enable, false to disable
+        void SetScript(wi::ecs::Entity entity, bool set = true, std::string file = ""); // True to enable, false to disable
 
         // Entity Management
         void Entity_Disable(wi::ecs::Entity entity);

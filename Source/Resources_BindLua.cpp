@@ -10,7 +10,9 @@
 #include <wiECS.h>
 #include <wiLua.h>
 #include <wiLuna.h>
+#include <wiPrimitive.h>
 #include <wiPrimitive_BindLua.h>
+#include <wiScene_BindLua.h>
 #include <wiVector.h>
 
 void Internal_ScriptObjectData_LuaBuildTable(lua_State *L, wi::vector<uint8_t>& properties)
@@ -100,16 +102,44 @@ void Internal_ScriptObjectData_CStoreTable(lua_State *L, wi::vector<uint8_t>& pr
     properties = wi::vector<uint8_t>(parc.GetData(), parc.GetData() + offset);
 }
 
+int GetGlobalGameScene(lua_State* L){
+    Luna<Game::ScriptBindings::Resources::Scene_BindLua>::push(L, new Game::ScriptBindings::Resources::Scene_BindLua(&Game::Resources::GetScene()));
+    return 1;
+}
+
 
 
 namespace Game::ScriptBindings::Resources{
     void Update()
     {
-
+        // TODO: idk
     }
     void Bind()
     {
+        static bool initialized = false;
+        if(!initialized)
+        {
+            initialized = true;
 
+            auto L = wi::lua::GetLuaState();
+
+            wi::lua::RunText(R"(
+                INSTANCE_LOAD_DIRECT = 0
+                INSTANCE_LOAD_INSTANTIATE = 1
+                INSTANCE_LOAD_PRELOAD = 2
+
+                INSTANCE_DEFAULT = 0
+                INSTANCE_LIBRARY = 1
+            )");
+
+            Luna<Library_Instance_BindLua>::Register(L);
+            Luna<Library_Disabled_BindLua>::Register(L);
+            Luna<Library_Stream_BindLua>::Register(L);
+            Luna<Library_ScriptObject_BindLua>::Register(L);
+            Luna<Scene_BindLua>::Register(L);
+
+            wi::lua::RegisterFunc("GetGlobalGameScene", GetGlobalGameScene);
+        }
     }
 
     
@@ -150,7 +180,7 @@ namespace Game::ScriptBindings::Resources{
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetFile(string file) not enough arguments!");
+            wi::lua::SError(L, "InstanceComponent::SetFile(string file) not enough arguments!");
         }
         return 0;
     };
@@ -169,7 +199,7 @@ namespace Game::ScriptBindings::Resources{
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetEntityName(string entity_name) not enough arguments!");
+            wi::lua::SError(L, "InstanceComponent::SetEntityName(string entity_name) not enough arguments!");
         }
         return 0;
     };
@@ -188,7 +218,7 @@ namespace Game::ScriptBindings::Resources{
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetStrategy(enum LOADING_STRATEGY) not enough arguments!");
+            wi::lua::SError(L, "InstanceComponent::SetStrategy(enum LOADING_STRATEGY) not enough arguments!");
         }
         return 0;
     };
@@ -207,7 +237,7 @@ namespace Game::ScriptBindings::Resources{
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetType(enum INSTANCE_TYPE) not enough arguments!");
+            wi::lua::SError(L, "InstanceComponent::SetType(enum INSTANCE_TYPE) not enough arguments!");
         }
         return 0;
     };
@@ -244,18 +274,18 @@ namespace Game::ScriptBindings::Resources{
         int argc = wi::lua::SGetArgCount(L);
         if (argc > 0)
         {
-            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetInt(L, 1);
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
             component->entity = entity;
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetEntity(Entity entity) not enough arguments!");
+            wi::lua::SError(L, "DisabledComponent::SetEntity(Entity entity) not enough arguments!");
         }
         return 0;
     };
     int Library_Disabled_BindLua::GetEntity(lua_State* L)
     {
-        wi::lua::SSetInt(L, component->entity);
+        wi::lua::SSetLongLong(L, component->entity);
         return 1;
     };
 
@@ -293,7 +323,7 @@ namespace Game::ScriptBindings::Resources{
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetSubstitute(Entity entity) not enough arguments!");
+            wi::lua::SError(L, "StreamComponent::SetSubstitute(Entity entity) not enough arguments!");
         }
         return 0;
     };
@@ -308,11 +338,14 @@ namespace Game::ScriptBindings::Resources{
         if (argc > 0)
         {
             auto stream_zone = Luna<wi::lua::primitive::AABB_BindLua>::check(L, 1);
-            component->stream_zone = stream_zone->aabb;
+            if(stream_zone)
+                component->stream_zone = stream_zone->aabb;
+            else
+                wi::lua::SError(L, "StreamComponent::SetZone(AABB zone) argument must be AABB type!");
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetZone(AABB zone) not enough arguments!");
+            wi::lua::SError(L, "StreamComponent::SetZone(AABB zone) not enough arguments!");
         }
         return 0;
     };
@@ -356,7 +389,7 @@ namespace Game::ScriptBindings::Resources{
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetFile(String file) not enough arguments!");
+            wi::lua::SError(L, "ScriptObjectData::SetFile(String file) not enough arguments!");
         }
         return 0;
     };
@@ -374,7 +407,7 @@ namespace Game::ScriptBindings::Resources{
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetProperties(table properties) not enough arguments!");
+            wi::lua::SError(L, "ScriptObjectData::SetProperties(table properties) not enough arguments!");
         }
         return 0;
     };
@@ -425,14 +458,14 @@ namespace Game::ScriptBindings::Resources{
                 }
                 else
                 {
-                    wi::lua::SError(L, "Instance.SetScriptData(Table(ScriptObjectComponent) scriptdata) table member must be ScriptObjectComponent type!");
+                    wi::lua::SError(L, "ScriptObjectComponent::SetScriptData(Table(ScriptObjectComponent) scriptdata) table member must be ScriptObjectComponent type!");
                 }
                 lua_pop(L,1);
             }
         }
         else
         {
-            wi::lua::SError(L, "Instance.SetScriptData(Table(ScriptObjectComponent) scriptdata) not enough arguments!");
+            wi::lua::SError(L, "ScriptObjectComponent::SetScriptData(Table(ScriptObjectComponent) scriptdata) not enough arguments!");
         }
         return 0;
     };
@@ -451,6 +484,209 @@ namespace Game::ScriptBindings::Resources{
 
 
     // TODO: Scene_Bindlua
+    const char Scene_BindLua::className[] = "GameScene";
+    Luna<Scene_BindLua>::FunctionType Scene_BindLua::methods[] = {
+        lunamethod(Scene_BindLua, GetWiScene),
+        lunamethod(Scene_BindLua, Component_GetInstance),
+        lunamethod(Scene_BindLua, Component_GetDisabled),
+        lunamethod(Scene_BindLua, Component_GetStream),
+        lunamethod(Scene_BindLua, Component_GetScriptObject),
+        lunamethod(Scene_BindLua, Entity_CreateInstance),
+        lunamethod(Scene_BindLua, Entity_SetStreamable),
+        lunamethod(Scene_BindLua, Entity_SetScript),
+        lunamethod(Scene_BindLua, Entity_Disable),
+        lunamethod(Scene_BindLua, Entity_Enable),
+        { NULL, NULL }
+    };
+    Luna<Scene_BindLua>::PropertyType Scene_BindLua::properties[] = {
+        { NULL, NULL }
+    };
+    Scene_BindLua::Scene_BindLua(lua_State *L)
+    {
+        owning = true;
+        scene = new Game::Resources::Scene;
+    }
+    Scene_BindLua::~Scene_BindLua()
+    {
+        if(owning){
+            delete scene;
+        }
+    }
+    int Scene_BindLua::GetWiScene(lua_State* L)
+    {
+        Luna<wi::lua::scene::Scene_BindLua>::push(L, new wi::lua::scene::Scene_BindLua(&scene->wiscene));
+        return 1;
+    };
+    int Scene_BindLua::Component_GetInstance(lua_State* L)
+    {
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+
+            auto component = scene->instances.GetComponent(entity);
+            if (component == nullptr)
+            {
+                return 0;
+            }
+
+            Luna<Library_Instance_BindLua>::push(L, new Library_Instance_BindLua(component));
+            return 1;
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Component_GetInstance(Entity entity) not enough arguments!");
+        }
+        return 0;
+    };
+    int Scene_BindLua::Component_GetDisabled(lua_State* L)
+    {
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+
+            auto component = scene->disabled.GetComponent(entity);
+            if (component == nullptr)
+            {
+                return 0;
+            }
+
+            Luna<Library_Disabled_BindLua>::push(L, new Library_Disabled_BindLua(component));
+            return 1;
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Component_GetDisabled(Entity entity) not enough arguments!");
+        }
+        return 0;
+    };
+    int Scene_BindLua::Component_GetStream(lua_State* L)
+    {
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+
+            auto component = scene->streams.GetComponent(entity);
+            if (component == nullptr)
+            {
+                return 0;
+            }
+
+            Luna<Library_Stream_BindLua>::push(L, new Library_Stream_BindLua(component));
+            return 1;
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Component_GetStream(Entity entity) not enough arguments!");
+        }
+        return 0;
+    };
+    int Scene_BindLua::Component_GetScriptObject(lua_State* L)
+    {
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+
+            auto component = scene->scriptobjects.GetComponent(entity);
+            if (component == nullptr)
+            {
+                return 0;
+            }
+
+            Luna<Library_ScriptObject_BindLua>::push(L, new Library_ScriptObject_BindLua(component));
+            return 1;
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Component_GetScriptObject(Entity entity) not enough arguments!");
+        }
+        return 0;
+    };
+    int Scene_BindLua::Entity_CreateInstance(lua_State *L){
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            auto name = wi::lua::SGetString(L, 1);
+            auto entity = scene->CreateInstance(name);
+            
+            wi::lua::SSetLongLong(L, entity);
+            return 1;
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Entity_CreateInstance(String name) not enough arguments!");
+        }
+        return 0;
+    }
+    int Scene_BindLua::Entity_SetStreamable(lua_State *L){
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+            bool set = true;
+            if(argc >= 2) set = wi::lua::SGetBool(L, 2);
+            wi::primitive::AABB bound = wi::primitive::AABB();
+            if(argc >= 3){
+                auto bound_get = Luna<wi::lua::primitive::AABB_BindLua>::check(L, 3);
+                if(bound_get)
+                    bound = bound_get->aabb;
+            }
+            
+            scene->SetStreamable(entity, true, bound);
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Entity_SetStreamable(Entity entity) not enough arguments!");
+        }
+        return 0;
+    }
+    int Scene_BindLua::Entity_SetScript(lua_State *L){
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+            bool set = true;
+            if(argc >= 2) set = wi::lua::SGetBool(L, 2);
+            std::string file = "";
+            if(argc >= 3) file = wi::lua::SGetString(L, 3);
+
+            scene->SetScript(entity, set, file);
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Entity_SetScript(Entity entity) not enough arguments!");
+        }
+        return 0;
+    }
+    int Scene_BindLua::Entity_Disable(lua_State *L){
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+            scene->Entity_Disable(entity);
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Entity_SetScript(Entity entity) not enough arguments!");
+        }
+        return 0;
+    }
+    int Scene_BindLua::Entity_Enable(lua_State *L){
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+            scene->Entity_Enable(entity);
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Entity_SetScript(Entity entity) not enough arguments!");
+        }
+        return 0;
+    }
 }
 
 
