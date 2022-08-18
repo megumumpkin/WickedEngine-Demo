@@ -71,7 +71,27 @@ namespace Game::ScriptBindings::Resources
 		int GetZone(lua_State* L);
     };
 
-    class Library_ScriptObject_BindLua
+    class Library_ScriptObjectData_BindLua
+    {
+    public:
+        bool owning = false;
+		Game::Resources::Library::ScriptObjectData* component = nullptr;
+
+		static const char className[];
+		static Luna<Library_ScriptObjectData_BindLua>::FunctionType methods[];
+		static Luna<Library_ScriptObjectData_BindLua>::PropertyType properties[];
+
+		Library_ScriptObjectData_BindLua(Game::Resources::Library::ScriptObjectData* component) :component(component) {}
+		Library_ScriptObjectData_BindLua(lua_State *L);
+		~Library_ScriptObjectData_BindLua();
+
+        int SetFile(lua_State* L);
+		int GetFile(lua_State* L);
+        int SetProperties(lua_State* L);
+		int GetProperties(lua_State* L);
+    };
+
+	class Library_ScriptObject_BindLua
     {
     public:
         bool owning = false;
@@ -85,10 +105,8 @@ namespace Game::ScriptBindings::Resources
 		Library_ScriptObject_BindLua(lua_State *L);
 		~Library_ScriptObject_BindLua();
 
-        int SetFile(lua_State* L);
-		int GetFile(lua_State* L);
-        int SetProperties(lua_State* L);
-		int GetProperties(lua_State* L);
+        int SetScriptData(lua_State* L);
+		int GetScriptData(lua_State* L);
     };
 
     class Scene_BindLua
@@ -107,10 +125,14 @@ namespace Game::ScriptBindings::Resources
 
 		int GetWiScene(lua_State* L);
 
-        int CreateInstance(lua_State* L);
+		int Component_GetInstance(lua_State* L);
+		int Component_GetDisabled(lua_State* L);
+		int Component_GetStream(lua_State* L);
+		int Component_GetScriptObject(lua_State* L);
 
-        int SetStreamable(lua_State* L);
-        int SetScript(lua_State* L);
+        int Component_CreateInstance(lua_State* L);
+        int Entity_SetStreamable(lua_State* L);
+        int Entity_SetScript(lua_State* L);
         
         int Entity_Disable(lua_State* L);
         int Entity_Enable(lua_State* L);

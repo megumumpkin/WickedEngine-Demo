@@ -75,9 +75,9 @@ namespace Game::Resources{
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
         };
 
-        struct ScriptObject{
+        struct ScriptObjectData{
             std::string file; // Lua script file to load and attach
-            wi::vector<std::string> properties;
+            wi::vector<uint8_t> properties; // Store data in wiArchive format
 
             // Non serialized attributes
             uint32_t script_pid;
@@ -85,6 +85,20 @@ namespace Game::Resources{
             void Init();
             void Unload();
             
+            ~ScriptObjectData();
+
+            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
+        };
+
+        struct ScriptObject{
+            wi::vector<ScriptObjectData> scripts;
+
+            // Non serialized attributes
+            bool initialized = false;
+
+            void Init();
+            void Unload();
+
             ~ScriptObject();
 
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
@@ -108,9 +122,6 @@ namespace Game::Resources{
         std::mutex mutex_scenestream;
         wi::jobsystem::context job_scenestream;
 
-        // Scene processing functions
-        void Init();
-
         // Entity Creators
         wi::ecs::Entity CreateInstance(std::string name);
         
@@ -123,6 +134,9 @@ namespace Game::Resources{
         void Entity_Enable(wi::ecs::Entity entity);
         wi::ecs::Entity Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri);
 
+        // Scene processing functions
+        void Init();
+        // TODO: indexer for listing scenegraph data, good for editor!
         void Library_Update(float dt);
         void Update(float dt);
     };

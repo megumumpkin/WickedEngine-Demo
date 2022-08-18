@@ -205,13 +205,13 @@ void Library::Stream::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer 
 
 
 
-// ScriptObject initializers exists within Resources_BindLua.cpp
+// ScriptObjectData initializers exists within Resources_BindLua.cpp
 
-Library::ScriptObject::~ScriptObject(){
+Library::ScriptObjectData::~ScriptObjectData(){
     Unload();
 }
 
-void Library::ScriptObject::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri){
+void Library::ScriptObjectData::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri){
     if(archive.IsReadMode())
     {
         archive >> file;
@@ -222,6 +222,24 @@ void Library::ScriptObject::Serialize(wi::Archive &archive, wi::ecs::EntitySeria
         archive << file;
         archive << properties;
     }
+}
+
+
+
+void Library::ScriptObject::Init(){
+    for(auto& script : scripts){
+        script.Init();
+    }
+}
+
+void Library::ScriptObject::Unload(){
+    for(auto& script : scripts){
+        script.Unload();
+    }
+}
+
+Library::ScriptObject::~ScriptObject(){
+    Unload();
 }
 
 
@@ -317,7 +335,7 @@ void Scene::Library_Update(float dt){
         auto& scriptobject = scriptobjects[i];
         auto scriptobject_entity = scriptobjects.GetEntity(i);
         
-        if(!streams.Contains(scriptobject_entity) && (scriptobject.script_pid == 0))
+        if(!streams.Contains(scriptobject_entity) && (!scriptobject.initialized))
         {
             scriptobject.Init();
         }
@@ -346,7 +364,11 @@ void Scene::Library_Update(float dt){
                     if(stream.transition > 0.f) // Preload script after it is done!
                     {
                         auto scriptobject = scriptobjects.GetComponent(stream_entity);
-                        if(scriptobject != nullptr) scriptobject->Init();
+                        if(scriptobject != nullptr)
+                        {
+                            if(!scriptobject->initialized)
+                                scriptobject->Init();
+                        }
                     }
                 }
             }
