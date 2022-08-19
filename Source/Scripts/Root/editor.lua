@@ -7,6 +7,13 @@ D("editor_data",{
         scenegraphview = {
             win_visible = false,
             filter_selected = 0,
+            wait_update = false,
+            list = {
+                objects = {},
+                meshes = {},
+                materials = {},
+                animation = {}
+            }
         },
         compinspect = {
             win_visible = false,
@@ -21,11 +28,14 @@ D("editor_data",{
         }
     },
     actions = {
+        command_head = 0,
+        command_list = {},
         resource_new = false,
         resource_rename = false,
         resource_save = false,
-        link_model = false,
-        add_sound = false,
+        link_dcc = false,
+        import_wiscene = false,
+        add_object = false,
     },
     navigation = {
         camera = GetCamera(),
@@ -35,8 +45,66 @@ D("editor_data",{
     }
 })
 
+local scene = GetGlobalGameScene()
+local wiscene = scene.GetWiScene()
+
 local CAM_MOVE_SPD = 0.3
 local CAM_ROT_SPD = 0.03
+
+local edit_execcmd = function(command, extradata, holdout)
+    if command == "add" then
+        if type(extradata) == "table" then
+            local entity = scene.Entity_Create()
+            extradata.entity = entity
+            local name = wiscene.Component_CreateName(entity)
+            name.SetName(extradata.name)
+            if extradata.type == "object" then
+                local transform = wiscene.Component_CreateTransform(entity)
+                local layer = wiscene.Component_CreateLayer(entity)
+                local object = wiscene.Component_CreateObject(entity)
+            end
+        end
+    end
+
+    if command == "del" then
+        wiscene.Entity_Remove(extradata.entity)
+    end
+
+    -- To run new command or just redo previous commands
+    if holdout == nil then
+        if D.editor_data.actions.command_head < #D.editor_data.actions.command_list then
+            for idx = #D.editor_data.actions.command_list, D.editor_data.actions.command_head, -1 do
+                if idx > 1 then table.remove(D.editor_data.actions.command_list, idx) end
+            end
+        end
+        table.insert(D.editor_data.actions.command_list, {command,extradata})
+        D.editor_data.actions.command_head = #D.editor_data.actions.command_list
+    end
+
+    D.editor_data.elements.scenegraphview.wait_update = true
+end
+
+local edit_redocmd = function()
+    local current = D.editor_data.actions.command_head
+    local next = D.editor_data.actions.command_head + 1
+    if current < #D.editor_data.actions.command_list then
+        D.editor_data.actions.command_head = next
+        edit_execcmd(D.editor_data.actions.command_list[next][1],D.editor_data.actions.command_list[next][2], true)
+    end
+end
+
+local edit_undocmd = function()
+    local command = D.editor_data.actions.command_list[D.editor_data.actions.command_head][1]
+    local extradata = D.editor_data.actions.command_list[D.editor_data.actions.command_head][2]
+
+    if command == "add" then
+        wiscene.Entity_Remove(extradata.entity)
+    end
+
+    D.editor_data.actions.command_head = math.max(D.editor_data.actions.command_head - 1, 1)
+    
+    D.editor_data.elements.scenegraphview.wait_update = true
+end
 
 local drawtopbar = function()
     local viewport = imgui.GetMainViewport()
@@ -70,8 +138,9 @@ local drawtopbar = function()
         end
 
         if imgui.BeginPopupContextWindow("MBIM") then
-            D.editor_data.actions.import_model = imgui.MenuItem("\xef\x86\xb2 Link Model",nil,D.editor_data.actions.import_model)
-            D.editor_data.actions.import_sound = imgui.MenuItem("\xef\x80\xa8 Add Sound",nil,D.editor_data.actions.import_sound)
+            D.editor_data.actions.link_dcc = imgui.MenuItem("\xef\x86\xb2 Create DCC Link",nil,D.editor_data.actions.link_dcc)
+            D.editor_data.actions.import_wiscene = imgui.MenuItem("\xef\x86\xb2 Import wiScene",nil,D.editor_data.actions.import_wiscene)
+            D.editor_data.actions.add_object = imgui.MenuItem("\xef\x80\xa8 Add Object",nil,D.editor_data.actions.add_object)
             imgui.EndPopup()
         end
 
@@ -117,21 +186,29 @@ local drawscenegraphview = function()
         sub_visible, D.editor_data.elements.scenegraphview.win_visible = imgui.Begin("\xef\xa0\x82 Scene Graph Viewer", D.editor_data.elements.scenegraphview.win_visible)
         if sub_visible then
             ret_filter, D.editor_data.elements.scenegraphview.filter_selected = imgui.Combo("\xef\x82\xb0##filter",D.editor_data.elements.scenegraphview.filter_selected,"Objects\0Meshes\0Materials\0Animation")
+            
             imgui.PushStyleVar(imgui.constant.StyleVar.ChildRounding, 5.0)
             local childflags = 0 | imgui.constant.WindowFlags.NoTitleBar
-            view_oblist = imgui.BeginChild("##listview", 0, 0, true, childflags)
+            local view_oblist = imgui.BeginChild("##listview", 0, 0, true, childflags)
             imgui.PopStyleVar()
+            
             if view_oblist then
-                ret_tree = imgui.TreeNode("ObjectWW")
-                if ret_tree then
-                    imgui.TreePop()
-                end
+                if not D.editor_data.elements.scenegraphview.wait_update then
+                    for _, entity in pairs(D.editor_data.elements.scenegraphview.list.objects) do
+                        local name = wiscene.Component_GetName(entity)
+                        ret_tree = imgui.TreeNode(name.GetName() .. "##" .. entity)
+                        if ret_tree then
+                            imgui.TreePop()
+                        end
+                    end
+                end    
             end
             imgui.EndChild()
         end
         imgui.End()
     end
 end
+
 local drawcompinspect = function()
     if D.editor_data.elements.compinspect.win_visible then
         sub_visible, D.editor_data.elements.compinspect.win_visible = imgui.Begin("\xef\x82\x85 Component Inspector", D.editor_data.elements.compinspect.win_visible)
@@ -140,6 +217,11 @@ local drawcompinspect = function()
         end
         imgui.End()
     end
+end
+
+local update_scenegraph = function()
+    D.editor_data.elements.scenegraphview.list.objects = wiscene.Entity_GetTransformArray()
+    D.editor_data.elements.scenegraphview.wait_update = false
 end
 
 local update_sysmenu_actions = function()
@@ -153,12 +235,15 @@ local update_sysmenu_actions = function()
     end
     if D.editor_data.actions.resource_rename then
         D.editor_data.elements.fmenu_rnres.win_visible = true
-        -- backlog_post("ACT_STUB: rename resource not working")
         D.editor_data.actions.resource_rename = false
     end
     if D.editor_data.actions.resource_save then
         backlog_post("ACT_STUB: save resource not working")
         D.editor_data.actions.resource_save = false
+    end
+    if D.editor_data.actions.add_object then
+        edit_execcmd("add", {type = "object", name = "New Object"})
+        D.editor_data.actions.add_object = false
     end
 end
 
@@ -200,11 +285,25 @@ local update_navigation = function()
 
 end
 
+local update_editaction = function()
+    if(input.Down(KEYBOARD_BUTTON_LCONTROL) and (input.Press(string.byte('Z')))) then
+        if(input.Down(KEYBOARD_BUTTON_LSHIFT)) then
+            edit_redocmd()
+        else
+            edit_undocmd()
+        end
+    end
+end
+
 runProcess(function()
+
+    edit_execcmd("init")
     editor_dev_griddraw(true)
     while true do
+        update_scenegraph()
         update_sysmenu_actions()
         update_navigation()
+        update_editaction()
         update()
     end
 end)

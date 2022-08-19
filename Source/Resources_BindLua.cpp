@@ -491,11 +491,16 @@ namespace Game::ScriptBindings::Resources{
         lunamethod(Scene_BindLua, Component_GetDisabled),
         lunamethod(Scene_BindLua, Component_GetStream),
         lunamethod(Scene_BindLua, Component_GetScriptObject),
-        lunamethod(Scene_BindLua, Entity_CreateInstance),
+        lunamethod(Scene_BindLua, Entity_Create),
+        lunamethod(Scene_BindLua, Component_CreateInstance),
         lunamethod(Scene_BindLua, Entity_SetStreamable),
         lunamethod(Scene_BindLua, Entity_SetScript),
         lunamethod(Scene_BindLua, Entity_Disable),
         lunamethod(Scene_BindLua, Entity_Enable),
+        lunamethod(Scene_BindLua, Entity_GetInstanceArray),
+        lunamethod(Scene_BindLua, Entity_GetDisabledArray),
+        lunamethod(Scene_BindLua, Entity_GetStreamArray),
+        lunamethod(Scene_BindLua, Entity_GetScriptObjectArray),
         { NULL, NULL }
     };
     Luna<Scene_BindLua>::PropertyType Scene_BindLua::properties[] = {
@@ -605,19 +610,25 @@ namespace Game::ScriptBindings::Resources{
         }
         return 0;
     };
-    int Scene_BindLua::Entity_CreateInstance(lua_State *L){
+    int Scene_BindLua::Entity_Create(lua_State *L){
+        wi::lua::SSetInt(L, wi::ecs::CreateEntity());
+        return 1;
+    }
+    int Scene_BindLua::Component_CreateInstance(lua_State *L){
         int argc = wi::lua::SGetArgCount(L);
         if (argc > 0)
         {
-            auto name = wi::lua::SGetString(L, 1);
-            auto entity = scene->CreateInstance(name);
-            
-            wi::lua::SSetLongLong(L, entity);
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+
+            scene->instances.Create(entity);
+
+            auto& component = scene->instances.Create(entity);
+            Luna<Library_Instance_BindLua>::push(L, new Library_Instance_BindLua(&component));
             return 1;
         }
         else
         {
-            wi::lua::SError(L, "GameScene::Entity_CreateInstance(String name) not enough arguments!");
+            wi::lua::SError(L, "GameScene::Component_CreateInstance(Entity entity) not enough arguments!");
         }
         return 0;
     }
@@ -686,6 +697,46 @@ namespace Game::ScriptBindings::Resources{
             wi::lua::SError(L, "GameScene::Entity_SetScript(Entity entity) not enough arguments!");
         }
         return 0;
+    }
+    int Scene_BindLua::Entity_GetInstanceArray(lua_State *L){
+        lua_createtable(L, (int)scene->instances.GetCount(), 0);
+        int newTable = lua_gettop(L);
+        for (size_t i = 0; i < scene->instances.GetCount(); ++i)
+        {
+            Luna<Library_Instance_BindLua>::push(L, new Library_Instance_BindLua(&scene->instances[i]));
+            lua_rawseti(L, newTable, lua_Integer(i + 1));
+        }
+        return 1;
+    }
+    int Scene_BindLua::Entity_GetDisabledArray(lua_State *L){
+        lua_createtable(L, (int)scene->disabled.GetCount(), 0);
+        int newTable = lua_gettop(L);
+        for (size_t i = 0; i < scene->disabled.GetCount(); ++i)
+        {
+            Luna<Library_Disabled_BindLua>::push(L, new Library_Disabled_BindLua(&scene->disabled[i]));
+            lua_rawseti(L, newTable, lua_Integer(i + 1));
+        }
+        return 1;
+    }
+    int Scene_BindLua::Entity_GetStreamArray(lua_State *L){
+        lua_createtable(L, (int)scene->streams.GetCount(), 0);
+        int newTable = lua_gettop(L);
+        for (size_t i = 0; i < scene->streams.GetCount(); ++i)
+        {
+            Luna<Library_Stream_BindLua>::push(L, new Library_Stream_BindLua(&scene->streams[i]));
+            lua_rawseti(L, newTable, lua_Integer(i + 1));
+        }
+        return 1;
+    }
+    int Scene_BindLua::Entity_GetScriptObjectArray(lua_State *L){
+        lua_createtable(L, (int)scene->scriptobjects.GetCount(), 0);
+        int newTable = lua_gettop(L);
+        for (size_t i = 0; i < scene->scriptobjects.GetCount(); ++i)
+        {
+            Luna<Library_ScriptObject_BindLua>::push(L, new Library_ScriptObject_BindLua(&scene->scriptobjects[i]));
+            lua_rawseti(L, newTable, lua_Integer(i + 1));
+        }
+        return 1;
     }
 }
 

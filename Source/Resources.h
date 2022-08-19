@@ -136,7 +136,6 @@ namespace Game::Resources{
 
         // Scene processing functions
         void Init();
-        // TODO: indexer for listing scenegraph data, good for editor!
         void Library_Update(float dt);
         void Update(float dt);
     };
