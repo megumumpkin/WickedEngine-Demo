@@ -1,7 +1,5 @@
 #!/usr/bin/sh
 
-# Please run this script in root
-
 if [ ! -d '../../Build' ]; then
 	mkdir '../../Build'
 fi
