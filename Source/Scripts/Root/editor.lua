@@ -7,6 +7,7 @@ D("editor_data",{
         scenegraphview = {
             win_visible = false,
             filter_selected = 0,
+            selected_entity = 0,
             wait_update = false,
             list = {
                 objects = {},
@@ -17,6 +18,12 @@ D("editor_data",{
         },
         compinspect = {
             win_visible = false,
+            component = {
+                name = {
+                    namestr = "",
+                    apply = false 
+                },
+            }
         },
         fmenu_rnres = {
             win_visible = false,
@@ -29,7 +36,6 @@ D("editor_data",{
     },
     actions = {
         command_head = 0,
-        command_list = {},
         resource_new = false,
         resource_rename = false,
         resource_save = false,
@@ -157,24 +163,27 @@ end
 
 local drawmenubardialogs = function()
     if D.editor_data.elements.fmenu_rnres.win_visible then
-        sub_visible, D.editor_data.elements.fmenu_rnres.win_visible = imgui.Begin("\xef\x81\x84 Rename Scene", D.editor_data.elements.fmenu_rnres.win_visible)
+        local fmenu_rnres = D.editor_data.elements.fmenu_rnres
+        sub_visible, fmenu_rnres.win_visible = imgui.Begin("\xef\x81\x84 Rename Scene", fmenu_rnres.win_visible)
         if sub_visible then
-            ret, D.editor_data.elements.fmenu_rnres.input = imgui.InputText("##fmenu_rnres_input", D.editor_data.elements.fmenu_rnres.input, 255)
+            ret, fmenu_rnres.input = imgui.InputText("##fmenu_rnres_input", fmenu_rnres.input, 255)
             imgui.SameLine()
             if imgui.Button("\xef\x81\x84 ") then
-                backlog_post("ACT_INF: rename to > " .. D.editor_data.elements.fmenu_rnres.input)
+                backlog_post("ACT_INF: rename to > " .. fmenu_rnres.input)
                 backlog_post("ACT_STUB: rename resource apply to object is not implemented yet")
-                D.editor_data.elements.fmenu_rnres.apply = false
+                fmenu_rnres.apply = false
             end
         end
     end
 end
 
 local drawsceneexp = function()
-    if D.editor_data.elements.resexp.win_visible then
-        sub_visible, D.editor_data.elements.resexp.win_visible = imgui.Begin("\xef\x86\xb2 Resources Explorer", D.editor_data.elements.resexp.win_visible)
+    local resexp = D.editor_data.elements.resexp
+
+    if resexp.win_visible then
+        sub_visible, resexp.win_visible = imgui.Begin("\xef\x86\xb2 Resources Explorer", resexp.win_visible)
         if sub_visible then
-            ret, D.editor_data.elements.resexp.input = imgui.InputText("##resexp_sin", D.editor_data.elements.resexp.input, 255)
+            ret, resexp.input = imgui.InputText("##resexp_sin", resexp.input, 255)
             imgui.SameLine() imgui.Button("\xef\x85\x8e Search")
         end
         imgui.End()
@@ -182,10 +191,12 @@ local drawsceneexp = function()
 end
 
 local drawscenegraphview = function()
-    if D.editor_data.elements.scenegraphview.win_visible then
-        sub_visible, D.editor_data.elements.scenegraphview.win_visible = imgui.Begin("\xef\xa0\x82 Scene Graph Viewer", D.editor_data.elements.scenegraphview.win_visible)
+    local scenegraphview = D.editor_data.elements.scenegraphview
+
+    if scenegraphview.win_visible then
+        sub_visible, scenegraphview.win_visible = imgui.Begin("\xef\xa0\x82 Scene Graph Viewer", scenegraphview.win_visible)
         if sub_visible then
-            ret_filter, D.editor_data.elements.scenegraphview.filter_selected = imgui.Combo("\xef\x82\xb0##filter",D.editor_data.elements.scenegraphview.filter_selected,"Objects\0Meshes\0Materials\0Animation")
+            ret_filter, scenegraphview.filter_selected = imgui.Combo("\xef\x82\xb0##filter",scenegraphview.filter_selected,"Objects\0Meshes\0Materials\0Animation")
             
             imgui.PushStyleVar(imgui.constant.StyleVar.ChildRounding, 5.0)
             local childflags = 0 | imgui.constant.WindowFlags.NoTitleBar
@@ -193,12 +204,22 @@ local drawscenegraphview = function()
             imgui.PopStyleVar()
             
             if view_oblist then
-                if not D.editor_data.elements.scenegraphview.wait_update then
-                    for _, entity in pairs(D.editor_data.elements.scenegraphview.list.objects) do
+                if not scenegraphview.wait_update then
+                    for _, entity in pairs(scenegraphview.list.objects) do
                         local name = wiscene.Component_GetName(entity)
-                        ret_tree = imgui.TreeNode(name.GetName() .. "##" .. entity)
-                        if ret_tree then
-                            imgui.TreePop()
+                        if name then
+                            local flag = 0
+                            if scenegraphview.selected_entity == entity then
+                                flag = flag | imgui.constant.TreeNodeFlags.Selected
+                            end
+
+                            local ret_tree = imgui.TreeNodeEx(name.GetName() .. "##" .. entity, flag)
+                            if imgui.IsItemClicked() then
+                                scenegraphview.selected_entity = entity
+                            end
+                            if ret_tree then
+                                imgui.TreePop()
+                            end
                         end
                     end
                 end    
@@ -210,11 +231,104 @@ local drawscenegraphview = function()
 end
 
 local drawcompinspect = function()
-    if D.editor_data.elements.compinspect.win_visible then
-        sub_visible, D.editor_data.elements.compinspect.win_visible = imgui.Begin("\xef\x82\x85 Component Inspector", D.editor_data.elements.compinspect.win_visible)
+    local compinspect = D.editor_data.elements.compinspect
+    if compinspect.win_visible then
+        sub_visible, compinspect.win_visible = imgui.Begin("\xef\x82\x85 Component Inspector", compinspect.win_visible)
         if sub_visible then
-            
+            local entity = D.editor_data.elements.scenegraphview.selected_entity
+            if entity > 0 then
+                
+                -- NameComponent
+                local namecomponent = wiscene.Component_GetName(entity)
+                if namecomponent then
+                    local editor_name = compinspect.component.name
+                    local ret_tree = imgui.TreeNode("Name Component")
+                    if ret_tree then
+                        _, editor_name.namestr = imgui.InputText("Name##cmpedit", editor_name.namestr, 255)
+                        imgui.SameLine()
+                        if imgui.Button("\xef\x81\x84") then
+                            namecomponent.SetName(editor_name.namestr)
+                        end
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then editor_name.namestr = namecomponent.GetName() end
+                end
+                --
+
+                -- LayerComponent
+                local layercomponent = wiscene.Component_GetLayer(entity)
+                if layercomponent then
+                    local ret_tree = imgui.TreeNode("Layer Component")
+                    if ret_tree then
+                        local layers = layercomponent.GetLayerMask()
+                        local set = 0
+                        for flag_id = 0, 31, 1 do
+                            local block = 1 << flag_id
+                            local get_check = (layers & block) > 0
+                            if (flag_id%6 > 0) and (flag_id ~= 0) then imgui.SameLine() end
+                            _, get_check = imgui.Checkbox(flag_id .. "##" .. flag_id, get_check)
+                            local get = 0
+                            if get_check == true then
+                                set = set | block
+                            end
+                        end
+                        layercomponent.SetLayerMask(set)
+                        if imgui.Button("Select ALL") then layercomponent.SetLayerMask(0xffffffff) end
+                        imgui.SameLine()
+                        if imgui.Button("Select NONE") then layercomponent.SetLayerMask(0) end
+                        imgui.TreePop()
+                    end
+                end
+                --
+
+                -- TransformComponent - TODO
+                local transformcomponent = wiscene.Component_GetTransform(entity)
+                if transformcomponent then
+                    local ret_tree = imgui.TreeNode("Transform Component")
+                    if ret_tree then
+                        local position = transformcomponent.GetPosition()
+
+                        local transform = {
+                            0.0 , 0.0, 0.0 ,
+                            0.0 , 0.0, 0.0 , 0.0 ,
+                            0.0 , 0.0, 0.0 
+                        }
+
+                        transform[1] = position.GetX()
+
+                        local headers = {
+                            "x" , "y" , "z" ,
+                            "x" , "y" , "z" , "w" ,
+                            "x" , "y" , "z" 
+                        }
+
+                        imgui.LabelText("##position","Position")
+                        -- for vpos = 1, 3, 1 do
+                        --     _, transform[vpos] = imgui.InputFloat(headers[vpos] .. "##edit_" .. vpos, transform[vpos])
+                        -- end
+                        
+                        imgui.LabelText("##rotation","Rotation")
+                        -- for vpos = 4, 7, 1 do
+                        --     _, transform[vpos] = imgui.InputText(headers[vpos] .. "##edit_" .. vpos, transform[vpos], 255)
+                        -- end
+                        
+                        imgui.LabelText("##scale","Scale")
+                        -- for vpos = 8, 10, 1 do
+                        --     _, transform[vpos] = imgui.InputText(headers[vpos] .. "##edit_" .. vpos, transform[vpos], 255)
+                        -- end
+                        
+                        transformcomponent.ClearTransform();
+                        -- TODO
+
+                        imgui.TreePop()
+                    end
+                end
+                --
+
+                if imgui.Button("               Add Component               ") then end -- TODO
+            end
         end
+
         imgui.End()
     end
 end
@@ -225,64 +339,70 @@ local update_scenegraph = function()
 end
 
 local update_sysmenu_actions = function()
+    local actions = D.editor_data.actions
     -- File menu actions
-    if D.editor_data.actions.resource_new then
+    if actions.resource_new then
         backlog_post("ACT_STUB: new resource not working")
         filedialog(0,"Wicked Engine Scene","wiscene",function(data)
             backlog_post(data.filepath)
         end)
-        D.editor_data.actions.resource_new = false
+        actions.resource_new = false
     end
-    if D.editor_data.actions.resource_rename then
-        D.editor_data.elements.fmenu_rnres.win_visible = true
-        D.editor_data.actions.resource_rename = false
+    if actions.resource_rename then
+        elements.fmenu_rnres.win_visible = true
+        actions.resource_rename = false
     end
-    if D.editor_data.actions.resource_save then
+    if actions.resource_save then
         backlog_post("ACT_STUB: save resource not working")
-        D.editor_data.actions.resource_save = false
+        actions.resource_save = false
     end
-    if D.editor_data.actions.add_object then
+    if actions.add_object then
         edit_execcmd("add", {type = "object", name = "New Object"})
-        D.editor_data.actions.add_object = false
+        actions.add_object = false
     end
 end
 
 local update_navigation = function()
-    local camera_pos_delta = Vector()
-    local camera_rot_delta = Vector()
-    
-    -- Camera movement WASDQE
-    if(input.Down(string.byte('W'))) then camera_pos_delta.SetZ(1.0*CAM_MOVE_SPD) end
-    if(input.Down(string.byte('S'))) then camera_pos_delta.SetZ(-1.0*CAM_MOVE_SPD) end
-    if(input.Down(string.byte('A'))) then camera_pos_delta.SetX(-1.0*CAM_MOVE_SPD) end
-    if(input.Down(string.byte('D'))) then camera_pos_delta.SetX(1.0*CAM_MOVE_SPD) end
-    if(input.Down(string.byte('Q'))) then camera_pos_delta.SetY(-1.0*CAM_MOVE_SPD) end
-    if(input.Down(string.byte('E'))) then camera_pos_delta.SetY(1.0*CAM_MOVE_SPD) end
-    -- Camera rotation keyboard
-    if(input.Down(KEYBOARD_BUTTON_UP)) then camera_rot_delta.SetX(-1.0*CAM_ROT_SPD) end
-    if(input.Down(KEYBOARD_BUTTON_DOWN)) then camera_rot_delta.SetX(1.0*CAM_ROT_SPD) end
-    if(input.Down(KEYBOARD_BUTTON_LEFT)) then camera_rot_delta.SetY(-1.0*CAM_ROT_SPD) end
-    if(input.Down(KEYBOARD_BUTTON_RIGHT)) then camera_rot_delta.SetY(1.0*CAM_ROT_SPD) end
-    -- Get rotated movement
-    local camera_rot_matrix = matrix.Rotation(D.editor_data.navigation.camera_rot)
-    camera_pos_delta = vector.Transform(camera_pos_delta, camera_rot_matrix)
+    local navigation = D.editor_data.navigation
 
-    -- Apply rotation delta
-    D.editor_data.navigation.camera_rot.SetX(D.editor_data.navigation.camera_rot.GetX() + camera_rot_delta.GetX())
-    D.editor_data.navigation.camera_rot.SetY(D.editor_data.navigation.camera_rot.GetY() + camera_rot_delta.GetY())
-    -- Apply movement delta
-    D.editor_data.navigation.camera_pos.SetZ(D.editor_data.navigation.camera_pos.GetZ() + camera_pos_delta.GetZ())
-    D.editor_data.navigation.camera_pos.SetX(D.editor_data.navigation.camera_pos.GetX() + camera_pos_delta.GetX())
-    D.editor_data.navigation.camera_pos.SetY(D.editor_data.navigation.camera_pos.GetY() + camera_pos_delta.GetY())
+    if editor_ui_focused() == false then
 
-    -- Camera transform update
-    D.editor_data.navigation.camera_transform.ClearTransform()
-    D.editor_data.navigation.camera_transform.Translate(D.editor_data.navigation.camera_pos)
-    D.editor_data.navigation.camera_transform.Rotate(D.editor_data.navigation.camera_rot)
-    D.editor_data.navigation.camera_transform.UpdateTransform()
-    D.editor_data.navigation.camera.TransformCamera(D.editor_data.navigation.camera_transform)
-    D.editor_data.navigation.camera.UpdateCamera()
+        local camera_pos_delta = Vector()
+        local camera_rot_delta = Vector()
+        
+        -- Camera movement WASDQE
+        if(input.Down(string.byte('W'))) then camera_pos_delta.SetZ(1.0*CAM_MOVE_SPD) end
+        if(input.Down(string.byte('S'))) then camera_pos_delta.SetZ(-1.0*CAM_MOVE_SPD) end
+        if(input.Down(string.byte('A'))) then camera_pos_delta.SetX(-1.0*CAM_MOVE_SPD) end
+        if(input.Down(string.byte('D'))) then camera_pos_delta.SetX(1.0*CAM_MOVE_SPD) end
+        if(input.Down(string.byte('Q'))) then camera_pos_delta.SetY(-1.0*CAM_MOVE_SPD) end
+        if(input.Down(string.byte('E'))) then camera_pos_delta.SetY(1.0*CAM_MOVE_SPD) end
+        -- Camera rotation keyboard
+        if(input.Down(KEYBOARD_BUTTON_UP)) then camera_rot_delta.SetX(-1.0*CAM_ROT_SPD) end
+        if(input.Down(KEYBOARD_BUTTON_DOWN)) then camera_rot_delta.SetX(1.0*CAM_ROT_SPD) end
+        if(input.Down(KEYBOARD_BUTTON_LEFT)) then camera_rot_delta.SetY(-1.0*CAM_ROT_SPD) end
+        if(input.Down(KEYBOARD_BUTTON_RIGHT)) then camera_rot_delta.SetY(1.0*CAM_ROT_SPD) end
+        -- Get rotated movement
+        local camera_rot_matrix = matrix.Rotation(navigation.camera_rot)
+        camera_pos_delta = vector.Transform(camera_pos_delta, camera_rot_matrix)
 
+        -- Apply rotation delta
+        navigation.camera_rot.SetX(navigation.camera_rot.GetX() + camera_rot_delta.GetX())
+        navigation.camera_rot.SetY(navigation.camera_rot.GetY() + camera_rot_delta.GetY())
+        -- Apply movement delta
+        navigation.camera_pos.SetZ(navigation.camera_pos.GetZ() + camera_pos_delta.GetZ())
+        navigation.camera_pos.SetX(navigation.camera_pos.GetX() + camera_pos_delta.GetX())
+        navigation.camera_pos.SetY(navigation.camera_pos.GetY() + camera_pos_delta.GetY())
+
+        -- Camera transform update
+        navigation.camera_transform.ClearTransform()
+        navigation.camera_transform.Translate(navigation.camera_pos)
+        navigation.camera_transform.Rotate(navigation.camera_rot)
+        navigation.camera_transform.UpdateTransform()
+        navigation.camera.TransformCamera(navigation.camera_transform)
+        navigation.camera.UpdateCamera()
+
+    end
 end
 
 local update_editaction = function()
@@ -296,9 +416,14 @@ local update_editaction = function()
 end
 
 runProcess(function()
+    if not Script_Initialized(script_pid()) then
+        if D.editor_data.actions.command_list == nil then
+            D.editor_data.actions.command_list = {}
+        end
+        edit_execcmd("init")
+        editor_dev_griddraw(true)
+    end
 
-    edit_execcmd("init")
-    editor_dev_griddraw(true)
     while true do
         update_scenegraph()
         update_sysmenu_actions()

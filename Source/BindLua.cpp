@@ -38,9 +38,9 @@ namespace Game::ScriptBindings{
 				return success, co
 			end
 			if _ENV.PROCESSES_DATA[script_pid()] == nil then
-				_ENV.PROCESSES_DATA[script_pid()] = { _INITIALIZED = -1 }
+				_ENV.PROCESSES_DATA[script_pid()] = { _INITIALIZED = 0 }
 			end
-			if _ENV.PROCESSES_DATA[script_pid()]._INITIALIZED < 1 then
+			if _ENV.PROCESSES_DATA[script_pid()]._INITIALIZED < 2 then
 				_ENV.PROCESSES_DATA[script_pid()]._INITIALIZED = _ENV.PROCESSES_DATA[script_pid()]._INITIALIZED + 1
 			end
 			local D = _ENV.PROCESSES_DATA[script_pid()]
@@ -188,6 +188,12 @@ namespace Game::ScriptBindings{
 		}
 		return 0;
 	}
+
+	int Internal_EditorUIFocused(lua_State* L){
+		ImGuiIO& io = ::ImGui::GetIO();
+		wi::lua::SSetBool(L,io.WantCaptureMouse);
+		return 1;
+	}
 #endif
 
 	// Script bindings need to initialize themselves here
@@ -211,6 +217,7 @@ namespace Game::ScriptBindings{
 			lua_call(L,2,0);
 		});
 		wi::lua::RegisterFunc("editor_dev_griddraw", Internal_EditorDevGridDraw);
+		wi::lua::RegisterFunc("editor_ui_focused", Internal_EditorUIFocused);
         ImGui::Bind();
 #endif
         Resources::Bind();

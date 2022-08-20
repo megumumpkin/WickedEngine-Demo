@@ -22,6 +22,15 @@ function Internal_SyncSubTable(storage,source)
     end
 end
 
+-- To check if the script has already been initialized
+function Script_Initialized(pid)
+    local result = true
+    if PROCESSES_DATA[pid]._INITIALIZED == 1 then
+        result = false
+    end
+    return result
+end
+
 Async_Callback_Data = {}
 function async_callback_listen(tid, func)
     runProcess(function()
