@@ -1,16 +1,18 @@
 #!/usr/bin/sh
 
-if [ ! -d '../../Build' ]; then
-	mkdir '../../Build'
+cd '../../'
+
+if [ ! -d 'Build' ]; then
+	mkdir 'Build'
 fi
 
-if [ ! -d '../../Data/Shader' ]; then
-	mkdir -p '../../Data/Shader'
+if [ ! -d 'Data/Shader' ]; then
+	mkdir -p 'Data/Shader'
 fi
 
-if [ ! -d '../../Library/WickedEngine/build' ]; then
-	mkdir -p '../../Library/WickedEngine/build'
-	cd '../../Library/WickedEngine/build'
+if [ ! -d 'Library/WickedEngine/build' ]; then
+	mkdir -p 'Library/WickedEngine/build'
+	cd 'Library/WickedEngine/build'
 	cmake .. -DCMAKE_BUILD_TYPE=Release
 	make -j$(nproc)
 	cd '../../../'
