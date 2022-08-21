@@ -19,10 +19,9 @@ D("editor_data",{
         compinspect = {
             win_visible = false,
             component = {
-                name = {
-                    namestr = "",
-                    apply = false 
-                },
+                name = {},
+                transform = {},
+                object = {},
             }
         },
         fmenu_rnres = {
@@ -32,7 +31,7 @@ D("editor_data",{
         },
         helper_demo = {
             win_visible = false,
-        }
+        },
     },
     actions = {
         command_head = 0,
@@ -48,6 +47,9 @@ D("editor_data",{
         camera_transform = TransformComponent(),
         camera_pos = Vector(0,2,-5),
         camera_rot = Vector(0,0,0),
+    },
+    core_data = {
+        resname = "Untitled Scene",
     }
 })
 
@@ -120,7 +122,7 @@ local drawtopbar = function()
     imgui.PushStyleVar(imgui.constant.StyleVar.WindowBorderSize, 0)
     if imgui.Begin("##MainBar", true, mainbarflags) then
         imgui.PopStyleVar()
-        if imgui.Button("\xef\x86\xb2 SceneName   \xef\x83\x97") then
+        if imgui.Button("\xef\x86\xb2 " .. D.editor_data.core_data.resname .. "   \xef\x83\x97") then
             D.editor_data.elements.resexp.win_visible = not D.editor_data.elements.resexp.win_visible
         end
         imgui.SameLine()
@@ -181,10 +183,19 @@ local drawsceneexp = function()
     local resexp = D.editor_data.elements.resexp
 
     if resexp.win_visible then
-        sub_visible, resexp.win_visible = imgui.Begin("\xef\x86\xb2 Resources Explorer", resexp.win_visible)
+        sub_visible, resexp.win_visible = imgui.Begin("\xef\x86\xb2 Scene Explorer", resexp.win_visible)
         if sub_visible then
             ret, resexp.input = imgui.InputText("##resexp_sin", resexp.input, 255)
             imgui.SameLine() imgui.Button("\xef\x85\x8e Search")
+
+            imgui.PushStyleVar(imgui.constant.StyleVar.ChildRounding, 5.0)
+            local childflags = 0 | imgui.constant.WindowFlags.NoTitleBar
+            local view_oblist = imgui.BeginChild("##listview", 0, 0, true, childflags)
+            imgui.PopStyleVar()
+
+            -- Display previews of scenes here!
+
+            imgui.EndChild()
         end
         imgui.End()
     end
@@ -242,12 +253,22 @@ local drawcompinspect = function()
                 local namecomponent = wiscene.Component_GetName(entity)
                 if namecomponent then
                     local editor_name = compinspect.component.name
+                    --Init
+                    if editor_name.namestr == nil then editor_name.namestr = namecomponent.GetName() end
+                    --
                     local ret_tree = imgui.TreeNode("Name Component")
                     if ret_tree then
-                        _, editor_name.namestr = imgui.InputText("Name##cmpedit", editor_name.namestr, 255)
-                        imgui.SameLine()
-                        if imgui.Button("\xef\x81\x84") then
-                            namecomponent.SetName(editor_name.namestr)
+                        local changed = false
+
+                        local get_namestr = editor_name.namestr
+
+                        local set_name, get_namestr = imgui.InputText("Name", get_namestr, 255)
+                        if set_name == true then changed = true end
+                        
+                        local apply = false
+                        if changed and input.Down(KEYBOARD_BUTTON_ENTER) then apply = true end
+                        if apply then
+                            namecomponent.SetName(get_namestr)
                         end
                         imgui.TreePop()
                     end
@@ -281,45 +302,129 @@ local drawcompinspect = function()
                 end
                 --
 
-                -- TransformComponent - TODO
+                -- TransformComponent
                 local transformcomponent = wiscene.Component_GetTransform(entity)
                 if transformcomponent then
+                    local editor_transform = compinspect.component.transform
                     local ret_tree = imgui.TreeNode("Transform Component")
+                    --Init
+                    if editor_transform.edit_pos == nil then editor_transform.edit_pos = transformcomponent.GetPosition() end
+                    if editor_transform.edit_rot == nil then 
+                        local rot_quat = transformcomponent.GetRotation()
+                        editor_transform.edit_rot = vector.QuaternionToRollPitchYaw(rot_quat)
+                    end
+                    if editor_transform.edit_sca == nil then editor_transform.edit_sca = transformcomponent.GetScale() end
+                    --
                     if ret_tree then
-                        local position = transformcomponent.GetPosition()
+                        local changed = false
 
-                        local transform = {
-                            0.0 , 0.0, 0.0 ,
-                            0.0 , 0.0, 0.0 , 0.0 ,
-                            0.0 , 0.0, 0.0 
-                        }
+                        local tx = editor_transform.edit_pos.GetX()
+                        local ty = editor_transform.edit_pos.GetY()
+                        local tz = editor_transform.edit_pos.GetZ()
 
-                        transform[1] = position.GetX()
+                        local rx = editor_transform.edit_rot.GetX()
+                        local ry = editor_transform.edit_rot.GetY()
+                        local rz = editor_transform.edit_rot.GetZ()
 
-                        local headers = {
-                            "x" , "y" , "z" ,
-                            "x" , "y" , "z" , "w" ,
-                            "x" , "y" , "z" 
-                        }
+                        local sx = editor_transform.edit_sca.GetX()
+                        local sy = editor_transform.edit_sca.GetY()
+                        local sz = editor_transform.edit_sca.GetZ()
 
-                        imgui.LabelText("##position","Position")
-                        -- for vpos = 1, 3, 1 do
-                        --     _, transform[vpos] = imgui.InputFloat(headers[vpos] .. "##edit_" .. vpos, transform[vpos])
-                        -- end
+                        local set_pos, tx, ty, tz = imgui.InputFloat3("Position", tx, ty, tz)
+                        if set_pos == true then changed = true end
                         
-                        imgui.LabelText("##rotation","Rotation")
-                        -- for vpos = 4, 7, 1 do
-                        --     _, transform[vpos] = imgui.InputText(headers[vpos] .. "##edit_" .. vpos, transform[vpos], 255)
-                        -- end
+                        local set_rot, rx, ry, rz = imgui.InputFloat3("Euler Rotation", rx, ry, rz)
+                        if set_rot == true then changed = true end
                         
-                        imgui.LabelText("##scale","Scale")
-                        -- for vpos = 8, 10, 1 do
-                        --     _, transform[vpos] = imgui.InputText(headers[vpos] .. "##edit_" .. vpos, transform[vpos], 255)
-                        -- end
+                        local set_sca, sx, sy, sz = imgui.InputFloat3("Scale", sx, sy, sz)
+                        if set_sca == true then changed = true end
                         
-                        transformcomponent.ClearTransform();
-                        -- TODO
+                        
+                        local apply = false
+                        if changed and input.Down(KEYBOARD_BUTTON_ENTER) then apply = true end
+                        if apply then
+                            editor_transform.edit_pos.SetX(tx)
+                            editor_transform.edit_pos.SetY(ty)
+                            editor_transform.edit_pos.SetZ(tz)
 
+                            editor_transform.edit_rot.SetX(rx)
+                            editor_transform.edit_rot.SetY(ry)
+                            editor_transform.edit_rot.SetZ(rz)
+
+                            editor_transform.edit_sca.SetX(sx)
+                            editor_transform.edit_sca.SetY(sy)
+                            editor_transform.edit_sca.SetZ(sz)
+
+                            transformcomponent.ClearTransform();
+                            transformcomponent.Translate(editor_transform.edit_pos)
+                            local rot_quat = vector.QuaternionFromRollPitchYaw(editor_transform.edit_rot)
+                            transformcomponent.Rotate(rot_quat)
+                            transformcomponent.Scale(editor_transform.edit_sca)
+                        end
+
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then 
+                        editor_transform.edit_pos = transformcomponent.GetPosition()
+                        local rot_quat = transformcomponent.GetRotation()
+                        editor_transform.edit_rot = vector.QuaternionToRollPitchYaw(rot_quat)
+                        editor_transform.edit_sca = transformcomponent.GetScale()
+                    end
+                end
+                --
+
+                -- ObjectComponent
+                local objectcomponent = wiscene.Component_GetObject(entity)
+                if objectcomponent then
+                    local editor_object = compinspect.component.transform
+                    --Init
+                    if editor_object.edit_col == nil then editor_object.edit_col = objectcomponent.GetColor() end
+                    if editor_object.edit_stencilref == nil then editor_object.edit_stencilref = objectcomponent.GetUserStencilRef() end
+                    --
+                    local ret_tree = imgui.TreeNode("Object Component")
+                    if ret_tree then
+                        local changed = false
+                        
+                        local col_r = editor_object.edit_col.GetX()
+                        local col_g = editor_object.edit_col.GetY()
+                        local col_b = editor_object.edit_col.GetZ()
+                        local col_a = editor_object.edit_col.GetW()
+
+                        local stencilref = editor_object.edit_stencilref
+
+                        local set_col, col_r, col_g, col_b, col_a = imgui.InputFloat4("Color##edit_col", col_r, col_g, col_b, col_a)
+                        if set_col == true then changed = true end
+
+                        local set_stencilref, stencilref = imgui.InputInt("Stencil Ref ID##edit_stencil", stencilref)
+                        if set_stencilref == true then changed = true end
+
+                        local apply = false
+                        if changed and input.Down(KEYBOARD_BUTTON_ENTER) then apply = true end
+                        if apply then
+                            editor_object.edit_col.SetX(col_r)
+                            editor_object.edit_col.SetY(col_g)
+                            editor_object.edit_col.SetZ(col_b)
+                            editor_object.edit_col.SetW(col_a)
+
+                            objectcomponent.SetColor(editor_object.edit_col)
+                            objectcomponent.SetUserStencilRef(stencilref)
+                        end
+
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then 
+                        editor_object.edit_col = objectcomponent.GetColor()
+                        editor_object.edit_stencilref = objectcomponent.GetUserStencilRef()
+                    end
+                end
+                --
+
+                -- LightComponent
+                local lightcomponent = wiscene.Component_GetLight(entity)
+                if lightcomponent then
+                    local ret_tree = imgui.TreeNode("Light Component")
+                    if ret_tree then
+                        
                         imgui.TreePop()
                     end
                 end

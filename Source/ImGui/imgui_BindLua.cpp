@@ -66,12 +66,12 @@ static int impl_##name(lua_State *L) { \
     size_t i_##name##_size; \
     const char * name = luaL_checklstring(L, arg++, &(i_##name##_size));
 
-#define OPTIONAL_LABEL_ARG(name) \
+#define OPTIONAL_LABEL_ARG(name, otherwise) \
     const char* name; \
     if (arg <= max_args) { \
         name = lua_tostring(L, arg++); \
     } else { \
-        name = NULL; \
+        name = otherwise; \
     }
 
 #define IOTEXT_ARG(name) \
@@ -119,8 +119,17 @@ static int impl_##name(lua_State *L) { \
     } \
     const ImVec4 name((double)i_##name##_x, (double)i_##name##_y, (double)i_##name##_z, (double)i_##name##_w);
 
+#define FLOAT_ARG(name)\
+    float name = luaL_checknumber(L, arg++);
+
 #define NUMBER_ARG(name)\
     lua_Number name = luaL_checknumber(L, arg++);
+
+#define FLOAT_ARRAY_DEF(name, size)\
+    float name[size];
+
+#define FLOAT_ARRAY_ARG(name, it)\
+    name[it] = luaL_checknumber(L, arg++);
 
 #define OPTIONAL_NUMBER_ARG(name, otherwise)\
     lua_Number name = otherwise; \
@@ -140,6 +149,12 @@ static int impl_##name(lua_State *L) { \
 
 #define INT_ARG(name) \
     const int name = (int)luaL_checknumber(L, arg++);
+
+#define INT_ARRAY_DEF(name,size) \
+    int name[size];
+
+#define INT_ARRAY_ARG(name,it) \
+    name[it] = (int)luaL_checknumber(L, arg++);
 
 #define OPTIONAL_INT_ARG(name, otherwise)\
     int name = otherwise; \
@@ -363,7 +378,7 @@ static const struct luaL_Reg imguilib [] = {
 #undef IM_TEXTURE_ID_ARG
 #define IM_TEXTURE_ID_ARG(name)
 #undef OPTIONAL_LABEL_ARG
-#define OPTIONAL_LABEL_ARG(name)
+#define OPTIONAL_LABEL_ARG(name, otherwise)
 #undef LABEL_ARG
 #define LABEL_ARG(name)
 #undef IOTEXT_ARG
@@ -376,8 +391,14 @@ static const struct luaL_Reg imguilib [] = {
 #define IM_VEC_4_ARG(name)
 #undef OPTIONAL_IM_VEC_4_ARG
 #define OPTIONAL_IM_VEC_4_ARG(name, x, y, z, w)
+#undef FLOAT_ARG
+#define FLOAT_ARG(name)
 #undef NUMBER_ARG
 #define NUMBER_ARG(name)
+#undef FLOAT_ARRAY_DEF
+#define FLOAT_ARRAY_DEF(name, size)
+#undef FLOAT_ARRAY_ARG
+#define FLOAT_ARRAY_ARG(name, it)
 #undef OPTIONAL_NUMBER_ARG
 #define OPTIONAL_NUMBER_ARG(name, otherwise)
 #undef FLOAT_POINTER_ARG
@@ -388,6 +409,10 @@ static const struct luaL_Reg imguilib [] = {
 #define OPTIONAL_INT_ARG(name, otherwise)
 #undef INT_ARG
 #define INT_ARG(name)
+#undef INT_ARRAY_DEF
+#define INT_ARRAY_DEF(name,size)
+#undef INT_ARRAY_ARG
+#define INT_ARRAY_ARG(name,it)
 #undef OPTIONAL_UINT_ARG
 #define OPTIONAL_UINT_ARG(name, otherwise)
 #undef UINT_ARG
@@ -499,7 +524,7 @@ static void PushImguiEnums(lua_State* lState, const char* tableName) {
 #undef IM_TEXTURE_ID_ARG
 #define IM_TEXTURE_ID_ARG(name)
 #undef OPTIONAL_LABEL_ARG
-#define OPTIONAL_LABEL_ARG(name)
+#define OPTIONAL_LABEL_ARG(name, otherwise)
 #undef LABEL_ARG
 #define LABEL_ARG(name)
 #undef IOTEXT_ARG
@@ -512,8 +537,14 @@ static void PushImguiEnums(lua_State* lState, const char* tableName) {
 #define IM_VEC_4_ARG(name)
 #undef OPTIONAL_IM_VEC_4_ARG
 #define OPTIONAL_IM_VEC_4_ARG(name, x, y, z, w)
+#undef FLOAT_ARG
+#define FLOAT_ARG(name)
 #undef NUMBER_ARG
 #define NUMBER_ARG(name)
+#undef FLOAT_ARRAY_DEF
+#define FLOAT_ARRAY_DEF(name, size)
+#undef FLOAT_ARRAY_ARG
+#define FLOAT_ARRAY_ARG(name, it)
 #undef OPTIONAL_NUMBER_ARG
 #define OPTIONAL_NUMBER_ARG(name, otherwise)
 #undef FLOAT_POINTER_ARG
@@ -524,6 +555,10 @@ static void PushImguiEnums(lua_State* lState, const char* tableName) {
 #define OPTIONAL_INT_ARG(name, otherwise)
 #undef INT_ARG
 #define INT_ARG(name)
+#undef INT_ARRAY_DEF
+#define INT_ARRAY_DEF(name,size)
+#undef INT_ARRAY_ARG
+#define INT_ARRAY_ARG(name,it)
 #undef OPTIONAL_UINT_ARG
 #define OPTIONAL_UINT_ARG(name, otherwise)
 #undef UINT_ARG
