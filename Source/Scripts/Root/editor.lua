@@ -13,7 +13,7 @@ D("editor_data",{
                 objects = {},
                 meshes = {},
                 materials = {},
-                animation = {}
+                animations = {}
             }
         },
         compinspect = {
@@ -147,7 +147,7 @@ local drawtopbar = function()
 
         if imgui.BeginPopupContextWindow("MBIM") then
             D.editor_data.actions.link_dcc = imgui.MenuItem("\xef\x86\xb2 Create DCC Link",nil,D.editor_data.actions.link_dcc)
-            D.editor_data.actions.import_wiscene = imgui.MenuItem("\xef\x86\xb2 Import wiScene",nil,D.editor_data.actions.import_wiscene)
+            D.editor_data.actions.import_wiscene = imgui.MenuItem("\xef\x86\xb2 Import WiScene",nil,D.editor_data.actions.import_wiscene)
             D.editor_data.actions.add_object = imgui.MenuItem("\xef\x80\xa8 Add Object",nil,D.editor_data.actions.add_object)
             imgui.EndPopup()
         end
@@ -216,7 +216,13 @@ local drawscenegraphview = function()
             
             if view_oblist then
                 if not scenegraphview.wait_update then
-                    for _, entity in pairs(scenegraphview.list.objects) do
+                    local entities_list = {}
+                    if scenegraphview.filter_selected == 0 then 
+                        if scenegraphview.list.objects then entities_list = scenegraphview.list.objects["0"] end
+                    end
+                    if scenegraphview.filter_selected == 2 then entities_list = scenegraphview.list.materials end
+                    if scenegraphview.filter_selected == 3 then entities_list = scenegraphview.list.animations end
+                    for _, entity in pairs(entities_list) do
                         local name = wiscene.Component_GetName(entity)
                         if name then
                             local flag = 0
@@ -392,6 +398,17 @@ local drawcompinspect = function()
 
                         local stencilref = editor_object.edit_stencilref
 
+                        local meshID = objectcomponent.GetMeshID()
+                        local mesh_name = meshID .. " - NO MESH"
+                        if meshID > 0 then
+                            local mesh_namecomponent = wiscene.Component_GetName(meshID)
+                            if mesh_namecomponent then mesh_name = meshID .. " - " .. mesh_namecomponent.GetName() end
+                        end
+
+                        imgui.InputText("Mesh ID##edit_meshid", mesh_name, 255, imgui.constant.InputTextFlags.ReadOnly)
+                        imgui.SameLine()
+                        if imgui.Button("\xef\x86\xb2 Set Mesh") then end
+
                         local set_col, col_r, col_g, col_b, col_a = imgui.InputFloat4("Color##edit_col", col_r, col_g, col_b, col_a)
                         if set_col == true then changed = true end
 
@@ -439,7 +456,9 @@ local drawcompinspect = function()
 end
 
 local update_scenegraph = function()
-    D.editor_data.elements.scenegraphview.list.objects = wiscene.Entity_GetTransformArray()
+    D.editor_data.elements.scenegraphview.list.objects = Editor_GetObjectList()
+    D.editor_data.elements.scenegraphview.list.materials = wiscene.Entity_GetMaterialArray()
+    D.editor_data.elements.scenegraphview.list.animations = wiscene.Entity_GetAnimationArray()
     D.editor_data.elements.scenegraphview.wait_update = false
 end
 
@@ -448,9 +467,6 @@ local update_sysmenu_actions = function()
     -- File menu actions
     if actions.resource_new then
         backlog_post("ACT_STUB: new resource not working")
-        filedialog(0,"Wicked Engine Scene","wiscene",function(data)
-            backlog_post(data.filepath)
-        end)
         actions.resource_new = false
     end
     if actions.resource_rename then
@@ -461,10 +477,20 @@ local update_sysmenu_actions = function()
         backlog_post("ACT_STUB: save resource not working")
         actions.resource_save = false
     end
+    --
+    
+    -- Add menu actions
+    if actions.import_wiscene then
+        filedialog(0,"Wicked Engine Scene","wiscene",function(data)
+            scene.LoadScene(data.filepath)
+        end)
+        actions.import_wiscene = false
+    end
     if actions.add_object then
         edit_execcmd("add", {type = "object", name = "New Object"})
         actions.add_object = false
     end
+    --
 end
 
 local update_navigation = function()

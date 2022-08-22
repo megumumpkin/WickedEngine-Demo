@@ -142,5 +142,7 @@ namespace Game::ScriptBindings::Resources
 		int Entity_GetDisabledArray(lua_State* L);
 		int Entity_GetStreamArray(lua_State* L);
 		int Entity_GetScriptObjectArray(lua_State* L);
+
+		int LoadScene(lua_State* L);
     };
 }

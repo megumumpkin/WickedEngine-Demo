@@ -12,6 +12,7 @@
 #include <wiLuna.h>
 #include <wiPrimitive.h>
 #include <wiPrimitive_BindLua.h>
+#include <wiScene.h>
 #include <wiScene_BindLua.h>
 #include <wiVector.h>
 
@@ -501,6 +502,7 @@ namespace Game::ScriptBindings::Resources{
         lunamethod(Scene_BindLua, Entity_GetDisabledArray),
         lunamethod(Scene_BindLua, Entity_GetStreamArray),
         lunamethod(Scene_BindLua, Entity_GetScriptObjectArray),
+        lunamethod(Scene_BindLua, LoadScene),
         { NULL, NULL }
     };
     Luna<Scene_BindLua>::PropertyType Scene_BindLua::properties[] = {
@@ -737,6 +739,20 @@ namespace Game::ScriptBindings::Resources{
             lua_rawseti(L, newTable, lua_Integer(i + 1));
         }
         return 1;
+    }
+    int Scene_BindLua::LoadScene(lua_State *L){
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            std::string file = wi::lua::SGetString(L, 1);
+            wi::scene::LoadModel(scene->wiscene,file);
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::LoadScene(String file) not enough arguments!");
+        }
+        return 0;
+        return 0;
     }
 }
 
