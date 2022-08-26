@@ -74,42 +74,12 @@ namespace Game::Resources{
 
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
         };
-
-        struct ScriptObjectData{
-            std::string file; // Lua script file to load and attach
-            wi::vector<uint8_t> properties; // Store data in wiArchive format
-
-            // Non serialized attributes
-            uint32_t script_pid;
-
-            void Init();
-            void Unload();
-            
-            ~ScriptObjectData();
-
-            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
-        };
-
-        struct ScriptObject{
-            wi::vector<ScriptObjectData> scripts;
-
-            // Non serialized attributes
-            bool initialized = false;
-
-            void Init();
-            void Unload();
-
-            ~ScriptObject();
-
-            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
-        };
     }
     struct Scene{
         wi::scene::Scene wiscene;
         wi::ecs::ComponentManager<Library::Instance>& instances = wiscene.componentLibrary.Register<Library::Instance>("game::component::instances");
         wi::ecs::ComponentManager<Library::Disabled>& disabled = wiscene.componentLibrary.Register<Library::Disabled>("game::component::disabled");
         wi::ecs::ComponentManager<Library::Stream>& streams = wiscene.componentLibrary.Register<Library::Stream>("game::component::streams");
-        wi::ecs::ComponentManager<Library::ScriptObject>& scriptobjects = wiscene.componentLibrary.Register<Library::ScriptObject>("game::component::scriptObjects");
 
         // Library system data
         wi::unordered_map<uint32_t, wi::ecs::Entity> collections;
@@ -127,7 +97,6 @@ namespace Game::Resources{
         
         // Append Data
         void SetStreamable(wi::ecs::Entity entity, bool set = true, wi::primitive::AABB bound = wi::primitive::AABB()); // True to enable, false to disable
-        void SetScript(wi::ecs::Entity entity, bool set = true, std::string file = ""); // True to enable, false to disable
 
         // Entity Management
         void Entity_Disable(wi::ecs::Entity entity);

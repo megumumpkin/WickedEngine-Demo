@@ -13,7 +13,10 @@ D("editor_data",{
                 objects = {},
                 meshes = {},
                 materials = {},
-                animations = {}
+                animations = {},
+
+                weathers = {},
+                lights = {},
             }
         },
         compinspect = {
@@ -22,6 +25,7 @@ D("editor_data",{
                 name = {},
                 transform = {},
                 object = {},
+                light = {},
             }
         },
         fmenu_rnres = {
@@ -207,7 +211,7 @@ local drawscenegraphview = function()
     if scenegraphview.win_visible then
         sub_visible, scenegraphview.win_visible = imgui.Begin("\xef\xa0\x82 Scene Graph Viewer", scenegraphview.win_visible)
         if sub_visible then
-            ret_filter, scenegraphview.filter_selected = imgui.Combo("\xef\x82\xb0##filter",scenegraphview.filter_selected,"Objects\0Meshes\0Materials\0Animation")
+            ret_filter, scenegraphview.filter_selected = imgui.Combo("\xef\x82\xb0##filter",scenegraphview.filter_selected,"Objects\0Meshes\0Materials\0Animation\0Lights")
             
             imgui.PushStyleVar(imgui.constant.StyleVar.ChildRounding, 5.0)
             local childflags = 0 | imgui.constant.WindowFlags.NoTitleBar
@@ -220,8 +224,10 @@ local drawscenegraphview = function()
                     if scenegraphview.filter_selected == 0 then 
                         if scenegraphview.list.objects then entities_list = scenegraphview.list.objects["0"] end
                     end
+                    if scenegraphview.filter_selected == 1 then entities_list = scenegraphview.list.meshes end
                     if scenegraphview.filter_selected == 2 then entities_list = scenegraphview.list.materials end
                     if scenegraphview.filter_selected == 3 then entities_list = scenegraphview.list.animations end
+                    if scenegraphview.filter_selected == 4 then entities_list = scenegraphview.list.lights end
                     for _, entity in pairs(entities_list) do
                         local name = wiscene.Component_GetName(entity)
                         if name then
@@ -260,25 +266,20 @@ local drawcompinspect = function()
                 if namecomponent then
                     local editor_name = compinspect.component.name
                     --Init
-                    if editor_name.namestr == nil then editor_name.namestr = namecomponent.GetName() end
+                    if editor_name.namestr == nil then editor_name.namestr = namecomponent.Name end
                     --
                     local ret_tree = imgui.TreeNode("Name Component")
                     if ret_tree then
                         local changed = false
 
-                        local get_namestr = editor_name.namestr
-
-                        local set_name, get_namestr = imgui.InputText("Name", get_namestr, 255)
-                        if set_name == true then changed = true end
+                        _, editor_name.namestr = imgui.InputText("Name", editor_name.namestr, 255)
                         
-                        local apply = false
-                        if changed and input.Down(KEYBOARD_BUTTON_ENTER) then apply = true end
-                        if apply then
-                            namecomponent.SetName(get_namestr)
+                        if input.Down(KEYBOARD_BUTTON_ENTER) then
+                            namecomponent.Name = editor_name.namestr
                         end
                         imgui.TreePop()
                     end
-                    if not imgui.IsItemFocused() then editor_name.namestr = namecomponent.GetName() end
+                    if not imgui.IsItemFocused() then editor_name.namestr = namecomponent.Name end
                 end
                 --
 
@@ -287,7 +288,7 @@ local drawcompinspect = function()
                 if layercomponent then
                     local ret_tree = imgui.TreeNode("Layer Component")
                     if ret_tree then
-                        local layers = layercomponent.GetLayerMask()
+                        local layers = layercomponent.LayerMask
                         local set = 0
                         for flag_id = 0, 31, 1 do
                             local block = 1 << flag_id
@@ -299,10 +300,10 @@ local drawcompinspect = function()
                                 set = set | block
                             end
                         end
-                        layercomponent.SetLayerMask(set)
-                        if imgui.Button("Select ALL") then layercomponent.SetLayerMask(0xffffffff) end
+                        layercomponent.LayerMask = set
+                        if imgui.Button("Select ALL") then layercomponent.LayerMask = 0xffffffff end
                         imgui.SameLine()
-                        if imgui.Button("Select NONE") then layercomponent.SetLayerMask(0) end
+                        if imgui.Button("Select NONE") then layercomponent.LayerMask = 0 end
                         imgui.TreePop()
                     end
                 end
@@ -324,47 +325,15 @@ local drawcompinspect = function()
                     if ret_tree then
                         local changed = false
 
-                        local tx = editor_transform.edit_pos.GetX()
-                        local ty = editor_transform.edit_pos.GetY()
-                        local tz = editor_transform.edit_pos.GetZ()
-
-                        local rx = editor_transform.edit_rot.GetX()
-                        local ry = editor_transform.edit_rot.GetY()
-                        local rz = editor_transform.edit_rot.GetZ()
-
-                        local sx = editor_transform.edit_sca.GetX()
-                        local sy = editor_transform.edit_sca.GetY()
-                        local sz = editor_transform.edit_sca.GetZ()
-
-                        local set_pos, tx, ty, tz = imgui.InputFloat3("Position", tx, ty, tz)
-                        if set_pos == true then changed = true end
+                        _, editor_transform.edit_pos.X, editor_transform.edit_pos.Y, editor_transform.edit_pos.Z = imgui.InputFloat3("Position", editor_transform.edit_pos.X, editor_transform.edit_pos.Y, editor_transform.edit_pos.Z)
+                        _, editor_transform.edit_rot.X, editor_transform.edit_rot.Y, editor_transform.edit_rot.Z = imgui.InputFloat3("Euler Rotation", editor_transform.edit_rot.X, editor_transform.edit_rot.Y, editor_transform.edit_rot.Z)
+                        _, editor_transform.edit_sca.X, editor_transform.edit_sca.Y, editor_transform.edit_sca.Z = imgui.InputFloat3("Scale", editor_transform.edit_sca.X, editor_transform.edit_sca.Y, editor_transform.edit_sca.Z)
                         
-                        local set_rot, rx, ry, rz = imgui.InputFloat3("Euler Rotation", rx, ry, rz)
-                        if set_rot == true then changed = true end
-                        
-                        local set_sca, sx, sy, sz = imgui.InputFloat3("Scale", sx, sy, sz)
-                        if set_sca == true then changed = true end
-                        
-                        
-                        local apply = false
-                        if changed and input.Down(KEYBOARD_BUTTON_ENTER) then apply = true end
-                        if apply then
-                            editor_transform.edit_pos.SetX(tx)
-                            editor_transform.edit_pos.SetY(ty)
-                            editor_transform.edit_pos.SetZ(tz)
-
-                            editor_transform.edit_rot.SetX(rx)
-                            editor_transform.edit_rot.SetY(ry)
-                            editor_transform.edit_rot.SetZ(rz)
-
-                            editor_transform.edit_sca.SetX(sx)
-                            editor_transform.edit_sca.SetY(sy)
-                            editor_transform.edit_sca.SetZ(sz)
-
+                        if input.Down(KEYBOARD_BUTTON_ENTER) then
                             transformcomponent.ClearTransform();
                             transformcomponent.Translate(editor_transform.edit_pos)
-                            local rot_quat = vector.QuaternionFromRollPitchYaw(editor_transform.edit_rot)
-                            transformcomponent.Rotate(rot_quat)
+                            -- local rot_quat = vector.QuaternionFromRollPitchYaw(editor_transform.edit_rot)
+                            -- stransformcomponent.Rotate(rot_quat)
                             transformcomponent.Scale(editor_transform.edit_sca)
                         end
 
@@ -384,19 +353,15 @@ local drawcompinspect = function()
                 if objectcomponent then
                     local editor_object = compinspect.component.transform
                     --Init
-                    if editor_object.edit_col == nil then editor_object.edit_col = objectcomponent.GetColor() end
-                    if editor_object.edit_stencilref == nil then editor_object.edit_stencilref = objectcomponent.GetUserStencilRef() end
+                    if editor_object.edit_cascademask == nil then editor_object.edit_cascademask = objectcomponent.CascadeMask end
+                    if editor_object.edit_rendertypemask == nil then editor_object.edit_rendertypemask = objectcomponent.RendertypeMask end
+                    if editor_object.edit_col == nil then editor_object.edit_col = objectcomponent.Color end
+                    if editor_object.edit_emscol == nil then editor_object.edit_emscol = objectcomponent.EmissiveColor end
+                    if editor_object.edit_stencilref == nil then editor_object.edit_stencilref = objectcomponent.UserStencilRef end
                     --
                     local ret_tree = imgui.TreeNode("Object Component")
                     if ret_tree then
                         local changed = false
-                        
-                        local col_r = editor_object.edit_col.GetX()
-                        local col_g = editor_object.edit_col.GetY()
-                        local col_b = editor_object.edit_col.GetZ()
-                        local col_a = editor_object.edit_col.GetW()
-
-                        local stencilref = editor_object.edit_stencilref
 
                         local meshID = objectcomponent.GetMeshID()
                         local mesh_name = meshID .. " - NO MESH"
@@ -409,29 +374,28 @@ local drawcompinspect = function()
                         imgui.SameLine()
                         if imgui.Button("\xef\x86\xb2 Set Mesh") then end
 
-                        local set_col, col_r, col_g, col_b, col_a = imgui.InputFloat4("Color##edit_col", col_r, col_g, col_b, col_a)
-                        if set_col == true then changed = true end
+                        _, editor_object.edit_cascademask = imgui.InputInt("Cascade Mask##edit_ccmask", editor_object.edit_cascademask)
+                        _, editor_object.edit_rendertypemask = imgui.InputInt("Render Type Mask##edit_rtmask", editor_object.edit_rendertypemask)
+                        _, editor_object.edit_col.X, editor_object.edit_col.Y, editor_object.edit_col.Z, editor_object.edit_col.W = imgui.InputFloat4("Color##edit_col", editor_object.edit_col.X, editor_object.edit_col.Y, editor_object.edit_col.Z, editor_object.edit_col.W)
+                        _, editor_object.edit_emscol.X, editor_object.edit_emscol.Y, editor_object.edit_emscol.Z, editor_object.edit_emscol.W = imgui.InputFloat4("Emissive Color##edit_emscol", editor_object.edit_emscol.X, editor_object.edit_emscol.Y, editor_object.edit_emscol.Z, editor_object.edit_emscol.W)
+                        _, editor_object.edit_stencilref = imgui.InputInt("Stencil Ref ID##edit_stencil", editor_object.edit_stencilref)
 
-                        local set_stencilref, stencilref = imgui.InputInt("Stencil Ref ID##edit_stencil", stencilref)
-                        if set_stencilref == true then changed = true end
-
-                        local apply = false
-                        if changed and input.Down(KEYBOARD_BUTTON_ENTER) then apply = true end
-                        if apply then
-                            editor_object.edit_col.SetX(col_r)
-                            editor_object.edit_col.SetY(col_g)
-                            editor_object.edit_col.SetZ(col_b)
-                            editor_object.edit_col.SetW(col_a)
-
-                            objectcomponent.SetColor(editor_object.edit_col)
-                            objectcomponent.SetUserStencilRef(stencilref)
+                        if input.Down(KEYBOARD_BUTTON_ENTER) then
+                            objectcomponent.Color = editor_object.edit_col
+                            objectcomponent.EmissiveColor = editor_object.edit_emissivecol
+                            objectcomponent.UserStencilRef = editor_object.edit_stencilref
+                            objectcomponent.CascadeMask = editor_object.edit_cascademask
+                            objectcomponent.RendertypeMask = editor_object.edit_rendertypemask
                         end
 
                         imgui.TreePop()
                     end
                     if not imgui.IsItemFocused() then 
-                        editor_object.edit_col = objectcomponent.GetColor()
-                        editor_object.edit_stencilref = objectcomponent.GetUserStencilRef()
+                        editor_object.edit_cascademask = objectcomponent.CascadeMask
+                        editor_object.edit_rendertypemask = objectcomponent.RendertypeMask
+                        editor_object.edit_col = objectcomponent.Color
+                        editor_object.edit_emscol = objectcomponent.EmissiveColor
+                        editor_object.edit_stencilref = objectcomponent.UserStencilRef
                     end
                 end
                 --
@@ -439,10 +403,43 @@ local drawcompinspect = function()
                 -- LightComponent
                 local lightcomponent = wiscene.Component_GetLight(entity)
                 if lightcomponent then
+                    local editor_light = compinspect.component.light
                     local ret_tree = imgui.TreeNode("Light Component")
+                    --Init
+                    if editor_light.edit_col == nil then editor_light.edit_col = lightcomponent.Color end
+                    if editor_light.edit_range == nil then editor_light.edit_range = lightcomponent.Range end
+                    if editor_light.edit_intensity == nil then editor_light.edit_intensity = lightcomponent.Intensity end
+                    if editor_light.edit_outcang == nil then editor_light.edit_outcang = lightcomponent.OuterConeAngle end
+                    if editor_light.edit_incang == nil then editor_light.edit_incang = lightcomponent.InnerConeAngle end
+                    --
                     if ret_tree then
+                        _, lightcomponent.Type = imgui.Combo("\xef\x82\xb0##filter",lightcomponent.Type,"Directional\0Point\0Spot")
+                        _, editor_light.edit_range = imgui.InputFloat("Range##edit_range", editor_light.edit_range)
+                        _, editor_light.edit_intensity = imgui.InputFloat("Intensity##edit_intensity", editor_light.edit_intensity)
+                        _, editor_light.edit_col.X, editor_light.edit_col.Y, editor_light.edit_col.Z = imgui.InputFloat3("Color##edit_col", editor_light.edit_col.X, editor_light.edit_col.Y, editor_light.edit_col.Z)
+                        _, editor_light.edit_outcang = imgui.InputFloat("Outer Cone Angle##edit_outcang", editor_light.edit_outcang)
+                        _, editor_light.edit_incang = imgui.InputFloat("Inner Cone Angle##edit_incang", editor_light.edit_incang)
+                        
+                        local set_shadow = lightcomponent.IsCastShadow()
+                        _, set_shadow = imgui.Checkbox("Cast Shadow##edit_shadow", set_shadow)
+                        lightcomponent.SetCastShadow(set_shadow)
+
+                        local set_volumetric = lightcomponent.IsVolumetricsEnabled()
+                        _, set_volumetric = imgui.Checkbox("Contribute Volumetric##edit_volumetric", set_volumetric)
+                        lightcomponent.SetVolumetricsEnabled(set_volumetric)
+
+                        if input.Down(KEYBOARD_BUTTON_ENTER) then
+                            lightcomponent.Range = editor_light.edit_range
+                            lightcomponent.Intensity = editor_light.edit_intensity
+                            lightcomponent.Color = editor_light.edit_col
+                            lightcomponent.OuterConeAngle = editor_light.edit_outcang
+                            lightcomponent.InnerConeAngle = editor_light.edit_incang
+                        end
                         
                         imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then 
+                        editor_light.edit_col = lightcomponent.Color
                     end
                 end
                 --
@@ -457,8 +454,11 @@ end
 
 local update_scenegraph = function()
     D.editor_data.elements.scenegraphview.list.objects = Editor_GetObjectList()
+    D.editor_data.elements.scenegraphview.list.meshes = scene.Entity_GetMeshArray()
     D.editor_data.elements.scenegraphview.list.materials = wiscene.Entity_GetMaterialArray()
     D.editor_data.elements.scenegraphview.list.animations = wiscene.Entity_GetAnimationArray()
+    D.editor_data.elements.scenegraphview.list.lights = wiscene.Entity_GetLightArray()
+
     D.editor_data.elements.scenegraphview.wait_update = false
 end
 

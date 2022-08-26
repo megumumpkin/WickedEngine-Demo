@@ -205,51 +205,6 @@ void Library::Stream::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer 
 
 
 
-// ScriptObjectData initializers exists within Resources_BindLua.cpp
-
-Library::ScriptObjectData::~ScriptObjectData(){
-    Unload();
-}
-
-void Library::ScriptObjectData::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri){
-    if(archive.IsReadMode())
-    {
-        archive >> file;
-        archive >> properties;
-    }
-    else
-    {
-        archive << file;
-        archive << properties;
-    }
-}
-
-
-
-void Library::ScriptObject::Init(){
-    for(auto& script : scripts){
-        script.Init();
-    }
-}
-
-void Library::ScriptObject::Unload(){
-    for(auto& script : scripts){
-        script.Unload();
-    }
-}
-
-Library::ScriptObject::~ScriptObject(){
-    Unload();
-}
-
-void Library::ScriptObject::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri){
-    for(auto& script : scripts){
-        script.Serialize(archive, seri);
-    }
-}
-
-
-
 wi::ecs::Entity Scene::CreateInstance(std::string name){
     auto entity = wi::ecs::CreateEntity();
 
@@ -272,25 +227,6 @@ void Scene::SetStreamable(wi::ecs::Entity entity, bool set, wi::primitive::AABB 
         if(streams.Contains(entity))
         {
             streams.Remove(entity);
-        }
-    }
-}
-
-void Scene::SetScript(wi::ecs::Entity entity, bool set, std::string file){
-    if(set)
-    {
-        auto& scriptcomponent = scriptobjects.Create(entity);
-        if(file != "")
-        {
-            auto& scriptdata = scriptcomponent.scripts.emplace_back();
-            scriptdata.file = file;
-        }
-    }
-    else
-    {
-        if(scriptobjects.Contains(entity))
-        {
-            scriptobjects.Remove(entity);
         }
     }
 }
@@ -370,16 +306,6 @@ void Scene::Library_Update(float dt){
             instance.Init();
         }
     }
-    // Directly load scripts if not set to stream
-    for(int i = 0; i < scriptobjects.GetCount(); ++i){
-        auto& scriptobject = scriptobjects[i];
-        auto scriptobject_entity = scriptobjects.GetEntity(i);
-        
-        if(!streams.Contains(scriptobject_entity) && (!scriptobject.initialized))
-        {
-            scriptobject.Init();
-        }
-    }
     for(int i = 0; i < streams.GetCount(); ++i)
     {
         auto& stream = streams[i];
@@ -403,12 +329,7 @@ void Scene::Library_Update(float dt){
 
                     if(stream.transition > 0.f) // Preload script after it is done!
                     {
-                        auto scriptobject = scriptobjects.GetComponent(stream_entity);
-                        if(scriptobject != nullptr)
-                        {
-                            if(!scriptobject->initialized)
-                                scriptobject->Init();
-                        }
+                        // TODO
                     }
                 }
             }
@@ -427,8 +348,9 @@ void Scene::Library_Update(float dt){
                         instance->scene = nullptr;
                     }
                 }
-                auto scriptobject = scriptobjects.GetComponent(stream_entity);
-                if(scriptobject != nullptr) scriptobject->Unload();
+                // TODO
+                // auto scriptobject = scriptobjects.GetComponent(stream_entity);
+                // if(scriptobject != nullptr) scriptobject->Unload();
             }
         }
 

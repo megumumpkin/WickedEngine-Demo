@@ -8,6 +8,7 @@
 #include <WickedEngine.h>
 #include <wiBacklog.h>
 #include <wiHelper.h>
+#include <wiUnorderedSet.h>
 
 struct FSEvent{
     enum TYPE{
@@ -20,10 +21,11 @@ struct FSEvent{
     std::string filepath;
 };
 
-std::vector<FSEvent> fsevents;
+wi::unordered_map<std::string, FSEvent> fsevents;
 std::mutex event_sync;
 
-class FSUpdateListener : public efsw::FileWatchListener{
+class FSUpdateListener : public efsw::FileWatchListener
+{
     void handleFileAction(efsw::WatchID watchid, const std::string& dir, const std::string& filename, efsw::Action action, std::string oldFilename) override
     {
         bool store = false;
@@ -51,31 +53,34 @@ class FSUpdateListener : public efsw::FileWatchListener{
             break;
         }
         std::scoped_lock lock (event_sync);
-        if(store) fsevents.push_back({
+        fsevents[filename] = {
             action_type,
             wi::helper::toUpper(wi::helper::GetExtensionFromFileName(filename)),
             dir+filename,
-        });
+        };
     }
 };
 
 std::shared_ptr<efsw::FileWatcher> filewatcher;
 std::shared_ptr<FSUpdateListener> fwlistener;
-efsw::WatchID watch_front;
-efsw::WatchID watch_asset;
+efsw::WatchID watch_all;
 
-void Game::LiveUpdate::Init(){
+void Game::LiveUpdate::Init()
+{
     filewatcher = std::make_shared<efsw::FileWatcher>();
     fwlistener = std::make_shared<FSUpdateListener>();
-    watch_front = filewatcher->addWatch(wi::helper::GetCurrentPath(), fwlistener.get(), true);
-    watch_asset = filewatcher->addWatch(wi::helper::GetCurrentPath()+"/Data/Asset", fwlistener.get(), true);
+    filewatcher->followSymlinks(true);
+    filewatcher->allowOutOfScopeLinks(true);
+    watch_all = filewatcher->addWatch(wi::helper::GetCurrentPath(), fwlistener.get(), true);
     filewatcher->watch();
 }
 
-void Game::LiveUpdate::Update(float dt){
+void Game::LiveUpdate::Update(float dt)
+{
     std::scoped_lock lock (event_sync);
     
-    for(auto& event : fsevents){
+    for(auto& pair_event : fsevents){
+        auto& event = pair_event.second;
         if(event.filetype == "LUA"){
             Game::ScriptBindings::LiveUpdate::PushEvent({
                 (event.type == FSEvent::DELETE) ? Game::ScriptBindings::LiveUpdate::ScriptReloadEvent::UNLOAD : Game::ScriptBindings::LiveUpdate::ScriptReloadEvent::RELOAD,
