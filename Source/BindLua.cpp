@@ -1,13 +1,6 @@
-#include "BindLua.h"
+#include "stdafx.h"
 #include "BindLua_Globals.h"
 #include "Resources_BindLua.h"
-#include "WickedEngine.h"
-#include <LUA/lua.h>
-#include <filesystem>
-#include <memory>
-#include <string>
-#include <wiArchive.h>
-#include <wiLua.h>
 
 #if IS_DEV
 #include "ImGui/imgui_BindLua.h"

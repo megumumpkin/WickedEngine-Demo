@@ -12,6 +12,7 @@ set(WickedEngine_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Library/WickedEngine/build/cma
 find_package(WickedEngine REQUIRED)
 
 set (SOURCE_FILES
+	Source/stdafx.h
 	Source/Resources.h
 	Source/Resources.cpp
 	Source/Resources_BindLua.h
@@ -52,6 +53,8 @@ set (DEV_FILES
 	Source/ImGui/Widgets/ImGuizmo.h
 	Source/ImGui/Widgets/ImGuizmo.cpp
 
+	Source/Editor_Translator.h
+	Source/Editor_Translator.cpp
 	Source/Editor.h
 	Source/Editor.cpp
 )

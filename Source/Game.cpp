@@ -1,29 +1,8 @@
-#include "Game.h"
-#include "LiveUpdate.h"
-#include "Resources.h"
-#include "RenderPipeline.h"
-#include "BindLua.h"
-#include <memory>
-#include <wiScene.h>
+#include "stdafx.h"
 
 #ifdef IS_DEV
 #include "Editor.h"
-
-#include "ImGui/imgui.h"
-#include "ImGui/imgui_internal.h"
-#include "ImGui/imgui_BindLua.h"
-#include "ImGui/FA6_UI_Icons.h"
-#include "ImGui/Widgets/ImGuizmo.h"
 #endif
-
-#ifdef _WIN32
-#include "ImGui/imgui_impl_win32.h"
-#elif defined(SDL2)
-#include "ImGui/imgui_impl_sdl.h"
-#endif
-
-#include <fstream>
-#include <thread>
 
 using namespace wi::ecs;
 using namespace wi::scene;
@@ -348,63 +327,66 @@ void ApplicationView::ResizeBuffers(){
 	renderPath->init(*this);
 	renderPath->ResizeBuffers();
 
-	if(renderPath->GetDepthStencil() != nullptr)
-	{
-		bool success = false;
+	// if(renderPath->GetDepthStencil() != nullptr)
+	// {
+	// 	bool success = false;
 
-		XMUINT2 internalResolution = GetInternalResolution();
+	// 	XMUINT2 internalResolution = GetInternalResolution();
 
-		TextureDesc desc;
-		desc.width = internalResolution.x;
-		desc.height = internalResolution.y;
+	// 	TextureDesc desc;
+	// 	desc.width = internalResolution.x;
+	// 	desc.height = internalResolution.y;
 
-		desc.format = Format::R8_UNORM;
-		desc.bind_flags = BindFlag::RENDER_TARGET | BindFlag::SHADER_RESOURCE;
-		if (renderPath->getMSAASampleCount() > 1)
-		{
-			desc.sample_count = renderPath->getMSAASampleCount();
-			success = device->CreateTexture(&desc, nullptr, &rt_selectionOutline_MSAA);
-			assert(success);
-			desc.sample_count = 1;
-		}
-		success = device->CreateTexture(&desc, nullptr, &rt_selectionOutline[0]);
-		assert(success);
-		success = device->CreateTexture(&desc, nullptr, &rt_selectionOutline[1]);
-		assert(success);
+	// 	desc.format = Format::R8_UNORM;
+	// 	desc.bind_flags = BindFlag::RENDER_TARGET | BindFlag::SHADER_RESOURCE;
+	// 	if (renderPath->getMSAASampleCount() > 1)
+	// 	{
+	// 		desc.sample_count = renderPath->getMSAASampleCount();
+	// 		success = device->CreateTexture(&desc, nullptr, &rt_selectionOutline_MSAA);
+	// 		assert(success);
+	// 		desc.sample_count = 1;
+	// 	}
+	// 	success = device->CreateTexture(&desc, nullptr, &rt_selectionOutline[0]);
+	// 	assert(success);
+	// 	success = device->CreateTexture(&desc, nullptr, &rt_selectionOutline[1]);
+	// 	assert(success);
+	// 	{
+	// 		RenderPassDesc desc;
+	// 		desc.attachments.push_back(RenderPassAttachment::RenderTarget(&rt_selectionOutline[0], RenderPassAttachment::LoadOp::CLEAR));
+	// 		if (renderPath->getMSAASampleCount() > 1)
+	// 		{
+	// 			desc.attachments[0].texture = &rt_selectionOutline_MSAA;
+	// 			desc.attachments.push_back(RenderPassAttachment::Resolve(&rt_selectionOutline[0]));
+	// 		}
+	// 		desc.attachments.push_back(
+	// 			RenderPassAttachment::DepthStencil(
+	// 				renderPath->GetDepthStencil(),
+	// 				RenderPassAttachment::LoadOp::LOAD,
+	// 				RenderPassAttachment::StoreOp::STORE,
+	// 				ResourceState::DEPTHSTENCIL_READONLY,
+	// 				ResourceState::DEPTHSTENCIL_READONLY,
+	// 				ResourceState::DEPTHSTENCIL_READONLY
+	// 			)
+	// 		);
+	// 		success = device->CreateRenderPass(&desc, &renderpass_selectionOutline[0]);
+	// 		assert(success);
 
-		{
-			RenderPassDesc desc;
-			desc.attachments.push_back(RenderPassAttachment::RenderTarget(&rt_selectionOutline[0], RenderPassAttachment::LoadOp::CLEAR));
-			if (renderPath->getMSAASampleCount() > 1)
-			{
-				desc.attachments[0].texture = &rt_selectionOutline_MSAA;
-				desc.attachments.push_back(RenderPassAttachment::Resolve(&rt_selectionOutline[0]));
-			}
-			desc.attachments.push_back(
-				RenderPassAttachment::DepthStencil(
-					renderPath->GetDepthStencil(),
-					RenderPassAttachment::LoadOp::LOAD,
-					RenderPassAttachment::StoreOp::STORE,
-					ResourceState::DEPTHSTENCIL_READONLY,
-					ResourceState::DEPTHSTENCIL_READONLY,
-					ResourceState::DEPTHSTENCIL_READONLY
-				)
-			);
-			success = device->CreateRenderPass(&desc, &renderpass_selectionOutline[0]);
-			assert(success);
+	// 		if (renderPath->getMSAASampleCount() == 1)
+	// 		{
+	// 			desc.attachments[0].texture = &rt_selectionOutline[1]; // rendertarget
+	// 		}
+	// 		else
+	// 		{
+	// 			desc.attachments[1].texture = &rt_selectionOutline[1]; // resolve
+	// 		}
+	// 		success = device->CreateRenderPass(&desc, &renderpass_selectionOutline[1]);
+	// 		assert(success);
+	// 	}
+	// }
 
-			if (renderPath->getMSAASampleCount() == 1)
-			{
-				desc.attachments[0].texture = &rt_selectionOutline[1]; // rendertarget
-			}
-			else
-			{
-				desc.attachments[1].texture = &rt_selectionOutline[1]; // resolve
-			}
-			success = device->CreateRenderPass(&desc, &renderpass_selectionOutline[1]);
-			assert(success);
-		}
-	}
+#ifdef IS_DEV
+	Editor::ResizeBuffers(device, renderPath.get());
+#endif
 }
 
 void ApplicationView::ResizeLayout(){
@@ -436,7 +418,7 @@ void ApplicationView::Update(float dt){
 	LiveUpdate::Update(dt);
 
 #ifdef IS_DEV
-	Editor::Update(dt);
+	Editor::Update(dt,*this);
 #endif
 	
     RenderPath2D::Update(dt);
@@ -477,44 +459,48 @@ void ApplicationView::Render() const{
 		GraphicsDevice* device = wi::graphics::GetDevice();
 		CommandList cmd = device->BeginCommandList();
 
-		device->EventBegin("Editor - Selection Outline Mask", cmd);
+		// device->EventBegin("Game - VisorVFX", cmd);
 
-		Viewport vp;
-		vp.width = (float)rt_selectionOutline[0].GetDesc().width;
-		vp.height = (float)rt_selectionOutline[0].GetDesc().height;
-		device->BindViewports(1, &vp, cmd);
+		// Viewport vp;
+		// vp.width = (float)rt_selectionOutline[0].GetDesc().width;
+		// vp.height = (float)rt_selectionOutline[0].GetDesc().height;
+		// device->BindViewports(1, &vp, cmd);
 
-		wi::image::Params fx;
-		fx.enableFullScreen();
-		fx.stencilComp = wi::image::STENCILMODE::STENCILMODE_EQUAL;
+		// wi::image::Params fx;
+		// fx.enableFullScreen();
+		// fx.stencilComp = wi::image::STENCILMODE::STENCILMODE_EQUAL;
 
-		// We will specify the stencil ref in user-space, don't care about engine stencil refs here:
-		//	Otherwise would need to take into account engine ref and draw multiple permutations of stencil refs.
-		fx.stencilRefMode = wi::image::STENCILREFMODE_USER;
+		// // We will specify the stencil ref in user-space, don't care about engine stencil refs here:
+		// //	Otherwise would need to take into account engine ref and draw multiple permutations of stencil refs.
+		// fx.stencilRefMode = wi::image::STENCILREFMODE_USER;
 
-		// Materials outline:
-		{
-			device->RenderPassBegin(&renderpass_selectionOutline[0], cmd);
+		// // Materials outline:
+		// {
+		// 	device->RenderPassBegin(&renderpass_selectionOutline[0], cmd);
 
-			// Draw solid blocks of selected materials
-			fx.stencilRef = STENCILFX::SELECTION_OUTLINE;
-			wi::image::Draw(wi::texturehelper::getWhite(), fx, cmd);
+		// 	// Draw solid blocks of selected materials
+		// 	fx.stencilRef = STENCILFX::SELECTION_OUTLINE;
+		// 	wi::image::Draw(wi::texturehelper::getWhite(), fx, cmd);
 
-			device->RenderPassEnd(cmd);
-		}
+		// 	device->RenderPassEnd(cmd);
+		// }
 
-		// Objects outline:
-		{
-			device->RenderPassBegin(&renderpass_selectionOutline[1], cmd);
+		// // Objects outline:
+		// {
+		// 	device->RenderPassBegin(&renderpass_selectionOutline[1], cmd);
 
-			// Draw solid blocks of selected objects
-			fx.stencilRef = STENCILFX::SELECTION_OUTLINE;
-			wi::image::Draw(wi::texturehelper::getWhite(), fx, cmd);
+		// 	// Draw solid blocks of selected objects
+		// 	fx.stencilRef = STENCILFX::SELECTION_OUTLINE;
+		// 	wi::image::Draw(wi::texturehelper::getWhite(), fx, cmd);
 
-			device->RenderPassEnd(cmd);
-		}
+		// 	device->RenderPassEnd(cmd);
+		// }
 
-		device->EventEnd(cmd);
+		// device->EventEnd(cmd);
+
+#ifdef IS_DEV
+		Editor::Render(device, cmd);
+#endif
 	}
 
     RenderPath2D::Render();
@@ -530,16 +516,20 @@ void ApplicationView::Compose(wi::graphics::CommandList cmd) const{
 	if (renderPath->GetDepthStencil() != nullptr)
 	{
 		GraphicsDevice* device = wi::graphics::GetDevice();
-		device->EventBegin("Editor - Selection Outline", cmd);
-		wi::renderer::BindCommonResources(cmd);
-		float opacity = 1.f;
-		XMFLOAT4 col = selectionColor2;
-		col.w *= opacity;
-		wi::renderer::Postprocess_Outline(rt_selectionOutline[0], cmd, 0.1f, 1, col);
-		col = selectionColor;
-		col.w *= opacity;
-		wi::renderer::Postprocess_Outline(rt_selectionOutline[1], cmd, 0.1f, 1, col);
-		device->EventEnd(cmd);
+		// device->EventBegin("Game - VisorVFX", cmd);
+		// wi::renderer::BindCommonResources(cmd);
+		// float opacity = 1.f;
+		// XMFLOAT4 col = selectionColor2;
+		// col.w *= opacity;
+		// wi::renderer::Postprocess_Outline(rt_selectionOutline[0], cmd, 0.1f, 1, col);
+		// col = selectionColor;
+		// col.w *= opacity;
+		// wi::renderer::Postprocess_Outline(rt_selectionOutline[1], cmd, 0.1f, 1, col);
+		// device->EventEnd(cmd);
+
+#ifdef IS_DEV
+		Editor::Compose(device, cmd);
+#endif
 	}
 
 	RenderPath2D::Compose(cmd);

@@ -1,28 +1,24 @@
 #pragma once
 
-#include <WickedEngine.h>
-#include <mutex>
-#include <any>
-#include <string>
-#include <wiECS.h>
-#include <wiJobSystem.h>
-#include <wiScene.h>
-#include <wiUnorderedMap.h>
-#include <wiUnorderedSet.h>
+#include "stdafx.h"
 
-namespace Game::Resources{
-    namespace DataType{
+namespace Game::Resources
+{
+    namespace DataType
+    {
         static inline const std::string SCENE_DATA = ".bscn";
         static inline const std::string SCRIPT = ".lua";
     }
-    namespace SourcePath{
+    namespace SourcePath
+    {
         static inline const std::string SHADER = "Data/Shader";
         static inline const std::string INTERFACE = "Data/Interface";
         static inline const std::string LOCALE = "Data/Locale";
         static inline const std::string ASSET = "Data/Asset";
     }
     struct Scene;
-    namespace Library{
+    namespace Library
+    {
         /*  RULES for instance:
             You cannot serialize child entities that are not part of the original data!
             If you put a child entity there, it will be removed without caution!
@@ -75,7 +71,8 @@ namespace Game::Resources{
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
         };
     }
-    struct Scene{
+    struct Scene
+    {
         wi::scene::Scene wiscene;
         wi::ecs::ComponentManager<Library::Instance>& instances = wiscene.componentLibrary.Register<Library::Instance>("game::component::instances");
         wi::ecs::ComponentManager<Library::Disabled>& disabled = wiscene.componentLibrary.Register<Library::Disabled>("game::component::disabled");
@@ -108,11 +105,13 @@ namespace Game::Resources{
         void Library_Update(float dt);
         void Update(float dt);
     };
-    inline Scene& GetScene(){
+    inline Scene& GetScene()
+    {
         static Scene scene;
 		return scene;
     }
-    namespace LiveUpdate{
+    namespace LiveUpdate
+    {
         // To check for scene data changes
         void Update(float dt);
     };

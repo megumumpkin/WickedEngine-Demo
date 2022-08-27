@@ -1,8 +1,5 @@
 #pragma once
-#include <LUA/lua.h>
-#include <wiLua.h>
-#include <wiLuna.h>
-#include "Resources.h"
+#include "stdafx.h"
 
 namespace Game::ScriptBindings::Resources
 {

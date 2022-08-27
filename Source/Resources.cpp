@@ -1,15 +1,4 @@
 #include "Resources.h"
-#include <Utility/DirectXMath.h>
-#include <memory>
-#include <mutex>
-#include <set>
-#include <wiArchive.h>
-#include <wiECS.h>
-#include <wiHelper.h>
-#include <wiJobSystem.h>
-#include <wiScene.h>
-#include <wiUnorderedMap.h>
-#include <wiUnorderedSet.h>
 
 using namespace Game::Resources;
 

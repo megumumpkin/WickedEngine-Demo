@@ -1,7 +1,6 @@
 #pragma once
-#include <WickedEngine.h>
-#include <wiArchive.h>
-#include "Resources_BindLua.h"
+#include "stdafx.h"
+#include <wiLua.h>
 
 namespace Game::ScriptBindings{
     // For scripting to work you have to initialize them first

@@ -1,6 +1,5 @@
 #pragma once
-#include <WickedEngine.h>
-#include <wiRenderPath3D.h>
+#include "stdafx.h"
 
 namespace Game{
     namespace RenderPipeline{

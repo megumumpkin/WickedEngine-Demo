@@ -1,20 +1,7 @@
-#include "BindLua.h"
-#include "Resources.h"
 #include "Resources_BindLua.h"
-#include <LUA/lauxlib.h>
-#include <LUA/lua.h>
-#include <LUA/luaconf.h>
-#include <string>
-#include <wiArchive.h>
-#include <wiBacklog.h>
-#include <wiECS.h>
-#include <wiLua.h>
-#include <wiLuna.h>
-#include <wiPrimitive.h>
+
 #include <wiPrimitive_BindLua.h>
-#include <wiScene.h>
 #include <wiScene_BindLua.h>
-#include <wiVector.h>
 
 void Helper_LuaBuildTable(lua_State *L, wi::vector<uint8_t>& properties)
 {
@@ -146,17 +133,13 @@ namespace Game::ScriptBindings::Resources{
 
     const char Library_Instance_BindLua::className[] = "InstanceComponent";
     Luna<Library_Instance_BindLua>::FunctionType Library_Instance_BindLua::methods[] = {
-        lunamethod(Library_Instance_BindLua, SetFile),
-        lunamethod(Library_Instance_BindLua, GetFile),
-        lunamethod(Library_Instance_BindLua, SetEntityName),
-        lunamethod(Library_Instance_BindLua, GetEntityName),
-        lunamethod(Library_Instance_BindLua, SetStrategy),
-        lunamethod(Library_Instance_BindLua, GetStrategy),
-        lunamethod(Library_Instance_BindLua, SetType),
-        lunamethod(Library_Instance_BindLua, SetType),
         { NULL, NULL }
     };
     Luna<Library_Instance_BindLua>::PropertyType Library_Instance_BindLua::properties[] = {
+        lunaproperty(Library_Instance_BindLua, File),
+        lunaproperty(Library_Instance_BindLua, EntityName),
+        lunaproperty(Library_Instance_BindLua, Strategy),
+        lunaproperty(Library_Instance_BindLua, Type),
         { NULL, NULL }
     };
     Library_Instance_BindLua::Library_Instance_BindLua(lua_State *L)
@@ -251,11 +234,10 @@ namespace Game::ScriptBindings::Resources{
 
     const char Library_Disabled_BindLua::className[] = "DisabledComponent";
     Luna<Library_Disabled_BindLua>::FunctionType Library_Disabled_BindLua::methods[] = {
-        lunamethod(Library_Disabled_BindLua, SetEntity),
-        lunamethod(Library_Disabled_BindLua, GetEntity),
         { NULL, NULL }
     };
     Luna<Library_Disabled_BindLua>::PropertyType Library_Disabled_BindLua::properties[] = {
+        lunaproperty(Library_Disabled_BindLua, Entity),
         { NULL, NULL }
     };
     Library_Disabled_BindLua::Library_Disabled_BindLua(lua_State *L)
@@ -293,13 +275,11 @@ namespace Game::ScriptBindings::Resources{
 
     const char Library_Stream_BindLua::className[] = "StreamComponent";
     Luna<Library_Stream_BindLua>::FunctionType Library_Stream_BindLua::methods[] = {
-        lunamethod(Library_Stream_BindLua, SetSubstitute),
-        lunamethod(Library_Stream_BindLua, GetSubstitute),
-        lunamethod(Library_Stream_BindLua, SetZone),
-        lunamethod(Library_Stream_BindLua, GetZone),
         { NULL, NULL }
     };
     Luna<Library_Stream_BindLua>::PropertyType Library_Stream_BindLua::properties[] = {
+        lunaproperty(Library_Stream_BindLua, Substitute),
+        lunaproperty(Library_Stream_BindLua, Zone),
         { NULL, NULL }
     };
     Library_Stream_BindLua::Library_Stream_BindLua(lua_State *L)

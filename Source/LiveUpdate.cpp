@@ -1,14 +1,6 @@
 #include "LiveUpdate.h"
 
-#include "BindLua.h"
-#include "Resources.h"
-
-#include <mutex>
 #include <efsw/efsw.hpp>
-#include <WickedEngine.h>
-#include <wiBacklog.h>
-#include <wiHelper.h>
-#include <wiUnorderedSet.h>
 
 struct FSEvent{
     enum TYPE{
