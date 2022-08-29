@@ -9,17 +9,20 @@ int Editor_GetObjectList(lua_State* L)
 {
     auto& wiscene = Game::Resources::GetScene().wiscene;
     auto& entity_list = wiscene.transforms.GetEntityArray();
-    wi::unordered_map<wi::ecs::Entity, wi::unordered_set<wi::ecs::Entity>> reduced_hierarchy_group;
+    wi::unordered_map<wi::ecs::Entity, wi::vector<wi::ecs::Entity>> reduced_hierarchy_group;
     auto jobCount = (uint32_t)std::ceil(entity_list.size()/128.f);
     
     std::mutex enlistThreadsMutex;
     wi::jobsystem::context enlistThreadGroup;
 
+    wi::vector<wi::unordered_map<wi::ecs::Entity, wi::vector<wi::ecs::Entity>>> thread_hierarchy_group;
+    thread_hierarchy_group.resize(jobCount);
+
     wi::jobsystem::Dispatch(enlistThreadGroup, jobCount, 1, [&](wi::jobsystem::JobArgs args)
     {
         std::scoped_lock lock (enlistThreadsMutex);
 
-        wi::unordered_map<wi::ecs::Entity, wi::unordered_set<wi::ecs::Entity>> map_hierarchy_group;
+        auto& map_hierarchy_group = thread_hierarchy_group[args.jobIndex];
 
         size_t find_max = std::min(entity_list.size(),(size_t)(args.jobIndex+1)*128);
         for(size_t i = args.jobIndex*128; i < find_max; ++i)
@@ -27,28 +30,29 @@ int Editor_GetObjectList(lua_State* L)
             auto entity = entity_list[i];
             auto has_hierarchy = wiscene.hierarchy.GetComponent(entity);
             if(has_hierarchy != nullptr){
-                map_hierarchy_group[has_hierarchy->parentID].insert(entity);
+                map_hierarchy_group[has_hierarchy->parentID].push_back(entity);
             } else {
-                map_hierarchy_group[0].insert(entity);
+                map_hierarchy_group[0].push_back(entity);
             }
-        }
-
-        for(auto& map_pair : map_hierarchy_group)
-        {
-            reduced_hierarchy_group[map_pair.first].insert(map_pair.second.begin(), map_pair.second.end());
         }
     });
 
     wi::jobsystem::Wait(enlistThreadGroup);
+
+    for(auto& map_hierarchy_group : thread_hierarchy_group)
+    {
+        for(auto& map_pair : map_hierarchy_group)
+        {
+            reduced_hierarchy_group[map_pair.first].insert(reduced_hierarchy_group[map_pair.first].end(), map_pair.second.begin(), map_pair.second.end());
+        }
+    }
 
     if(reduced_hierarchy_group.size() > 0)
     {
         lua_newtable(L);
         for(auto& map_pair : reduced_hierarchy_group)
         {
-            wi::vector<wi::ecs::Entity> entities;
-            entities.reserve(map_pair.second.size());
-            entities.insert(entities.begin(), map_pair.second.begin(), map_pair.second.end());
+            auto& entities = map_pair.second;
 
             lua_newtable(L);
             for(int i = 0; i < entities.size(); ++i)
@@ -71,6 +75,12 @@ inline void Editor_UpdateSelection()
         {
             auto selection = Editor::GetData()->selection;
             Editor::GetData()->transform_translator.selected.push_back(Editor::GetData()->selection);
+
+            auto new_object = Game::Resources::GetScene().wiscene.objects.GetComponent(selection.entity);
+            if (new_object)
+            {
+                new_object->SetUserStencilRef(Editor::EDITOR_STENCILREF_LAST);
+            }
         }
         else
         {
@@ -95,6 +105,15 @@ inline void Editor_UpdateSelection()
     {
         if(!Editor::GetData()->transform_translator.selected.empty())
         {
+            auto& selection = Editor::GetData()->transform_translator.selected.back();
+            auto old_entity = selection.entity;
+            auto old_object = Game::Resources::GetScene().wiscene.objects.GetComponent(old_entity);
+            if (old_object)
+            {
+                old_object->SetUserStencilRef(Editor::EDITOR_STENCILREF_NONE);
+            }
+
+
             Editor::GetData()->transform_translator.selected.clear();
         }
     }
@@ -138,12 +157,65 @@ int Editor_PickEntity(lua_State* L)
     return 1;
 }
 
+int Editor_SetTranslatorMode(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if (argc > 0)
+    {
+        bool s_pos, s_rot, s_sca;
+        int set = wi::lua::SGetInt(L, 1);
+        switch (set)
+        {
+            case 1:
+            {
+                s_pos = true;
+                s_rot = false;
+                s_sca = false;
+                break;
+            }
+            case 2:
+            {
+                s_pos = false;
+                s_rot = true;
+                s_sca = false;
+                break;
+            }
+            case 3:
+            {
+                s_pos = false;
+                s_rot = false;
+                s_sca = true;
+                break;
+            }
+            default:
+                break;
+        }
+
+        Editor::GetData()->transform_translator.isTranslator = s_pos;
+        Editor::GetData()->transform_translator.isRotator = s_rot;
+        Editor::GetData()->transform_translator.isScalator = s_sca;
+    }
+    return 0;
+}
+
+int Editor_GetTranslatorMode(lua_State* L)
+{
+    // Just pack it like this, it's going to be alright (?)
+    int option = (Editor::GetData()->transform_translator.isTranslator*1);
+    option += (Editor::GetData()->transform_translator.isRotator*2);
+    option += (Editor::GetData()->transform_translator.isScalator*3);
+    wi::lua::SSetInt(L, option);
+    return 1;
+}
+
 void Editor::Init()
 {
     wi::lua::RunText("EditorAPI = true");
     wi::lua::RegisterFunc("Editor_GetObjectList", Editor_GetObjectList);
     wi::lua::RegisterFunc("Editor_FetchSelection", Editor_FetchSelection);
     wi::lua::RegisterFunc("Editor_PickEntity", Editor_PickEntity);
+    wi::lua::RegisterFunc("Editor_SetTranslatorMode", Editor_SetTranslatorMode);
+    wi::lua::RegisterFunc("Editor_GetTranslatorMode", Editor_GetTranslatorMode);
 
     Editor::GetData()->transform_translator.SetEnabled(true);
     Editor::GetData()->transform_translator.scene = &Game::Resources::GetScene().wiscene;

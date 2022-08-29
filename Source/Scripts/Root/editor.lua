@@ -58,6 +58,9 @@ D("editor_data",{
         camera_transform = TransformComponent(),
         camera_pos = Vector(0,2,-5),
         camera_rot = Vector(0,0,0),
+        camera_speed_mul_select = 1,
+        camera_speed_mul = 3.0,
+        translatormode = 1,
     },
     core_data = {
         resname = "Untitled Scene",
@@ -68,7 +71,6 @@ local scene = GetGlobalGameScene()
 local wiscene = scene.GetWiScene()
 
 local CAM_MOVE_SPD = 0.3
-local CAM_MOVE_SPD_EX = 2.4
 local CAM_ROT_SPD = 0.03
 
 local edit_execcmd = function(command, extradata, holdout)
@@ -165,6 +167,17 @@ local drawtopbar = function()
         if imgui.Button("\xef\x8b\x90 Window") then
             imgui.OpenPopup("MBWM")
         end
+        imgui.SameLine()
+        imgui.SetNextItemWidth(60.0)
+        local changed_translatormode = false
+        changed_translatormode, D.editor_data.navigation.translatormode = imgui.Combo("\xef\x81\x87##translatormode",D.editor_data.navigation.translatormode,"\xef\x81\x87\0\xef\x80\x9e\0\xef\x90\xa4\0")
+        if changed_translatormode then Editor_SetTranslatorMode(D.editor_data.navigation.translatormode+1) end
+
+        imgui.SameLine()
+        imgui.SetNextItemWidth(60.0)
+        local changed_camspdmode = false
+        changed_camspdmode, D.editor_data.navigation.camera_speed_mul_select = imgui.Combo("\xef\x80\xb0SPD##camspdmul",D.editor_data.navigation.camera_speed_mul_select,"x2\0x3\0x4\0x5\0")
+        if changed_camspdmode then D.editor_data.navigation.camera_speed_mul = 3.0 * (D.editor_data.navigation.camera_speed_mul_select+1) end
 
         if imgui.BeginPopupContextWindow("MBFM") then
             D.editor_data.actions.resource_new = imgui.MenuItem("\xee\x93\xae New Resource",nil,D.editor_data.actions.resource_new)
@@ -238,7 +251,7 @@ local drawscenegraphview = function()
     if scenegraphview.win_visible then
         sub_visible, scenegraphview.win_visible = imgui.Begin("\xef\xa0\x82 Scene Graph Viewer", scenegraphview.win_visible)
         if sub_visible then
-            ret_filter, scenegraphview.filter_selected = imgui.Combo("\xef\x82\xb0##filter",scenegraphview.filter_selected,"Objects\0Meshes\0Materials\0Animation\0Lights\0Weathers")
+            ret_filter, scenegraphview.filter_selected = imgui.Combo("\xef\x82\xb0##filter",scenegraphview.filter_selected,"Objects\0Meshes\0Materials\0Animation\0Lights\0Weathers\0")
             
             imgui.PushStyleVar(imgui.constant.StyleVar.ChildRounding, 5.0)
             local childflags = 0 | imgui.constant.WindowFlags.NoTitleBar
@@ -438,7 +451,7 @@ local drawcompinspect = function()
                     if editor_light.incang == nil then editor_light.incang = lightcomponent.InnerConeAngle end
                     --
                     if ret_tree then
-                        _, lightcomponent.Type = imgui.Combo("\xef\x82\xb0##filter",lightcomponent.Type,"Directional\0Point\0Spot")
+                        _, lightcomponent.Type = imgui.Combo("\xef\x82\xb0##filter",lightcomponent.Type,"Directional\0Point\0Spot\0")
                         _, editor_light.range = imgui.InputFloat("Range", editor_light.range)
                         _, editor_light.intensity = imgui.InputFloat("Intensity", editor_light.intensity)
                         _, editor_light.col.X, editor_light.col.Y, editor_light.col.Z = imgui.InputFloat3("Color##col", editor_light.col.X, editor_light.col.Y, editor_light.col.Z)
@@ -605,7 +618,7 @@ local update_navigation = function()
         local camera_rot_delta = Vector()
 
         local move_spd = CAM_MOVE_SPD + 0
-        if(input.Down(KEYBOARD_BUTTON_LSHIFT)) then move_spd = CAM_MOVE_SPD * CAM_MOVE_SPD_EX end
+        if(input.Down(KEYBOARD_BUTTON_LSHIFT)) then move_spd = CAM_MOVE_SPD * D.editor_data.navigation.camera_speed_mul end
         
         -- Camera movement WASDQE
         if(input.Down(string.byte('W'))) then camera_pos_delta.Z = 1.0*move_spd end
@@ -641,7 +654,7 @@ local update_navigation = function()
 
         if(input.Press(MOUSE_BUTTON_RIGHT)) then
             local picked = Editor_PickEntity()
-            if picked > 0 then D.editor_data.elements.scenegraphview.selected_entity = picked end
+            D.editor_data.elements.scenegraphview.selected_entity = picked
         end
 
     end
