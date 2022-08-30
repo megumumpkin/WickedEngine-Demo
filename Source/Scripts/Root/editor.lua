@@ -73,10 +73,53 @@ local wiscene = scene.GetWiScene()
 local CAM_MOVE_SPD = 0.3
 local CAM_ROT_SPD = 0.03
 
+local component_set_name = function(component, editdata)
+    component.Name = editdata.namestr
+end
+
+local component_set_layer = function(component, editdata)
+    component.LayerMask = editdata.mask
+end
+
+local component_set_object = function(component, editdata)
+    component.Color = editdata.col
+    component.EmissiveColor = editdata.emissivecol
+    component.CascadeMask = editdata.cascademask
+    component.RendertypeMask = editdata.rendertypemask
+end
+
+local component_set_light = function(component, editdata)
+    component.Range = editdata.range
+    component.Intensity = editdata.intensity
+    component.Color = editdata.col
+    component.OuterConeAngle = editdata.outcang
+    component.InnerConeAngle = editdata.incang
+    component.SetCastShadow(editdata.set_shadow)
+    component.SetVolumetricsEnabled(editdata.set_volumetric)
+end
+
+local component_set_sound = function(component, editdata)
+    component.Filename = editdata.fname
+    component.Volume = editdata.vol
+    component.SetLooped(editdata.set_loop)
+    component.SetDisable3D(editdata.set_3d)
+    if editdata.play then
+        component.Play()
+    else
+        component.Stop()
+    end
+end
+
 local edit_execcmd = function(command, extradata, holdout)
     if command == "add_obj" then
         if type(extradata) == "table" then
-            local entity = scene.Entity_Create()
+            local entity = 0
+            if extradata.entity ~= nil then
+                entity = extradata.entity
+            else
+                entity = scene.Entity_Create()
+            end
+            
             extradata.entity = entity
             local name = wiscene.Component_CreateName(entity)
             name.SetName(extradata.name)
@@ -107,61 +150,32 @@ local edit_execcmd = function(command, extradata, holdout)
         if type(extradata) == "table" then
             if extradata.type == "name" then
                 local namecomponent = wiscene.Component_GetName(extradata.entity)
-                if namecomponent then
-                    local editdata = extradata.post
-                    namecomponent.Name = editdata.namestr
-                end  
+                if namecomponent then component_set_name(namecomponent, extradata.post) end  
             end
             if extradata.type == "layer" then
                 local layercomponent = wiscene.Component_GetLayer(extradata.entity)
-                if layercomponent then
-                    local editdata = extradata.post
-                    layercomponent.LayerMask = editdata.mask
-                end
+                if layercomponent then component_set_layer(layercomponent, extradata.post) end
             end
             if extradata.type == "object" then
                 local objectcomponent = wiscene.Component_GetObject(extradata.entity)
-                if objectcomponent then
-                    local editdata = extradata.post
-                    objectcomponent.Color = editdata.col
-                    objectcomponent.EmissiveColor = editdata.emissivecol
-                    objectcomponent.CascadeMask = editdata.cascademask
-                    objectcomponent.RendertypeMask = editdata.rendertypemask
-                end
+                if objectcomponent then component_set_layer(objectcomponent, extradata.post) end
             end
             if extradata.type == "light" then
                 local lightcomponent = wiscene.Component_GetLight(extradata.entity)
-                if lightcomponent then
-                    local editdata = extradata.post
-                    lightcomponent.Range = editdata.range
-                    lightcomponent.Intensity = editdata.intensity
-                    lightcomponent.Color = editdata.col
-                    lightcomponent.OuterConeAngle = editdata.outcang
-                    lightcomponent.InnerConeAngle = editdata.incang
-                    lightcomponent.SetCastShadow(editdata.set_shadow)
-                    lightcomponent.SetVolumetricsEnabled(editdata.set_volumetric)
-                end
+                if lightcomponent then component_set_layer(lightcomponent, extradata.post) end
             end
             if extradata.type == "sound" then
                 local soundcomponent = wiscene.Component_GetSound(extradata.entity)
-                if soundcomponent then
-                    local editdata = extradata.post
-                    soundcomponent.Filename = editdata.fname
-                    soundcomponent.Volume = editdata.vol
-                    soundcomponent.SetLooped(editdata.set_loop)
-                    soundcomponent.SetDisable3D(editdata.set_3d)
-                    if editdata.play then
-                        soundcomponent.Play()
-                    else
-                        soundcomponent.Stop()
-                    end
-                end
+                if soundcomponent then component_set_layer(soundcomponent, extradata.post) end
             end
         end
     end
 
     if command == "del_obj" then
-        -- TODO: stash entity to storage
+        if holdout == nil then
+            extradata.index = #D.editor_data.actions.command_list
+            Editor_StashDeletedEntity(extradata.entity, extradata.index)
+        end
         wiscene.Entity_Remove(extradata.entity)
     end
 
@@ -169,7 +183,10 @@ local edit_execcmd = function(command, extradata, holdout)
     if holdout == nil then
         if D.editor_data.actions.command_head < #D.editor_data.actions.command_list then
             for idx = #D.editor_data.actions.command_list, D.editor_data.actions.command_head, -1 do
-                if idx > 1 then table.remove(D.editor_data.actions.command_list, idx) end
+                if idx > 1 then 
+                    table.remove(D.editor_data.actions.command_list, idx) 
+                    Editor_DeletedEntityDrop(idx)
+                end
             end
         end
         table.insert(D.editor_data.actions.command_list, {command,extradata})
@@ -198,56 +215,27 @@ local edit_undocmd = function()
     if command == "mod_comp" then
         if extradata.type == "name" then
             local namecomponent = wiscene.Component_GetName(extradata.entity)
-            if namecomponent then
-                local editdata = extradata.pre
-                namecomponent.Name = editdata.namestr
-            end  
+            if namecomponent then component_set_name(namecomponent, extradata.pre) end  
         end
         if extradata.type == "layer" then
             local layercomponent = wiscene.Component_GetLayer(extradata.entity)
-            if layercomponent then
-                local editdata = extradata.pre
-                layercomponent.LayerMask = editdata.mask
-            end
+            if layercomponent then component_set_layer(layercomponent, extradata.pre) end
         end
         if extradata.type == "object" then
             local objectcomponent = wiscene.Component_GetObject(extradata.entity)
-            if objectcomponent then
-                local editdata = extradata.pre
-                objectcomponent.Color = editdata.col
-                objectcomponent.EmissiveColor = editdata.emissivecol
-                objectcomponent.CascadeMask = editdata.cascademask
-                objectcomponent.RendertypeMask = editdata.rendertypemask
-            end
+            if objectcomponent then component_set_layer(objectcomponent, extradata.pre) end
         end
         if extradata.type == "light" then
             local lightcomponent = wiscene.Component_GetLight(extradata.entity)
-            if lightcomponent then
-                local editdata = extradata.pre
-                lightcomponent.Range = editdata.range
-                lightcomponent.Intensity = editdata.intensity
-                lightcomponent.Color = editdata.col
-                lightcomponent.OuterConeAngle = editdata.outcang
-                lightcomponent.InnerConeAngle = editdata.incang
-                lightcomponent.SetCastShadow(editdata.set_shadow)
-                lightcomponent.SetVolumetricsEnabled(editdata.set_volumetric)
-            end
+            if lightcomponent then component_set_layer(lightcomponent, extradata.pre) end
         end
         if extradata.type == "sound" then
             local soundcomponent = wiscene.Component_GetSound(extradata.entity)
-            if soundcomponent then
-                local editdata = extradata.pre
-                soundcomponent.Filename = editdata.fname
-                soundcomponent.Volume = editdata.vol
-                soundcomponent.SetLooped(editdata.set_loop)
-                soundcomponent.SetDisable3D(editdata.set_3d)
-                if editdata.play then
-                    soundcomponent.Play()
-                else
-                    soundcomponent.Stop()
-                end
-            end
+            if soundcomponent then component_set_layer(soundcomponent, extradata.pre) end
         end
+    end
+    if command == "del_obj" then
+        Editor_RestoreDeletedEntity(extradata.index)
     end
 
     D.editor_data.actions.command_head = math.max(D.editor_data.actions.command_head - 1, 1)
@@ -856,7 +844,10 @@ local update_navigation = function()
 end
 
 local update_editaction = function()
-    if(input.Down(KEYBOARD_BUTTON_LCONTROL) and (input.Press(string.byte('Z')))) then
+    if (D.editor_data.elements.scenegraphview.selected_entity > 0) and (input.Press(KEYBOARD_BUTTON_DELETE)) then
+        edit_execcmd("del_obj", {entity = D.editor_data.elements.scenegraphview.selected_entity + 0})
+    end
+    if (input.Down(KEYBOARD_BUTTON_LCONTROL) and (input.Press(string.byte('Z')))) then
         if(input.Down(KEYBOARD_BUTTON_LSHIFT)) then
             edit_redocmd()
         else

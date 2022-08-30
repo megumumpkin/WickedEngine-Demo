@@ -271,15 +271,94 @@ int Editor_GetTranslatorMode(lua_State* L)
     return 1;
 }
 
+int Editor_StashDeletedEntity(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc >= 2)
+    {
+        wi::ecs::Entity target_entity = wi::lua::SGetLongLong(L, 1);
+        uint32_t target_store = wi::lua::SGetLongLong(L, 2);
+
+        auto& remap = Editor::GetData()->clips_deleted[target_store].remap;
+        auto& archive = Editor::GetData()->clips_deleted[target_store].archive;
+
+        archive.SetReadModeAndResetPos(false);
+
+        wi::ecs::EntitySerializer seri;
+        seri.allow_remap = false;
+        wi::scene::Scene::EntitySerializeFlags flags = wi::scene::Scene::EntitySerializeFlags::RECURSIVE;
+        flags |= wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES;
+        Game::Resources::GetScene().wiscene.Entity_Serialize(archive, seri, target_entity, flags);
+
+        remap = seri.remap;
+    }
+    else
+    {
+        wi::lua::SError(L,"Editor_StashDeletedEntity(Entity entity, int history_index) can't have zero arguments!");
+    }
+    return 0;
+}
+
+int Editor_RestoreDeletedEntity(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        uint32_t target_store = wi::lua::SGetLongLong(L, 1);
+        auto& remap = Editor::GetData()->clips_deleted[target_store].remap;
+        auto& archive = Editor::GetData()->clips_deleted[target_store].archive;
+
+        archive.SetReadModeAndResetPos(true);
+
+        wi::ecs::EntitySerializer seri;
+        seri.allow_remap = false;
+        seri.remap = remap;
+
+        wi::scene::Scene::EntitySerializeFlags flags = wi::scene::Scene::EntitySerializeFlags::RECURSIVE;
+        flags |= wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES;
+        Game::Resources::GetScene().wiscene.Entity_Serialize(archive, seri, wi::ecs::INVALID_ENTITY, flags);
+    }
+    else
+    {
+        wi::lua::SError(L,"Editor_RestoreDeletedEntity(Entity entity) can't have zero arguments!");
+    }
+    return 0;
+}
+
+int Editor_DeletedEntityDrop(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        uint32_t target_head = wi::lua::SGetLongLong(L, 1);
+        auto index_exist = Editor::GetData()->clips_deleted.find(target_head);
+        if (index_exist != Editor::GetData()->clips_deleted.end())
+        {
+            Editor::GetData()->clips_deleted.erase(target_head);
+        }
+    }
+    else
+    {
+        wi::lua::SError(L,"Editor_RestoreDeletedEntity(int target_head) can't have zero arguments!");
+    }
+    return 0;
+}
+
 void Editor::Init()
 {
     wi::lua::RunText("EditorAPI = true");
     wi::lua::RegisterFunc("Editor_IsEntityListUpdated", Editor_IsEntityListUpdated);
     wi::lua::RegisterFunc("Editor_GetObjectList", Editor_GetObjectList);
     wi::lua::RegisterFunc("Editor_FetchSelection", Editor_FetchSelection);
+
     wi::lua::RegisterFunc("Editor_PickEntity", Editor_PickEntity);
+
     wi::lua::RegisterFunc("Editor_SetTranslatorMode", Editor_SetTranslatorMode);
     wi::lua::RegisterFunc("Editor_GetTranslatorMode", Editor_GetTranslatorMode);
+
+    wi::lua::RegisterFunc("Editor_StashDeletedEntity", Editor_StashDeletedEntity);
+    wi::lua::RegisterFunc("Editor_RestoreDeletedEntity", Editor_RestoreDeletedEntity);
+    wi::lua::RegisterFunc("Editor_DeletedEntityDrop", Editor_DeletedEntityDrop);
 
     Editor::GetData()->transform_translator.SetEnabled(true);
     Editor::GetData()->transform_translator.scene = &Game::Resources::GetScene().wiscene;

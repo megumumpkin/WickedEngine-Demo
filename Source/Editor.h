@@ -78,6 +78,11 @@
 #define ICON_HACKING			ICON_FA_COMPUTER
 
 namespace Editor{
+    struct ClipData
+    {
+        wi::unordered_map<uint64_t, wi::ecs::Entity> remap;
+        wi::Archive archive;
+    };
     struct GizmoData
     {
         wi::ecs::Entity entity = wi::ecs::INVALID_ENTITY;
@@ -102,6 +107,9 @@ namespace Editor{
         wi::scene::PickResult hovered;
         wi::scene::PickResult selection;
         Translator transform_translator;
+
+        wi::unordered_map<uint32_t, ClipData> clips_deleted;
+        wi::unordered_map<wi::ecs::Entity, ClipData> clips_copy;
     };
     enum EDITOR_STENCILREF : uint8_t
     {
