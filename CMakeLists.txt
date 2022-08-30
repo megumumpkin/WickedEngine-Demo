@@ -53,6 +53,7 @@ set (DEV_FILES
 	Source/ImGui/Widgets/ImGuizmo.h
 	Source/ImGui/Widgets/ImGuizmo.cpp
 
+	Source/Editor_FontAwesomeV6.h
 	Source/Editor_Translator.h
 	Source/Editor_Translator.cpp
 	Source/Editor.h

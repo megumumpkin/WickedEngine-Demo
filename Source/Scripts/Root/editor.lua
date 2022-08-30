@@ -269,21 +269,23 @@ local drawscenegraphview = function()
                     if scenegraphview.filter_selected == 3 then entities_list = scenegraphview.list.animations end
                     if scenegraphview.filter_selected == 4 then entities_list = scenegraphview.list.lights end
                     if scenegraphview.filter_selected == 5 then entities_list = scenegraphview.list.weathers end
-                    for _, entity in pairs(entities_list) do
-                        local name = wiscene.Component_GetName(entity)
-                        if name then
-                            local flag = 0
-                            if scenegraphview.selected_entity == entity then
-                                flag = flag | imgui.constant.TreeNodeFlags.Selected
-                            end
+                    if type(entities_list) ~= "nil" then
+                        for _, entity in pairs(entities_list) do
+                            local name = wiscene.Component_GetName(entity)
+                            if name then
+                                local flag = 0
+                                if scenegraphview.selected_entity == entity then
+                                    flag = flag | imgui.constant.TreeNodeFlags.Selected
+                                end
 
-                            local ret_tree = imgui.TreeNodeEx(name.GetName() .. "##" .. entity, flag)
-                            if imgui.IsItemClicked() then
-                                scenegraphview.selected_entity = entity
-                                Editor_FetchSelection(scenegraphview.selected_entity)
-                            end
-                            if ret_tree then
-                                imgui.TreePop()
+                                local ret_tree = imgui.TreeNodeEx(name.GetName() .. "##" .. entity, flag)
+                                if imgui.IsItemClicked() then
+                                    scenegraphview.selected_entity = entity
+                                    Editor_FetchSelection(scenegraphview.selected_entity)
+                                end
+                                if ret_tree then
+                                    imgui.TreePop()
+                                end
                             end
                         end
                     end
@@ -556,12 +558,14 @@ local drawcompinspect = function()
 end
 
 local update_scenegraph = function()
-    D.editor_data.elements.scenegraphview.list.objects = Editor_GetObjectList()
-    D.editor_data.elements.scenegraphview.list.meshes = scene.Entity_GetMeshArray()
-    D.editor_data.elements.scenegraphview.list.materials = wiscene.Entity_GetMaterialArray()
-    D.editor_data.elements.scenegraphview.list.animations = wiscene.Entity_GetAnimationArray()
-    D.editor_data.elements.scenegraphview.list.lights = wiscene.Entity_GetLightArray()
-    D.editor_data.elements.scenegraphview.list.weathers = wiscene.Entity_GetWeatherArray()
+    if Editor_IsEntityListUpdated() then
+        D.editor_data.elements.scenegraphview.list.objects = Editor_GetObjectList()
+        D.editor_data.elements.scenegraphview.list.meshes = scene.Entity_GetMeshArray()
+        D.editor_data.elements.scenegraphview.list.materials = wiscene.Entity_GetMaterialArray()
+        D.editor_data.elements.scenegraphview.list.animations = wiscene.Entity_GetAnimationArray()
+        D.editor_data.elements.scenegraphview.list.lights = wiscene.Entity_GetLightArray()
+        D.editor_data.elements.scenegraphview.list.weathers = wiscene.Entity_GetWeatherArray()
+    end
 
     D.editor_data.elements.scenegraphview.wait_update = false
 end

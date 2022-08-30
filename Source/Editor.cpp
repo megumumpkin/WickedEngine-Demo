@@ -5,10 +5,24 @@ Editor::Data* Editor::GetData(){
     return &data;
 }
 
+int Editor_IsEntityListUpdated(lua_State* L)
+{
+    auto& wiscene = Game::Resources::GetScene().wiscene;
+    auto& entity_list = wiscene.names.GetEntityArray();
+
+    bool changed = (Editor::GetData()->entitylist_sizecache != entity_list.size());
+    if(changed) Editor::GetData()->entitylist_sizecache = entity_list.size();
+    wi::lua::SSetBool(L, changed);
+    return 1;
+}
+
 int Editor_GetObjectList(lua_State* L)
 {
     auto& wiscene = Game::Resources::GetScene().wiscene;
     auto& entity_list = wiscene.transforms.GetEntityArray();
+
+    Editor::GetData()->gizmo_data.clear();
+
     wi::unordered_map<wi::ecs::Entity, wi::vector<wi::ecs::Entity>> reduced_hierarchy_group;
     auto jobCount = (uint32_t)std::ceil(entity_list.size()/128.f);
     
@@ -16,13 +30,16 @@ int Editor_GetObjectList(lua_State* L)
     wi::jobsystem::context enlistThreadGroup;
 
     wi::vector<wi::unordered_map<wi::ecs::Entity, wi::vector<wi::ecs::Entity>>> thread_hierarchy_group;
+    wi::vector<wi::vector<Editor::GizmoData>> thread_gizmo_data;
     thread_hierarchy_group.resize(jobCount);
+    thread_gizmo_data.resize(jobCount);
 
     wi::jobsystem::Dispatch(enlistThreadGroup, jobCount, 1, [&](wi::jobsystem::JobArgs args)
     {
         std::scoped_lock lock (enlistThreadsMutex);
 
         auto& map_hierarchy_group = thread_hierarchy_group[args.jobIndex];
+        auto& map_gizmo_data = thread_gizmo_data[args.jobIndex];
 
         size_t find_max = std::min(entity_list.size(),(size_t)(args.jobIndex+1)*128);
         for(size_t i = args.jobIndex*128; i < find_max; ++i)
@@ -34,6 +51,20 @@ int Editor_GetObjectList(lua_State* L)
             } else {
                 map_hierarchy_group[0].push_back(entity);
             }
+
+            // Rebuilding Gizmo List
+            map_gizmo_data.emplace_back();
+            auto& gizmoData = map_gizmo_data.back();
+            gizmoData.entity = entity;
+            gizmoData.icon = wiscene.lights.Contains(entity) ? ICON_POINTLIGHT 
+                : wiscene.decals.Contains(entity) ? ICON_DECAL 
+                : wiscene.forces.Contains(entity) ? ICON_FORCE
+                : wiscene.cameras.Contains(entity) ? ICON_CAMERA
+                : wiscene.armatures.Contains(entity) ? ICON_ARMATURE
+                : wiscene.emitters.Contains(entity) ? ICON_EMITTER
+                : wiscene.hairs.Contains(entity) ? ICON_HAIR
+                : wiscene.sounds.Contains(entity) ? ICON_SOUND
+                : "";
         }
     });
 
@@ -45,6 +76,11 @@ int Editor_GetObjectList(lua_State* L)
         {
             reduced_hierarchy_group[map_pair.first].insert(reduced_hierarchy_group[map_pair.first].end(), map_pair.second.begin(), map_pair.second.end());
         }
+    }
+
+    for(auto& map_gizmo_data : thread_gizmo_data)
+    {
+        Editor::GetData()->gizmo_data.insert(Editor::GetData()->gizmo_data.end(), map_gizmo_data.begin(), map_gizmo_data.end());
     }
 
     if(reduced_hierarchy_group.size() > 0)
@@ -137,23 +173,50 @@ int Editor_FetchSelection(lua_State* L)
     return 0;
 }
 
-int Editor_PickEntity(lua_State* L)
+void Editor_ProcessHovered()
 {
+    auto& scene = Game::Resources::GetScene();
+    auto& wiscene = scene.wiscene;
 
     XMFLOAT4 currentMouse = wi::input::GetPointer();
     wi::primitive::Ray pickRay = wi::renderer::GetPickRay((long)currentMouse.x, (long)currentMouse.y, *Editor::GetData()->viewport, Game::Resources::GetScene().wiscene.camera);
-    
+
     auto hovered = wi::scene::PickResult();
-    
-    if (hovered.entity == wi::ecs::INVALID_ENTITY)
+
+    for (auto& gizmo : Editor::GetData()->gizmo_data)
     {
-        hovered = wi::scene::Pick(pickRay, ~0u, ~0u, Game::Resources::GetScene().wiscene);
+        if (!wiscene.transforms.Contains(gizmo.entity))
+            continue;
+        const wi::scene::TransformComponent& transform = *wiscene.transforms.GetComponent(gizmo.entity);
+
+        XMVECTOR disV = XMVector3LinePointDistance(XMLoadFloat3(&pickRay.origin), XMLoadFloat3(&pickRay.origin) + XMLoadFloat3(&pickRay.direction), transform.GetPositionV());
+        float dis = XMVectorGetX(disV);
+        if (dis > 0.01f && dis < wi::math::Distance(transform.GetPosition(), pickRay.origin) * 0.05f && dis < hovered.distance)
+        {
+            hovered = wi::scene::PickResult();
+            hovered.entity = gizmo.entity;
+            hovered.distance = dis;
+        }
     }
 
-    Editor::GetData()->selection = hovered;
+    Editor::GetData()->hovered = hovered;
+}
+
+int Editor_PickEntity(lua_State* L)
+{
+    XMFLOAT4 currentMouse = wi::input::GetPointer();
+    wi::primitive::Ray pickRay = wi::renderer::GetPickRay((long)currentMouse.x, (long)currentMouse.y, *Editor::GetData()->viewport, Game::Resources::GetScene().wiscene.camera);
+
+    auto picked = Editor::GetData()->hovered;
+    if (picked.entity == wi::ecs::INVALID_ENTITY)
+    {
+        picked = wi::scene::Pick(pickRay, ~0u, ~0u, Game::Resources::GetScene().wiscene);
+    }
+
+    Editor::GetData()->selection = picked;
     Editor_UpdateSelection();
 
-    wi::lua::SSetLongLong(L, hovered.entity);
+    wi::lua::SSetLongLong(L, picked.entity);
     return 1;
 }
 
@@ -211,6 +274,7 @@ int Editor_GetTranslatorMode(lua_State* L)
 void Editor::Init()
 {
     wi::lua::RunText("EditorAPI = true");
+    wi::lua::RegisterFunc("Editor_IsEntityListUpdated", Editor_IsEntityListUpdated);
     wi::lua::RegisterFunc("Editor_GetObjectList", Editor_GetObjectList);
     wi::lua::RegisterFunc("Editor_FetchSelection", Editor_FetchSelection);
     wi::lua::RegisterFunc("Editor_PickEntity", Editor_PickEntity);
@@ -219,11 +283,14 @@ void Editor::Init()
 
     Editor::GetData()->transform_translator.SetEnabled(true);
     Editor::GetData()->transform_translator.scene = &Game::Resources::GetScene().wiscene;
+
+    wi::font::AddFontStyle("FontAwesomeV6", font_awesome_v6, sizeof(font_awesome_v6));
 }
 
 void Editor::Update(float dt, wi::RenderPath2D& viewport)
 {
     GetData()->transform_translator.Update(Game::Resources::GetScene().wiscene.camera, viewport);
+    Editor_ProcessHovered();
 }
 
 void Editor::ResizeBuffers(wi::graphics::GraphicsDevice* device, wi::RenderPath3D* renderPath)
@@ -294,6 +361,9 @@ void Editor::ResizeBuffers(wi::graphics::GraphicsDevice* device, wi::RenderPath3
 
 void Editor::Render(wi::graphics::GraphicsDevice* device, wi::graphics::CommandList& cmd)
 {
+    auto& scene = Game::Resources::GetScene();
+    auto& wiscene = scene.wiscene;
+
     device->EventBegin("Editor", cmd);
 
     //Editor's rendarpass
@@ -309,6 +379,50 @@ void Editor::Render(wi::graphics::GraphicsDevice* device, wi::graphics::CommandL
         device->EventBegin("Editor - Translator", cmd);
         GetData()->transform_translator.Draw(Game::Resources::GetScene().wiscene.camera, cmd);
         device->EventEnd(cmd);
+    }
+
+    //Gizmos
+    {
+        // remove camera jittering
+        wi::scene::CameraComponent cam = Game::Resources::GetScene().wiscene.camera;
+        cam.jitter = XMFLOAT2(0, 0);
+        cam.UpdateCamera();
+        const XMMATRIX VP = cam.GetViewProjection();
+
+        const XMMATRIX R = XMLoadFloat3x3(&cam.rotationMatrix);
+
+        wi::font::Params fp;
+        fp.customRotation = &R;
+        fp.customProjection = &VP;
+        fp.size = 32; // icon font render quality
+        const float scaling = 0.0025f;
+        fp.h_align = wi::font::WIFALIGN_CENTER;
+        fp.v_align = wi::font::WIFALIGN_CENTER;
+        fp.shadowColor = wi::Color::Shadow();
+        fp.shadow_softness = 1;
+
+        for(auto& gizmo : GetData()->gizmo_data)
+        {
+            if (!wiscene.transforms.Contains(gizmo.entity))
+                continue;
+            const wi::scene::TransformComponent& transform = *wiscene.transforms.GetComponent(gizmo.entity);
+
+            fp.position = transform.GetPosition();
+            fp.scaling = scaling * wi::math::Distance(transform.GetPosition(), cam.Eye);
+            fp.color = GetData()->inactiveEntityColor;
+
+            if(GetData()->hovered.entity == gizmo.entity)
+            {
+                fp.color = GetData()->hoveredEntityColor;
+            }
+
+            if(GetData()->selection.entity == gizmo.entity)
+            {
+                fp.color = GetData()->selectedEntityColor;
+            }
+
+            wi::font::Draw(gizmo.icon, fp, cmd);
+        }
     }
     
     device->RenderPassEnd(cmd);
