@@ -103,8 +103,65 @@ local edit_execcmd = function(command, extradata, holdout)
         end
     end
 
+    if command == "mod_comp" then
+        if type(extradata) == "table" then
+            if extradata.type == "name" then
+                local namecomponent = wiscene.Component_GetName(extradata.entity)
+                if namecomponent then
+                    local editdata = extradata.post
+                    namecomponent.Name = editdata.namestr
+                end  
+            end
+            if extradata.type == "layer" then
+                local layercomponent = wiscene.Component_GetLayer(extradata.entity)
+                if layercomponent then
+                    local editdata = extradata.post
+                    layercomponent.LayerMask = editdata.mask
+                end
+            end
+            if extradata.type == "object" then
+                local objectcomponent = wiscene.Component_GetObject(extradata.entity)
+                if objectcomponent then
+                    local editdata = extradata.post
+                    objectcomponent.Color = editdata.col
+                    objectcomponent.EmissiveColor = editdata.emissivecol
+                    objectcomponent.CascadeMask = editdata.cascademask
+                    objectcomponent.RendertypeMask = editdata.rendertypemask
+                end
+            end
+            if extradata.type == "light" then
+                local lightcomponent = wiscene.Component_GetLight(extradata.entity)
+                if lightcomponent then
+                    local editdata = extradata.post
+                    lightcomponent.Range = editdata.range
+                    lightcomponent.Intensity = editdata.intensity
+                    lightcomponent.Color = editdata.col
+                    lightcomponent.OuterConeAngle = editdata.outcang
+                    lightcomponent.InnerConeAngle = editdata.incang
+                    lightcomponent.SetCastShadow(editdata.set_shadow)
+                    lightcomponent.SetVolumetricsEnabled(editdata.set_volumetric)
+                end
+            end
+            if extradata.type == "sound" then
+                local soundcomponent = wiscene.Component_GetSound(extradata.entity)
+                if soundcomponent then
+                    local editdata = extradata.post
+                    soundcomponent.Filename = editdata.fname
+                    soundcomponent.Volume = editdata.vol
+                    soundcomponent.SetLooped(editdata.set_loop)
+                    soundcomponent.SetDisable3D(editdata.set_3d)
+                    if editdata.play then
+                        soundcomponent.Play()
+                    else
+                        soundcomponent.Stop()
+                    end
+                end
+            end
+        end
+    end
+
     if command == "del_obj" then
-        -- TODO
+        -- TODO: stash entity to storage
         wiscene.Entity_Remove(extradata.entity)
     end
 
@@ -137,6 +194,60 @@ local edit_undocmd = function()
 
     if command == "add_obj" then
         wiscene.Entity_Remove(extradata.entity)
+    end
+    if command == "mod_comp" then
+        if extradata.type == "name" then
+            local namecomponent = wiscene.Component_GetName(extradata.entity)
+            if namecomponent then
+                local editdata = extradata.pre
+                namecomponent.Name = editdata.namestr
+            end  
+        end
+        if extradata.type == "layer" then
+            local layercomponent = wiscene.Component_GetLayer(extradata.entity)
+            if layercomponent then
+                local editdata = extradata.pre
+                layercomponent.LayerMask = editdata.mask
+            end
+        end
+        if extradata.type == "object" then
+            local objectcomponent = wiscene.Component_GetObject(extradata.entity)
+            if objectcomponent then
+                local editdata = extradata.pre
+                objectcomponent.Color = editdata.col
+                objectcomponent.EmissiveColor = editdata.emissivecol
+                objectcomponent.CascadeMask = editdata.cascademask
+                objectcomponent.RendertypeMask = editdata.rendertypemask
+            end
+        end
+        if extradata.type == "light" then
+            local lightcomponent = wiscene.Component_GetLight(extradata.entity)
+            if lightcomponent then
+                local editdata = extradata.pre
+                lightcomponent.Range = editdata.range
+                lightcomponent.Intensity = editdata.intensity
+                lightcomponent.Color = editdata.col
+                lightcomponent.OuterConeAngle = editdata.outcang
+                lightcomponent.InnerConeAngle = editdata.incang
+                lightcomponent.SetCastShadow(editdata.set_shadow)
+                lightcomponent.SetVolumetricsEnabled(editdata.set_volumetric)
+            end
+        end
+        if extradata.type == "sound" then
+            local soundcomponent = wiscene.Component_GetSound(extradata.entity)
+            if soundcomponent then
+                local editdata = extradata.pre
+                soundcomponent.Filename = editdata.fname
+                soundcomponent.Volume = editdata.vol
+                soundcomponent.SetLooped(editdata.set_loop)
+                soundcomponent.SetDisable3D(editdata.set_3d)
+                if editdata.play then
+                    soundcomponent.Play()
+                else
+                    soundcomponent.Stop()
+                end
+            end
+        end
     end
 
     D.editor_data.actions.command_head = math.max(D.editor_data.actions.command_head - 1, 1)
@@ -314,12 +425,18 @@ local drawcompinspect = function()
                     --
                     local ret_tree = imgui.TreeNode("Name Component")
                     if ret_tree then
-                        local changed = false
-
                         _, editor_name.namestr = imgui.InputText("Name", editor_name.namestr, 255)
                         
-                        if input.Down(KEYBOARD_BUTTON_ENTER) then
-                            namecomponent.Name = editor_name.namestr
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then
+                            local editdata = {
+                                entity = entity,
+                                type = "name",
+                                pre = {
+                                    namestr = namecomponent.Name
+                                },
+                                post = deepcopy(editor_name)
+                            }
+                            edit_execcmd("mod_comp", editdata)
                         end
                         imgui.TreePop()
                     end
@@ -332,23 +449,47 @@ local drawcompinspect = function()
                 if layercomponent then
                     local ret_tree = imgui.TreeNode("Layer Component")
                     if ret_tree then
+                        local changed = false
                         local layers = layercomponent.LayerMask
                         local set = 0
+                        
                         for flag_id = 0, 31, 1 do
                             local block = 1 << flag_id
                             local get_check = (layers & block) > 0
+                            local set_changed = false
+                            
                             if (flag_id%6 > 0) and (flag_id ~= 0) then imgui.SameLine() end
-                            _, get_check = imgui.Checkbox(flag_id .. "##" .. flag_id, get_check)
+                            set_changed, get_check = imgui.Checkbox(flag_id .. "##" .. flag_id, get_check)
+                            if set_changed then changed = true end
+
                             local get = 0
                             if get_check == true then
                                 set = set | block
                             end
                         end
-                        layercomponent.LayerMask = set
-                        if imgui.Button("Select ALL") then layercomponent.LayerMask = 0xffffffff end
+                        if imgui.Button("Select ALL") then
+                            set = 0xffffffff
+                            changed = true
+                        end
                         imgui.SameLine()
-                        if imgui.Button("Select NONE") then layercomponent.LayerMask = 0 end
+                        if imgui.Button("Select NONE") then 
+                            set = 0 
+                            changed = true
+                        end
                         imgui.TreePop()
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "layer",
+                                pre = {
+                                    mask = layercomponent.LayerMask
+                                },
+                                post = {
+                                    mask = set
+                                }
+                            }
+                            edit_execcmd("mod_comp", editdata)
+                        end
                     end
                 end
                 --
@@ -373,13 +514,13 @@ local drawcompinspect = function()
                         _, editor_transform.rot.X, editor_transform.rot.Y, editor_transform.rot.Z = imgui.InputFloat3("Euler Rotation", editor_transform.rot.X, editor_transform.rot.Y, editor_transform.rot.Z)
                         _, editor_transform.sca.X, editor_transform.sca.Y, editor_transform.sca.Z = imgui.InputFloat3("Scale", editor_transform.sca.X, editor_transform.sca.Y, editor_transform.sca.Z)
                         
-                        if input.Down(KEYBOARD_BUTTON_ENTER) then
-                            transformcomponent.ClearTransform();
-                            transformcomponent.Translate(editor_transform.pos)
-                            -- local rot_quat = vector.QuaternionFromRollPitchYaw(editor_transform.rot)
-                            -- stransformcomponent.Rotate(rot_quat)
-                            transformcomponent.Scale(editor_transform.sca)
-                        end
+                        -- if input.Press(KEYBOARD_BUTTON_ENTER) then
+                        --     transformcomponent.ClearTransform();
+                        --     transformcomponent.Translate(editor_transform.pos)
+                        --     local rot_quat = vector.QuaternionFromRollPitchYaw(editor_transform.rot)
+                        --     stransformcomponent.Rotate(rot_quat)
+                        --     transformcomponent.Scale(editor_transform.sca)
+                        -- end
 
                         imgui.TreePop()
                     end
@@ -422,11 +563,21 @@ local drawcompinspect = function()
                         _, editor_object.col.X, editor_object.col.Y, editor_object.col.Z, editor_object.col.W = imgui.InputFloat4("Color##col", editor_object.col.X, editor_object.col.Y, editor_object.col.Z, editor_object.col.W)
                         _, editor_object.emscol.X, editor_object.emscol.Y, editor_object.emscol.Z, editor_object.emscol.W = imgui.InputFloat4("Emissive Color##emscol", editor_object.emscol.X, editor_object.emscol.Y, editor_object.emscol.Z, editor_object.emscol.W)
 
-                        if input.Down(KEYBOARD_BUTTON_ENTER) then
-                            objectcomponent.Color = editor_object.col
-                            objectcomponent.EmissiveColor = editor_object.emissivecol
-                            objectcomponent.CascadeMask = editor_object.cascademask
-                            objectcomponent.RendertypeMask = editor_object.rendertypemask
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "object",
+                                pre = {
+                                    col = objectcomponent.Color,
+                                    emissivecol = objectcomponent.EmissiveColor,
+                                    cascademask = objectcomponent.CascadeMask,
+                                    rendertypemask = objectcomponent.RendertypeMask
+                                },
+                                post = deepcopy(editor_object)
+                            }
+                            edit_execcmd("mod_comp", editdata)
                         end
 
                         imgui.TreePop()
@@ -446,6 +597,7 @@ local drawcompinspect = function()
                     local editor_light = compinspect.component.light
                     local ret_tree = imgui.TreeNode("Light Component")
                     --Init
+                    if editor_light.type == nil then editor_light.type = lightcomponent.Type end
                     if editor_light.col == nil then editor_light.col = lightcomponent.Color end
                     if editor_light.range == nil then editor_light.range = lightcomponent.Range end
                     if editor_light.intensity == nil then editor_light.intensity = lightcomponent.Intensity end
@@ -453,27 +605,44 @@ local drawcompinspect = function()
                     if editor_light.incang == nil then editor_light.incang = lightcomponent.InnerConeAngle end
                     --
                     if ret_tree then
-                        _, lightcomponent.Type = imgui.Combo("\xef\x82\xb0##filter",lightcomponent.Type,"Directional\0Point\0Spot\0")
+                        local changed = false
+
+                        _, editor_light.type = imgui.Combo("\xef\x82\xb0##filter",editor_light.type,"Directional\0Point\0Spot\0")
                         _, editor_light.range = imgui.InputFloat("Range", editor_light.range)
                         _, editor_light.intensity = imgui.InputFloat("Intensity", editor_light.intensity)
                         _, editor_light.col.X, editor_light.col.Y, editor_light.col.Z = imgui.InputFloat3("Color##col", editor_light.col.X, editor_light.col.Y, editor_light.col.Z)
                         _, editor_light.outcang = imgui.InputFloat("Outer Cone Angle##outcang", editor_light.outcang)
                         _, editor_light.incang = imgui.InputFloat("Inner Cone Angle##incang", editor_light.incang)
                         
-                        local set_shadow = lightcomponent.IsCastShadow()
-                        _, set_shadow = imgui.Checkbox("Cast Shadow##shadow", set_shadow)
-                        lightcomponent.SetCastShadow(set_shadow)
+                        local changed_set_shadow = false
+                        editor_light.set_shadow = lightcomponent.IsCastShadow()
+                        changed_set_shadow, editor_light.set_shadow = imgui.Checkbox("Cast Shadow##shadow", editor_light.set_shadow)
+                        if changed_set_shadow then changed = true end
 
-                        local set_volumetric = lightcomponent.IsVolumetricsEnabled()
-                        _, set_volumetric = imgui.Checkbox("Contribute Volumetric##volumetric", set_volumetric)
-                        lightcomponent.SetVolumetricsEnabled(set_volumetric)
+                        local changed_set_volumetric = false
+                        editor_light.set_volumetric = lightcomponent.IsVolumetricsEnabled()
+                        changed_set_volumetric, set_volumetric = imgui.Checkbox("Contribute Volumetric##volumetric", editor_light.set_volumetric)
+                        if changed_set_volumetric then changed = true end
 
-                        if input.Down(KEYBOARD_BUTTON_ENTER) then
-                            lightcomponent.Range = editor_light.range
-                            lightcomponent.Intensity = editor_light.intensity
-                            lightcomponent.Color = editor_light.col
-                            lightcomponent.OuterConeAngle = editor_light.outcang
-                            lightcomponent.InnerConeAngle = editor_light.incang
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "light",
+                                pre = {
+                                    type = lightcomponent.Type,
+                                    col = lightcomponent.Color,
+                                    range = lightcomponent.Range,
+                                    intensity = lightcomponent.Intensity,
+                                    outcang = lightcomponent.OuterConeAngle,
+                                    incang = lightcomponent.InnerConeAngle,
+                                    set_shadow = lightcomponent.IsCastShadow(),
+                                    set_volumetric = lightcomponent.IsVolumetricsEnabled()
+                                },
+                                post = deepcopy(editor_light)
+                            }
+                            edit_execcmd("mod_comp", editdata)
                         end
                         
                         imgui.TreePop()
@@ -503,23 +672,44 @@ local drawcompinspect = function()
                         _, editor_sound.fname = imgui.InputText("Filename", editor_sound.fname, 255)
                         _, editor_sound.vol = imgui.InputFloat("Volume", editor_sound.vol, 255)
 
-                        local set_loop = soundcomponent.IsLooped()
-                        _, set_loop = imgui.Checkbox("Loop Sound", set_loop)
-                        soundcomponent.SetLooped(set_loop)
+                        local changed_set_loop = false
+                        editor_sound.set_loop = soundcomponent.IsLooped()
+                        changed_set_loop, editor_sound.set_loop = imgui.Checkbox("Loop Sound", editor_sound.set_loop)
+                        if changed_set_loop then changed = true end
 
-                        local set_3d = not soundcomponent.IsDisable3D()
-                        _, set_3d = imgui.Checkbox("3D Sound", set_3d)
-                        soundcomponent.SetDisable3D(not set_3d)
+                        local changed_set_2d = false
+                        editor_sound.set_2d = soundcomponent.IsDisable3D()
+                        changed_set_2d, editor_sound.set_2d = imgui.Checkbox("2D sound", editor_sound.set_2d)
+                        if changed_set_2d then changed = true end
 
                         if soundcomponent.IsPlaying() then
-                            if imgui.Button("Stop") then soundcomponent.Stop() end
+                            if imgui.Button("Stop") then 
+                                editor_sound.play = false
+                                changed = true
+                            end
                         else
-                            if imgui.Button("Play") then soundcomponent.Play() end
+                            if imgui.Button("Play") then 
+                                editor_sound.play = true
+                                changed = true
+                            end
                         end
                         
-                        if input.Down(KEYBOARD_BUTTON_ENTER) then
-                            soundcomponent.Filename = editor_sound.fname
-                            soundcomponent.Volume = editor_sound.vol
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "sound",
+                                pre = {
+                                    fname = soundcomponent.Filename,
+                                    vol = soundcomponent.Volume,
+                                    set_loop = soundcomponent.IsLooped(),
+                                    set_2d = soundcomponent.IsDisable3D(),
+                                    play = soundcomponent.IsPlaying()
+                                },
+                                post = deepcopy(editor_sound)
+                            }
+                            edit_execcmd("mod_comp", editdata)
                         end
                         imgui.TreePop()
                     end
@@ -558,6 +748,7 @@ local drawcompinspect = function()
 end
 
 local update_scenegraph = function()
+    -- Update data only when the entity list changes
     if Editor_IsEntityListUpdated() then
         D.editor_data.elements.scenegraphview.list.objects = Editor_GetObjectList()
         D.editor_data.elements.scenegraphview.list.meshes = scene.Entity_GetMeshArray()
