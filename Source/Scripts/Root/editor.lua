@@ -29,11 +29,26 @@ D("editor_data",{
                 sound = {}
             }
         },
+        importwindow = {
+            win_visible = false,
+            file = "",
+            type = "",
+            opt_wiscene = {
+                import_as_instance = false
+            }
+        },
+        entityselector = {
+            win_visible = false,
+            filter_type = "",
+            list = {}
+        },
+        -- FIle menu windows
         fmenu_rnres = {
             win_visible = false,
+            init = false,
             input = "",
-            apply = false,
         },
+        -- Extras from Dear Imgui
         helper_demo = {
             win_visible = false,
         },
@@ -58,9 +73,9 @@ D("editor_data",{
         camera_transform = TransformComponent(),
         camera_pos = Vector(0,2,-5),
         camera_rot = Vector(0,0,0),
-        camera_speed_mul_select = 1,
+        camera_speed_mul_select = 0,
         camera_speed_mul = 3.0,
-        translatormode = 1,
+        translatormode = 0,
     },
     core_data = {
         resname = "Untitled Scene",
@@ -81,6 +96,13 @@ local component_set_layer = function(component, editdata)
     component.LayerMask = editdata.mask
 end
 
+local component_set_transform = function(component, editdata)
+    component.Translation_local = editdata.pos
+    component.Rotation_local = editdata.rot
+    component.Scale_local = editdata.sca
+    component.SetDirty()
+end
+
 local component_set_object = function(component, editdata)
     component.Color = editdata.col
     component.EmissiveColor = editdata.emissivecol
@@ -89,6 +111,7 @@ local component_set_object = function(component, editdata)
 end
 
 local component_set_light = function(component, editdata)
+    component.Type = editdata.type
     component.Range = editdata.range
     component.Intensity = editdata.intensity
     component.Color = editdata.col
@@ -114,10 +137,10 @@ local edit_execcmd = function(command, extradata, holdout)
     if command == "add_obj" then
         if type(extradata) == "table" then
             local entity = 0
-            if extradata.entity ~= nil then
-                entity = extradata.entity
-            else
+            if holdout == nil then
                 entity = scene.Entity_Create()
+            else
+                entity = extradata.entity
             end
             
             extradata.entity = entity
@@ -156,13 +179,18 @@ local edit_execcmd = function(command, extradata, holdout)
                 local layercomponent = wiscene.Component_GetLayer(extradata.entity)
                 if layercomponent then component_set_layer(layercomponent, extradata.post) end
             end
+            if extradata.type == "transform" then
+                local transformcomponent = wiscene.Component_GetTransform(extradata.entity)
+                if transformcomponent then component_set_transform(transformcomponent, extradata.post) end
+            end
             if extradata.type == "object" then
                 local objectcomponent = wiscene.Component_GetObject(extradata.entity)
                 if objectcomponent then component_set_layer(objectcomponent, extradata.post) end
             end
             if extradata.type == "light" then
                 local lightcomponent = wiscene.Component_GetLight(extradata.entity)
-                if lightcomponent then component_set_layer(lightcomponent, extradata.post) end
+                if lightcomponent then component_set_light(lightcomponent, extradata.post) end
+                if extradata.pre.type ~= extradata.post.type then Editor_UpdateGizmoData(extradata.entity) end
             end
             if extradata.type == "sound" then
                 local soundcomponent = wiscene.Component_GetSound(extradata.entity)
@@ -221,13 +249,18 @@ local edit_undocmd = function()
             local layercomponent = wiscene.Component_GetLayer(extradata.entity)
             if layercomponent then component_set_layer(layercomponent, extradata.pre) end
         end
+        if extradata.type == "transform" then
+            local transformcomponent = wiscene.Component_GetTransform(extradata.entity)
+            if transformcomponent then component_set_transform(transformcomponent, extradata.pre) end
+        end
         if extradata.type == "object" then
             local objectcomponent = wiscene.Component_GetObject(extradata.entity)
             if objectcomponent then component_set_layer(objectcomponent, extradata.pre) end
         end
         if extradata.type == "light" then
             local lightcomponent = wiscene.Component_GetLight(extradata.entity)
-            if lightcomponent then component_set_layer(lightcomponent, extradata.pre) end
+            if lightcomponent then component_set_light(lightcomponent, extradata.pre) end
+            if extradata.pre.type ~= extradata.post.type then Editor_UpdateGizmoData(extradata.entity) end
         end
         if extradata.type == "sound" then
             local soundcomponent = wiscene.Component_GetSound(extradata.entity)
@@ -309,15 +342,22 @@ end
 local drawmenubardialogs = function()
     if D.editor_data.elements.fmenu_rnres.win_visible then
         local fmenu_rnres = D.editor_data.elements.fmenu_rnres
+
+        if fmenu_rnres.init == false then
+            fmenu_rnres.input = D.editor_data.core_data.resname
+            fmenu_rnres.init = true
+        end
+
+        local sub_visible = false
         sub_visible, fmenu_rnres.win_visible = imgui.Begin("\xef\x81\x84 Rename Scene", fmenu_rnres.win_visible)
         if sub_visible then
             ret, fmenu_rnres.input = imgui.InputText("##fmenu_rnres_input", fmenu_rnres.input, 255)
             imgui.SameLine()
             if imgui.Button("\xef\x81\x84 ") then
-                backlog_post("ACT_INF: rename to > " .. fmenu_rnres.input)
-                backlog_post("ACT_STUB: rename resource apply to object is not implemented yet")
-                fmenu_rnres.apply = false
+                D.editor_data.core_data.resname = fmenu_rnres.input
+                fmenu_rnres.input = ""
             end
+            imgui.End()
         end
     end
 end
@@ -326,6 +366,7 @@ local drawsceneexp = function()
     local resexp = D.editor_data.elements.resexp
 
     if resexp.win_visible then
+        local sub_visible = false
         sub_visible, resexp.win_visible = imgui.Begin("\xef\x86\xb2 Scene Explorer", resexp.win_visible)
         if sub_visible then
             ret, resexp.input = imgui.InputText("##resexp_sin", resexp.input, 255)
@@ -348,6 +389,7 @@ local drawscenegraphview = function()
     local scenegraphview = D.editor_data.elements.scenegraphview
 
     if scenegraphview.win_visible then
+        local sub_visible = false
         sub_visible, scenegraphview.win_visible = imgui.Begin("\xef\xa0\x82 Scene Graph Viewer", scenegraphview.win_visible)
         if sub_visible then
             ret_filter, scenegraphview.filter_selected = imgui.Combo("\xef\x82\xb0##filter",scenegraphview.filter_selected,"Objects\0Meshes\0Materials\0Animation\0Lights\0Weathers\0")
@@ -399,6 +441,7 @@ end
 local drawcompinspect = function()
     local compinspect = D.editor_data.elements.compinspect
     if compinspect.win_visible then
+        local sub_visible = false
         sub_visible, compinspect.win_visible = imgui.Begin("\xef\x82\x85 Component Inspector", compinspect.win_visible)
         if sub_visible then
             local entity = D.editor_data.elements.scenegraphview.selected_entity
@@ -488,27 +531,31 @@ local drawcompinspect = function()
                     local editor_transform = compinspect.component.transform
                     local ret_tree = imgui.TreeNode("Transform Component")
                     --Init
-                    if editor_transform.pos == nil then editor_transform.pos = transformcomponent.GetPosition() end
-                    if editor_transform.rot == nil then 
-                        local rot_quat = transformcomponent.GetRotation()
-                        editor_transform.rot = vector.QuaternionToRollPitchYaw(rot_quat)
-                    end
-                    if editor_transform.sca == nil then editor_transform.sca = transformcomponent.GetScale() end
+                    if editor_transform.pos == nil then editor_transform.pos = transformcomponent.Translation_local end
+                    if editor_transform.rot == nil then editor_transform.rot = transformcomponent.Rotation_local end
+                    if editor_transform.sca == nil then editor_transform.sca = transformcomponent.Scale_local end
                     --
                     if ret_tree then
                         local changed = false
 
                         _, editor_transform.pos.X, editor_transform.pos.Y, editor_transform.pos.Z = imgui.InputFloat3("Position", editor_transform.pos.X, editor_transform.pos.Y, editor_transform.pos.Z)
-                        _, editor_transform.rot.X, editor_transform.rot.Y, editor_transform.rot.Z = imgui.InputFloat3("Euler Rotation", editor_transform.rot.X, editor_transform.rot.Y, editor_transform.rot.Z)
+                        _, editor_transform.rot.X, editor_transform.rot.Y, editor_transform.rot.Z, editor_transform.rot.W = imgui.InputFloat4("Quaternion Rotation", editor_transform.rot.X, editor_transform.rot.Y, editor_transform.rot.Z, editor_transform.rot.W)
                         _, editor_transform.sca.X, editor_transform.sca.Y, editor_transform.sca.Z = imgui.InputFloat3("Scale", editor_transform.sca.X, editor_transform.sca.Y, editor_transform.sca.Z)
                         
-                        -- if input.Press(KEYBOARD_BUTTON_ENTER) then
-                        --     transformcomponent.ClearTransform();
-                        --     transformcomponent.Translate(editor_transform.pos)
-                        --     local rot_quat = vector.QuaternionFromRollPitchYaw(editor_transform.rot)
-                        --     stransformcomponent.Rotate(rot_quat)
-                        --     transformcomponent.Scale(editor_transform.sca)
-                        -- end
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "transform",
+                                pre = {
+                                    pos = transformcomponent.Translation_local,
+                                    rot = transformcomponent.Rotation_local,
+                                    sca = transformcomponent.Scale_local
+                                },
+                                post = deepcopy(editor_transform)
+                            }
+                            edit_execcmd("mod_comp", editdata)
+                        end
 
                         imgui.TreePop()
                     end
@@ -544,7 +591,10 @@ local drawcompinspect = function()
 
                         imgui.InputText("Mesh ID##meshid", mesh_name, 255, imgui.constant.InputTextFlags.ReadOnly)
                         imgui.SameLine()
-                        if imgui.Button("\xef\x86\xb2 Set Mesh") then end
+                        if imgui.Button("\xef\x86\xb2 Set Mesh") then 
+                            D.editor_data.elements.entityselector.filter_type = "mesh"
+                            D.editor_data.elements.entityselector.win_visible = true
+                        end
 
                         _, editor_object.cascademask = imgui.InputInt("Cascade Mask##ccmask", editor_object.cascademask)
                         _, editor_object.rendertypemask = imgui.InputInt("Render Type Mask##rtmask", editor_object.rendertypemask)
@@ -595,7 +645,10 @@ local drawcompinspect = function()
                     if ret_tree then
                         local changed = false
 
-                        _, editor_light.type = imgui.Combo("\xef\x82\xb0##filter",editor_light.type,"Directional\0Point\0Spot\0")
+                        local changed_type = false
+                        changed_type, editor_light.type = imgui.Combo("\xef\x82\xb0##filter",editor_light.type,"Directional\0Point\0Spot\0")
+                        if changed_type then changed = true end
+                        
                         _, editor_light.range = imgui.InputFloat("Range", editor_light.range)
                         _, editor_light.intensity = imgui.InputFloat("Intensity", editor_light.intensity)
                         _, editor_light.col.X, editor_light.col.Y, editor_light.col.Z = imgui.InputFloat3("Color##col", editor_light.col.X, editor_light.col.Y, editor_light.col.Z)
@@ -609,7 +662,7 @@ local drawcompinspect = function()
 
                         local changed_set_volumetric = false
                         editor_light.set_volumetric = lightcomponent.IsVolumetricsEnabled()
-                        changed_set_volumetric, set_volumetric = imgui.Checkbox("Contribute Volumetric##volumetric", editor_light.set_volumetric)
+                        changed_set_volumetric, editor_light.set_volumetric = imgui.Checkbox("Contribute Volumetric##volumetric", editor_light.set_volumetric)
                         if changed_set_volumetric then changed = true end
 
                         if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
@@ -735,6 +788,40 @@ local drawcompinspect = function()
     end
 end
 
+local drawimportwindow = function()
+    local importwindow = D.editor_data.elements.importwindow
+
+    if importwindow.win_visible then
+        local sub_visible = false
+        sub_visible, importwindow.win_visible = imgui.Begin("\xef\x82\x85 Import", importwindow.win_visible)
+        if sub_visible then
+            imgui.InputText("File##file", importwindow.file, 255, imgui.constant.InputTextFlags.ReadOnly)
+            if importwindow.type == "WISCENE" then
+                _, importwindow.opt_wiscene.import_as_instance = imgui.Checkbox("Import As Instance##wiscene_inst", importwindow.opt_wiscene.import_as_instance)
+            end
+            if imgui.Button("Import##proceed") then
+                if importwindow.type == "WISCENE" then
+                    Editor_LoadWiScene(importwindow.file, importwindow.opt_wiscene.import_as_instance)
+                end
+                importwindow.win_visible = false
+            end
+            imgui.End()
+        end
+    end
+end
+
+local drawentityselector = function()
+    local entityselector = D.editor_data.elements.entityselector
+
+    if entityselector.win_visible then
+        local sub_visible = false
+        sub_visible, entityselector.win_visible = imgui.Begin("\xef\x82\x85 Entity Selector", entityselector.win_visible)
+        if sub_visible then
+            imgui.End()
+        end
+    end
+end
+
 local update_scenegraph = function()
     -- Update data only when the entity list changes
     if Editor_IsEntityListUpdated() then
@@ -757,7 +844,7 @@ local update_sysmenu_actions = function()
         actions.resource_new = false
     end
     if actions.resource_rename then
-        elements.fmenu_rnres.win_visible = true
+        D.editor_data.elements.fmenu_rnres.win_visible = true
         actions.resource_rename = false
     end
     if actions.resource_save then
@@ -769,7 +856,10 @@ local update_sysmenu_actions = function()
     -- Add menu actions
     if actions.import_wiscene then
         filedialog(0,"Wicked Engine Scene","wiscene",function(data)
-            scene.LoadScene(data.filepath)
+            local import_opt = D.editor_data.elements.importwindow
+            import_opt.file = data.filepath
+            import_opt.type = data.type
+            import_opt.win_visible = true
         end)
         actions.import_wiscene = false
     end
@@ -795,7 +885,7 @@ end
 local update_navigation = function()
     local navigation = D.editor_data.navigation
 
-    if editor_ui_focused() == false then
+    if Editor_UIFocused() == false then
 
         local camera_pos_delta = Vector()
         local camera_rot_delta = Vector()
@@ -862,7 +952,7 @@ runProcess(function()
             D.editor_data.actions.command_list = {}
         end
         edit_execcmd("init")
-        editor_dev_griddraw(true)
+        Editor_SetGridHelper(true)
     end
 
     while true do
@@ -882,6 +972,8 @@ runProcess(function()
         drawsceneexp()
         drawcompinspect()
         drawscenegraphview()
+        drawimportwindow()
+        drawentityselector()
         if D.editor_data.elements.helper_demo.win_visible then
             imgui.ShowDemoWindow()
         end

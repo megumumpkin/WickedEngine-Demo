@@ -168,25 +168,6 @@ namespace Game::ScriptBindings{
 		}
 		return 0;
 	}
-
-	int Internal_EditorDevGridDraw(lua_State* L){
-		int argc = wi::lua::SGetArgCount(L);
-		if(argc > 0)
-		{
-			bool set = wi::lua::SGetBool(L, 1);
-			wi::renderer::SetToDrawGridHelper(set);
-		}
-		else {
-			wi::lua::SError(L, "editor_dev_griddraw(bool set) not enough arguments!");
-		}
-		return 0;
-	}
-
-	int Internal_EditorUIFocused(lua_State* L){
-		ImGuiIO& io = ::ImGui::GetIO();
-		wi::lua::SSetBool(L,io.WantCaptureMouse);
-		return 1;
-	}
 #endif
 
 	// Script bindings need to initialize themselves here
@@ -209,8 +190,6 @@ namespace Game::ScriptBindings{
 			lua_setfield(L, -2, "type");
 			lua_call(L,2,0);
 		});
-		wi::lua::RegisterFunc("editor_dev_griddraw", Internal_EditorDevGridDraw);
-		wi::lua::RegisterFunc("editor_ui_focused", Internal_EditorUIFocused);
         ImGui::Bind();
 #endif
         Resources::Bind();

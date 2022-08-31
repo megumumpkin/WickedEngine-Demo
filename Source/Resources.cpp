@@ -23,7 +23,17 @@ void Library::Instance::Init(wi::jobsystem::context* joblist){
 
                 // Merge and set parent to collection
                 scene->wiscene.Merge(load_scene.wiscene);
-                scene->wiscene.Component_Attach(prototype_root, instance_id);
+                for(auto entity : entities)
+                {
+                    auto hierarchyComponent = scene->wiscene.hierarchy.GetComponent(entity);
+                    if(hierarchyComponent != nullptr)
+                    {
+                        if(hierarchyComponent->parentID == prototype_root)
+                        {
+                            scene->wiscene.Component_Attach(entity, instance_id);
+                        }
+                    }
+                }
                 scene->wiscene.Entity_Remove(prototype_root, false);
 
                 // Store newly made collection to the list
@@ -199,6 +209,8 @@ wi::ecs::Entity Scene::CreateInstance(std::string name){
 
     auto& namecomponent = wiscene.names.Create(entity);
     namecomponent.name = name;
+    wiscene.layers.Create(entity);
+    wiscene.transforms.Create(entity);
 
     instances.Create(entity);
 

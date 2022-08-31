@@ -5,6 +5,25 @@ Editor::Data* Editor::GetData(){
     return &data;
 }
 
+int Editor_SetGridHelper(lua_State* L){
+    int argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        bool set = wi::lua::SGetBool(L, 1);
+        wi::renderer::SetToDrawGridHelper(set);
+    }
+    else {
+        wi::lua::SError(L, "editor_dev_griddraw(bool set) not enough arguments!");
+    }
+    return 0;
+}
+
+int Editor_UIFocused(lua_State* L){
+    ImGuiIO& io = ::ImGui::GetIO();
+    wi::lua::SSetBool(L,io.WantCaptureMouse);
+    return 1;
+}
+
 int Editor_IsEntityListUpdated(lua_State* L)
 {
     auto& wiscene = Game::Resources::GetScene().wiscene;
@@ -14,6 +33,58 @@ int Editor_IsEntityListUpdated(lua_State* L)
     if(changed) Editor::GetData()->entitylist_sizecache = entity_list.size();
     wi::lua::SSetBool(L, changed);
     return 1;
+}
+
+Editor::GizmoData Editor_SetGizmo(wi::ecs::Entity entity)
+{
+    auto& wiscene = Game::Resources::GetScene().wiscene;
+    Editor::GizmoData gizmoData;
+    gizmoData.entity = entity;
+    gizmoData.icon = wiscene.decals.Contains(entity) ? ICON_DECAL 
+        : wiscene.forces.Contains(entity) ? ICON_FORCE
+        : wiscene.cameras.Contains(entity) ? ICON_CAMERA
+        : wiscene.armatures.Contains(entity) ? ICON_ARMATURE
+        : wiscene.emitters.Contains(entity) ? ICON_EMITTER
+        : wiscene.hairs.Contains(entity) ? ICON_HAIR
+        : wiscene.sounds.Contains(entity) ? ICON_SOUND
+        : "";
+
+    auto lightComponent = wiscene.lights.GetComponent(entity);
+    if (lightComponent != nullptr)
+    {
+        gizmoData.icon = (lightComponent->type == wi::scene::LightComponent::SPOT) ? ICON_POINTLIGHT 
+            : (lightComponent->type == wi::scene::LightComponent::DIRECTIONAL) ? ICON_DIRECTIONALLIGHT
+            : ICON_POINTLIGHT;
+    }
+
+    auto objectComponent = wiscene.objects.GetComponent(entity);
+    if (objectComponent != nullptr)
+    {
+        if (!wiscene.meshes.Contains(objectComponent->meshID))
+        {
+            gizmoData.icon = ICON_OBJECT;
+        }
+    }
+    return gizmoData;
+}
+
+int Editor_UpdateGizmoData(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if (argc > 0)
+    {
+        wi::ecs::Entity entity = wi::lua::SGetLongLong(L, 1);
+        auto gizmo_set = Editor_SetGizmo(entity);
+        for (auto& gizmo : Editor::GetData()->gizmo_data)
+        {
+            if(gizmo.entity == gizmo_set.entity)
+            {
+                gizmo.icon = gizmo_set.icon;
+                break;
+            }
+        }
+    }
+    return 0;
 }
 
 int Editor_GetObjectList(lua_State* L)
@@ -53,18 +124,13 @@ int Editor_GetObjectList(lua_State* L)
             }
 
             // Rebuilding Gizmo List
-            map_gizmo_data.emplace_back();
-            auto& gizmoData = map_gizmo_data.back();
-            gizmoData.entity = entity;
-            gizmoData.icon = wiscene.lights.Contains(entity) ? ICON_POINTLIGHT 
-                : wiscene.decals.Contains(entity) ? ICON_DECAL 
-                : wiscene.forces.Contains(entity) ? ICON_FORCE
-                : wiscene.cameras.Contains(entity) ? ICON_CAMERA
-                : wiscene.armatures.Contains(entity) ? ICON_ARMATURE
-                : wiscene.emitters.Contains(entity) ? ICON_EMITTER
-                : wiscene.hairs.Contains(entity) ? ICON_HAIR
-                : wiscene.sounds.Contains(entity) ? ICON_SOUND
-                : "";
+            
+            auto gizmoData = Editor_SetGizmo(entity);
+
+            if (gizmoData.icon != "")
+            {
+                map_gizmo_data.push_back(gizmoData);
+            }
         }
     });
 
@@ -344,9 +410,44 @@ int Editor_DeletedEntityDrop(lua_State* L)
     return 0;
 }
 
+int Editor_LoadWiScene(lua_State* L)
+{
+    auto& scene = Game::Resources::GetScene();
+    auto& wiscene = scene.wiscene;
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc >= 2)
+    {
+        std::string file = wi::lua::SGetString(L, 1);
+        bool as_instance = wi::lua::SGetBool(L, 2);
+        Game::Resources::Scene dscene;
+        wi::scene::LoadModel(dscene.wiscene, file);
+        if(as_instance)
+        {
+            auto newfile = Game::Resources::SourcePath::ASSET+"/"+wi::helper::GetFileNameFromPath(file)+Game::Resources::DataType::SCENE_DATA;
+            auto saveto = wi::Archive(newfile,false);
+            dscene.wiscene.Serialize(saveto);
+            wi::ecs::Entity instance_entity = scene.CreateInstance(wi::helper::GetFileNameFromPath(file));
+            auto instanceComponent = scene.instances.GetComponent(instance_entity);
+            if(instanceComponent != nullptr)
+            {
+                instanceComponent->file = newfile;
+            }
+        }
+        else
+        {
+            scene.wiscene.Merge(dscene.wiscene);
+        }
+    }
+    return 0;
+}
+
 void Editor::Init()
 {
     wi::lua::RunText("EditorAPI = true");
+
+    wi::lua::RegisterFunc("Editor_SetGridHelper", Editor_SetGridHelper);
+    wi::lua::RegisterFunc("Editor_UIFocused", Editor_UIFocused);
+
     wi::lua::RegisterFunc("Editor_IsEntityListUpdated", Editor_IsEntityListUpdated);
     wi::lua::RegisterFunc("Editor_GetObjectList", Editor_GetObjectList);
     wi::lua::RegisterFunc("Editor_FetchSelection", Editor_FetchSelection);
@@ -359,6 +460,10 @@ void Editor::Init()
     wi::lua::RegisterFunc("Editor_StashDeletedEntity", Editor_StashDeletedEntity);
     wi::lua::RegisterFunc("Editor_RestoreDeletedEntity", Editor_RestoreDeletedEntity);
     wi::lua::RegisterFunc("Editor_DeletedEntityDrop", Editor_DeletedEntityDrop);
+
+    wi::lua::RegisterFunc("Editor_UpdateGizmoData", Editor_UpdateGizmoData);
+
+    wi::lua::RegisterFunc("Editor_LoadWiScene", Editor_LoadWiScene);
 
     Editor::GetData()->transform_translator.SetEnabled(true);
     Editor::GetData()->transform_translator.scene = &Game::Resources::GetScene().wiscene;
