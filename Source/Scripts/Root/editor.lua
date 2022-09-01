@@ -836,7 +836,8 @@ local drawcompinspect = function()
 
                         -- _, editor_name.namestr = imgui.InputText("Name", editor_name.namestr, 255)
                         
-                        if input.Down(KEYBOARD_BUTTON_ENTER) then
+                        if input.Down(KEYBOARD_BUTTON_ENTER) then changed = true end
+                        if changed then
                             
                         end
                         imgui.TreePop()
@@ -899,10 +900,8 @@ local drawentityselector = function()
                 if not scenegraphview.wait_update then
                     local entities_list = {}
                     if entityselector.filter_type == 0 then entities_list = scenegraphview.list.meshes end
-                    -- if scenegraphview.filter_type == 2 then entities_list = scenegraphview.list.materials end
-                    -- if scenegraphview.filter_type == 3 then entities_list = scenegraphview.list.animations end
-                    -- if scenegraphview.filter_type == 4 then entities_list = scenegraphview.list.lights end
-                    -- if scenegraphview.filter_type == 5 then entities_list = scenegraphview.list.weathers end
+                    if scenegraphview.filter_type == 1 then entities_list = scenegraphview.list.materials end
+                    if scenegraphview.filter_type == 2 then entities_list = scenegraphview.list.animations end
                     if type(entities_list) ~= "nil" then
                         entityselector.selected_entity = Editor_DisplayEntityList(entities_list, entityselector.selected_entity, true)
                     end
