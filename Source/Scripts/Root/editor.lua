@@ -838,7 +838,7 @@ local drawcompinspect = function()
                         
                         if input.Down(KEYBOARD_BUTTON_ENTER) then changed = true end
                         if changed then
-                            
+
                         end
                         imgui.TreePop()
                     end
