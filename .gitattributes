@@ -5,3 +5,4 @@
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.blend filter=lfs diff=lfs merge=lfs -text
 *.blend* filter=lfs diff=lfs merge=lfs -text
+*.bscn filter=lfs diff=lfs merge=lfs -text

@@ -39,8 +39,9 @@ D("editor_data",{
         },
         entityselector = {
             win_visible = false,
-            filter_type = "",
-            list = {}
+            filter_type = 0,
+            search_string = "",
+            selected_entity = 0
         },
         -- FIle menu windows
         fmenu_rnres = {
@@ -104,6 +105,7 @@ local component_set_transform = function(component, editdata)
 end
 
 local component_set_object = function(component, editdata)
+    component.MeshID = editdata.meshID
     component.Color = editdata.col
     component.EmissiveColor = editdata.emissivecol
     component.CascadeMask = editdata.cascademask
@@ -185,7 +187,7 @@ local edit_execcmd = function(command, extradata, holdout)
             end
             if extradata.type == "object" then
                 local objectcomponent = wiscene.Component_GetObject(extradata.entity)
-                if objectcomponent then component_set_layer(objectcomponent, extradata.post) end
+                if objectcomponent then component_set_object(objectcomponent, extradata.post) end
             end
             if extradata.type == "light" then
                 local lightcomponent = wiscene.Component_GetLight(extradata.entity)
@@ -194,7 +196,7 @@ local edit_execcmd = function(command, extradata, holdout)
             end
             if extradata.type == "sound" then
                 local soundcomponent = wiscene.Component_GetSound(extradata.entity)
-                if soundcomponent then component_set_layer(soundcomponent, extradata.post) end
+                if soundcomponent then component_set_sound(soundcomponent, extradata.post) end
             end
         end
     end
@@ -255,7 +257,7 @@ local edit_undocmd = function()
         end
         if extradata.type == "object" then
             local objectcomponent = wiscene.Component_GetObject(extradata.entity)
-            if objectcomponent then component_set_layer(objectcomponent, extradata.pre) end
+            if objectcomponent then component_set_object(objectcomponent, extradata.pre) end
         end
         if extradata.type == "light" then
             local lightcomponent = wiscene.Component_GetLight(extradata.entity)
@@ -264,7 +266,7 @@ local edit_undocmd = function()
         end
         if extradata.type == "sound" then
             local soundcomponent = wiscene.Component_GetSound(extradata.entity)
-            if soundcomponent then component_set_layer(soundcomponent, extradata.pre) end
+            if soundcomponent then component_set_sound(soundcomponent, extradata.pre) end
         end
     end
     if command == "del_obj" then
@@ -369,7 +371,7 @@ local drawsceneexp = function()
         local sub_visible = false
         sub_visible, resexp.win_visible = imgui.Begin("\xef\x86\xb2 Scene Explorer", resexp.win_visible)
         if sub_visible then
-            ret, resexp.input = imgui.InputText("##resexp_sin", resexp.input, 255)
+            _, resexp.input = imgui.InputText("##resexp_sin", resexp.input, 255)
             imgui.SameLine() imgui.Button("\xef\x85\x8e Search")
 
             imgui.PushStyleVar(imgui.constant.StyleVar.ChildRounding, 5.0)
@@ -383,6 +385,63 @@ local drawsceneexp = function()
         end
         imgui.End()
     end
+end
+
+function Editor_DisplayEntityList(entities_list, selector, holdout)
+    for _, entity in pairs(entities_list) do
+        local name = "entity-" .. entity
+
+        local nameComponent = wiscene.Component_GetName(entity)
+        if nameComponent then name = nameComponent.Name end
+
+        local flag = imgui.constant.TreeNodeFlags.Leaf
+
+        if selector == entity then
+            flag = flag | imgui.constant.TreeNodeFlags.Selected
+        end
+
+        local ret_tree = imgui.TreeNodeEx(name .. "##" .. entity, flag)
+        if imgui.IsItemClicked() then
+            selector = entity
+            if holdout == nil then Editor_FetchSelection(selector) end
+        end
+
+        if ret_tree then
+            imgui.TreePop()
+        end
+    end
+    return selector
+end
+
+function Editor_DisplayTreeList(entities_list, selector, holdout)
+    local scenegraphview = D.editor_data.elements.scenegraphview
+    for _, entity in pairs(entities_list) do
+        local name = "entity-" .. entity
+
+        local nameComponent = wiscene.Component_GetName(entity)
+        if nameComponent then name = nameComponent.Name end
+
+        local flag = 0
+        local has_children = true
+        if type(scenegraphview.list.objects[string.format("%i" , entity)]) ~= "table" then 
+            flag = flag | imgui.constant.TreeNodeFlags.Leaf
+            has_children = false
+        end
+        if selector == entity then
+            flag = flag | imgui.constant.TreeNodeFlags.Selected
+        end
+
+        local ret_tree = imgui.TreeNodeEx(name .. "##" .. entity, flag)
+        if imgui.IsItemClicked() then
+            selector = entity
+            if holdout == nil then Editor_FetchSelection(selector) end
+        end
+        if ret_tree then
+            if has_children then selector = Editor_DisplayTreeList(scenegraphview.list.objects[string.format("%i" , entity)], selector) end
+            imgui.TreePop()
+        end
+    end
+    return selector
 end
 
 local drawscenegraphview = function()
@@ -411,23 +470,10 @@ local drawscenegraphview = function()
                     if scenegraphview.filter_selected == 4 then entities_list = scenegraphview.list.lights end
                     if scenegraphview.filter_selected == 5 then entities_list = scenegraphview.list.weathers end
                     if type(entities_list) ~= "nil" then
-                        for _, entity in pairs(entities_list) do
-                            local name = wiscene.Component_GetName(entity)
-                            if name then
-                                local flag = 0
-                                if scenegraphview.selected_entity == entity then
-                                    flag = flag | imgui.constant.TreeNodeFlags.Selected
-                                end
-
-                                local ret_tree = imgui.TreeNodeEx(name.GetName() .. "##" .. entity, flag)
-                                if imgui.IsItemClicked() then
-                                    scenegraphview.selected_entity = entity
-                                    Editor_FetchSelection(scenegraphview.selected_entity)
-                                end
-                                if ret_tree then
-                                    imgui.TreePop()
-                                end
-                            end
+                        if scenegraphview.filter_selected > 0 then
+                            scenegraphview.selected_entity = Editor_DisplayEntityList(entities_list, scenegraphview.selected_entity)
+                        else
+                            scenegraphview.selected_entity = Editor_DisplayTreeList(entities_list, scenegraphview.selected_entity)
                         end
                     end
                 end    
@@ -573,6 +619,7 @@ local drawcompinspect = function()
                 if objectcomponent then
                     local editor_object = compinspect.component.transform
                     --Init
+                    if editor_object.meshID == nil then editor_object.meshID = objectcomponent.MeshID end
                     if editor_object.cascademask == nil then editor_object.cascademask = objectcomponent.CascadeMask end
                     if editor_object.rendertypemask == nil then editor_object.rendertypemask = objectcomponent.RendertypeMask end
                     if editor_object.col == nil then editor_object.col = objectcomponent.Color end
@@ -582,18 +629,34 @@ local drawcompinspect = function()
                     if ret_tree then
                         local changed = false
 
-                        local meshID = objectcomponent.GetMeshID()
-                        local mesh_name = meshID .. " - NO MESH"
-                        if meshID > 0 then
-                            local mesh_namecomponent = wiscene.Component_GetName(meshID)
-                            if mesh_namecomponent then mesh_name = meshID .. " - " .. mesh_namecomponent.GetName() end
+                        local mesh_name = editor_object.meshID .. " - NO MESH"
+                        if editor_object.meshID > 0 then
+                            local mesh_namecomponent = wiscene.Component_GetName(editor_object.meshID)
+                            if mesh_namecomponent then mesh_name = editor_object.meshID .. " - " .. mesh_namecomponent.GetName() end
                         end
 
                         imgui.InputText("Mesh ID##meshid", mesh_name, 255, imgui.constant.InputTextFlags.ReadOnly)
                         imgui.SameLine()
                         if imgui.Button("\xef\x86\xb2 Set Mesh") then 
-                            D.editor_data.elements.entityselector.filter_type = "mesh"
+                            D.editor_data.elements.entityselector.filter_type = 0 -- mesh
                             D.editor_data.elements.entityselector.win_visible = true
+                            runProcess(function()
+                                waitSignal("Editor_EntitySelect_Finish")
+                                editor_object.meshID = D.editor_data.elements.entityselector.selected_entity
+                                local editdata = {
+                                    entity = entity,
+                                    type = "object",
+                                    pre = {
+                                        meshID = objectcomponent.MeshID,
+                                        col = objectcomponent.Color,
+                                        emissivecol = objectcomponent.EmissiveColor,
+                                        cascademask = objectcomponent.CascadeMask,
+                                        rendertypemask = objectcomponent.RendertypeMask
+                                    },
+                                    post = deepcopy(editor_object)
+                                }
+                                edit_execcmd("mod_comp", editdata)
+                            end)
                         end
 
                         _, editor_object.cascademask = imgui.InputInt("Cascade Mask##ccmask", editor_object.cascademask)
@@ -608,6 +671,7 @@ local drawcompinspect = function()
                                 entity = entity,
                                 type = "object",
                                 pre = {
+                                    meshID = objectcomponent.MeshID,
                                     col = objectcomponent.Color,
                                     emissivecol = objectcomponent.EmissiveColor,
                                     cascademask = objectcomponent.CascadeMask,
@@ -621,6 +685,7 @@ local drawcompinspect = function()
                         imgui.TreePop()
                     end
                     if not imgui.IsItemFocused() then 
+                        editor_object.meshID = objectcomponent.GetMeshID()
                         editor_object.cascademask = objectcomponent.CascadeMask
                         editor_object.rendertypemask = objectcomponent.RendertypeMask
                         editor_object.col = objectcomponent.Color
@@ -812,13 +877,40 @@ end
 
 local drawentityselector = function()
     local entityselector = D.editor_data.elements.entityselector
+    local scenegraphview = D.editor_data.elements.scenegraphview
 
     if entityselector.win_visible then
         local sub_visible = false
-        sub_visible, entityselector.win_visible = imgui.Begin("\xef\x82\x85 Entity Selector", entityselector.win_visible)
+        sub_visible, entityselector.win_visible = imgui.Begin("\xef\x86\xb2 Entity Selector", entityselector.win_visible)
         if sub_visible then
-            imgui.End()
+            _, entityselector.search_string = imgui.InputText("##enttsel_searchstr", entityselector.search_string, 255)
+            imgui.SameLine() imgui.Button("\xef\x85\x8e Search")
+            
+            if imgui.Button("Select") then 
+                signal("Editor_EntitySelect_Finish")
+                entityselector.win_visible = false
+            end
+            
+            imgui.PushStyleVar(imgui.constant.StyleVar.ChildRounding, 5.0)
+            local childflags = 0 | imgui.constant.WindowFlags.NoTitleBar
+            local view_oblist = imgui.BeginChild("##listview", 0, 0, true, childflags)
+            imgui.PopStyleVar()
+            if view_oblist then
+                if not scenegraphview.wait_update then
+                    local entities_list = {}
+                    if entityselector.filter_type == 0 then entities_list = scenegraphview.list.meshes end
+                    -- if scenegraphview.filter_type == 2 then entities_list = scenegraphview.list.materials end
+                    -- if scenegraphview.filter_type == 3 then entities_list = scenegraphview.list.animations end
+                    -- if scenegraphview.filter_type == 4 then entities_list = scenegraphview.list.lights end
+                    -- if scenegraphview.filter_type == 5 then entities_list = scenegraphview.list.weathers end
+                    if type(entities_list) ~= "nil" then
+                        entityselector.selected_entity = Editor_DisplayEntityList(entities_list, entityselector.selected_entity, true)
+                    end
+                end 
+            end
+            imgui.EndChild()
         end
+        imgui.End()
     end
 end
 
