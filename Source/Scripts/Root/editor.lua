@@ -25,13 +25,18 @@ D("editor_data",{
                 name = {},
                 transform = {},
                 object = {},
+                material = {},
+                emitter = {},
                 light = {},
-                sound = {},
+                rigidbody = {},
+                softbody = {},
+                force = {},
                 weather = {
                     atmosphere = {},
                     cloud = {},
                 },
-                material = {},
+                sound = {},
+                collider = {},
                 instance = {}
             }
         },
@@ -112,7 +117,50 @@ local compio_object = {
     RendertypeMask = {"RendertypeMask", "int"},
 }
 
+local compio_material = {
+    ShaderType = {"Shader Type", "combo", { choices = "PBR\0PBR - Planar Reflection\0PBR - Anisotropic\0Water\0Cartoon\0Unlit\0PBR - Cloth\0PBR - Clearcoat\0PBR - Cloth Clearcoat\0" }},
+    BaseColor = {"Base Color", "float4"},
+	EmissiveColor = {"Emissive Color", "float4"},
+	EngineStencilRef = {"Engine Stencil Ref", "int"},
+	UserStencilRef = {"User Stencil Ref", "int"},
+	UserBlendMode = {"User Blend Mode", "int"},
+	SpecularColor = {"SpecularColor", "float4"},
+	SubsurfaceScattering = {"Subsurface Scattering", "float4"},
+	TexMulAdd = {"Texture Color Multiply", "float4"},
+	Roughness = {"Roughness", "float"},
+	Reflectance = {"Reflectance", "float"},
+	Metalness = {"Metalness", "float"},
+	NormalMapStrength = {"Normal Map Strength", "float"},
+	ParallaxOcclusionMapping = {"Parallax Occlusion Mapping", "float"},
+	DisplacementMapping = {"Displacement Mapping", "float"},
+	Refraction = {"Refraction", "float"},
+	Transmission = {"Transmission", "float"},
+	AlphaRef = {"Alpha Ref", "float"},
+	SheenColor = {"Sheen Color", "float3"},
+	SheenRoughness = {"Sheen Roughness", "float"},
+	Clearcoat = {"Clearcoat", "float"},
+	ClearcoatRoughness = {"Clearcoat Roughness", "float"},
+	TexAnimDirection = {"Texture Anim Direction", "float2"},
+	TexAnimFrameRate = {"Texture Anim FrameRate", "float"},
+	texAnimElapsedTime = {"Texture Anim Elapsed Time", "float"},
+	customShaderID = {"Custom Shader ID", "int"},
+}
+
+local compio_emitter = {
+    EmitCount = {"Emit Count", "float"},
+	Size = {"Size", "float"},
+	Life = {"Live", "float"},
+	NormalFactor = {"Normal Factor", "float"},
+	Randomness = {"Randomness", "float"},
+	LifeRandomness = {"Life Randomness", "float"},
+	ScaleX = {"Scale X", "float"},
+	ScaleY = {"Scale Y", "float"},
+	Rotation = {"Rotation", "float"},
+	MotionBlurAmount = {"Motion Blur Amount", "float"},
+}
+
 local compio_light = {
+    Type = {"Type", "combo", { choices = "Directional\0Point\0Spot\0" }},
     Range = {"Range", "float"},
     Intensity = {"Intensity", "float"},
     Color = {"Color", "float3"},
@@ -120,9 +168,30 @@ local compio_light = {
     InnerConeAngle = {"Inner Cone Angle", "float"},
 }
 
-local compio_sound = {
-    Filename = {"Filename", "text"},
-    Volume = {"Volume", "float"}
+local compio_rigidbody = {
+    Shape = {"Shape", "combo", { choices = "Box\0Sphere\0Capsule\0Convex Hull\0Triangle Mesh\0" }},
+    Mass = {"Mass", "float"},
+    Friction = {"Friction", "float"},
+    Restitution = {"Restitution", "float"},
+    LinearDamping = {"LinearDamping", "float"},
+    AngularDamping = {"AngularDamping", "float"},
+    BoxParams_HalfExtents = {"BoxParams_HalfExtents", "float3"},
+    SphereParams_Radius = {"SphereParams_Radius", "float"},
+    CapsuleParams_Radius = {"CapsuleParams_Radius", "float"},
+    CapsuleParams_Height = {"CapsuleParams_Height", "float"},
+    TargetMeshLOD = {"TargetMeshLOD", "int"},
+}
+
+local compio_softbody = {
+    Mass = {"Mass", "float"},
+    Friction = {"Friction", "float"},
+    Restitution = {"Restitution", "float"},
+}
+
+local compio_forcefield = {
+    Type = {"Type", "combo", { choices = "Point\0Plane\0" }},
+    Gravity = {"Gravity", "float"},
+    Range = {"Range", "float"},
 }
 
 local compio_weather_atmos = {
@@ -193,37 +262,23 @@ local compio_weather = {
     stars = {"Star Density" , "float"}
 }
 
-local compio_material = {
-    BaseColor = {"Base Color", "float4"},
-	EmissiveColor = {"Emissive Color", "float4"},
-	EngineStencilRef = {"Engine Stencil Ref", "int"},
-	UserStencilRef = {"User Stencil Ref", "int"},
-	UserBlendMode = {"User Blend Mode", "int"},
-	SpecularColor = {"SpecularColor", "float4"},
-	SubsurfaceScattering = {"Subsurface Scattering", "float4"},
-	TexMulAdd = {"Texture Color Multiply", "float4"},
-	Roughness = {"Roughness", "float"},
-	Reflectance = {"Reflectance", "float"},
-	Metalness = {"Metalness", "float"},
-	NormalMapStrength = {"Normal Map Strength", "float"},
-	ParallaxOcclusionMapping = {"Parallax Occlusion Mapping", "float"},
-	DisplacementMapping = {"Displacement Mapping", "float"},
-	Refraction = {"Refraction", "float"},
-	Transmission = {"Transmission", "float"},
-	AlphaRef = {"Alpha Ref", "float"},
-	SheenColor = {"Sheen Color", "float3"},
-	SheenRoughness = {"Sheen Roughness", "float"},
-	Clearcoat = {"Clearcoat", "float"},
-	ClearcoatRoughness = {"Clearcoat Roughness", "float"},
-	TexAnimDirection = {"Texture Anim Direction", "float2"},
-	TexAnimFrameRate = {"Texture Anim FrameRate", "float"},
-	texAnimElapsedTime = {"Texture Anim Elapsed Time", "float"},
-	customShaderID = {"Custom Shader ID", "int"},
+local compio_sound = {
+    Filename = {"Filename", "text"},
+    Volume = {"Volume", "float"}
+}
+
+local compio_collider = {
+    Shape = {"Shape", "combo", { choices = "Sphere\0Capsule\0Plane\0" }},
+    Radius = {"Radius", "float"},
+    Offset = {"Offset", "float3"},
+    Tail = {"Tail", "float3"},
 }
 
 local compio_instance = {
     File = {"File", "text"},
-    EntityName = {"Subtarget Entity Name", "text"}
+    EntityName = {"Subtarget Entity Name", "text"},
+    Strategy = {"Loading Strategy", "combo", { choices = "Direct\0Instance\0Preload\0" }},
+    Type = {"Type", "combo", { choices = "Default\0Library\0" }},
 }
 
 local compio_stream = {
@@ -267,7 +322,7 @@ end
 
 local component_set_weather = function(component, editdata)
     component_set_generic(component.AtmosphereParameters, editdata.atmosphere)
-    component_set_generic(omponent.VolumetricCloudParameters, editdata.cloud)
+    component_set_generic(component.VolumetricCloudParameters, editdata.cloud)
     for key, _ in pairs(compio_weather) do
         component[key] = editdata[key]
     end
@@ -334,22 +389,42 @@ local edit_execcmd = function(command, extradata, holdout)
                 if objectcomponent then component_set_generic(objectcomponent, extradata.post) end
                 if extradata.pre.meshID ~= extradata.post.meshID then Editor_UpdateGizmoData(extradata.entity) end
             end
+            if extradata.type == "material" then
+                local materialcomponent = wiscene.Component_GetMaterial(extradata.entity)
+                if materialcomponent then component_set_generic(materialcomponent, extradata.post) end
+            end
+            if extradata.type == "emitter" then
+                local emittercomponent = wiscene.Component_GetEmitter(extradata.entity)
+                if emittercomponent then component_set_generic(emittercomponent, extradata.post) end
+            end
             if extradata.type == "light" then
                 local lightcomponent = wiscene.Component_GetLight(extradata.entity)
                 if lightcomponent then component_set_light(lightcomponent, extradata.post) end
                 if extradata.pre.type ~= extradata.post.type then Editor_UpdateGizmoData(extradata.entity) end
             end
-            if extradata.type == "sound" then
-                local soundcomponent = wiscene.Component_GetSound(extradata.entity)
-                if soundcomponent then component_set_sound(soundcomponent, extradata.post) end
+            if extradata.type == "rigidbody" then
+                local rigidbodycomponent = wiscene.Component_GetRigidBodyPhysics(extradata.entity)
+                if rigidbodycomponent then component_set_generic(rigidbodycomponent, extradata.post) end
+            end
+            if extradata.type == "softbody" then
+                local softbodycomponent = wiscene.Component_GetSoftBodyPhysics(extradata.entity)
+                if softbodycomponent then component_set_generic(softbodycomponent, extradata.post) end
+            end
+            if extradata.type == "force" then
+                local forcecomponent = wiscene.Component_GetForceField(extradata.entity)
+                if forcecomponent then component_set_generic(forcecomponent, extradata.post) end
             end
             if extradata.type == "weather" then
                 local weathercomponent = wiscene.Component_GetWeather(extradata.entity)
                 if weathercomponent then component_set_weather(weathercomponent, extradata.post) end
             end
-            if extradata.type == "material" then
-                local materialcomponent = wiscene.Component_GetMaterial(extradata.entity)
-                if materialcomponent then component_set_generic(materialcomponent, extradata.post) end
+            if extradata.type == "sound" then
+                local soundcomponent = wiscene.Component_GetSound(extradata.entity)
+                if soundcomponent then component_set_sound(soundcomponent, extradata.post) end
+            end
+            if extradata.type == "collider" then
+                local collidercomponent = wiscene.Component_GetCollider(extradata.entity)
+                if collidercomponent then component_set_generic(collidercomponent, extradata.post) end
             end
             if extradata.type == "instance" then
                 local instancecomponent = scene.Component_GetInstance(extradata.entity)
@@ -417,22 +492,38 @@ local edit_undocmd = function()
             if objectcomponent then component_set_generic(objectcomponent, extradata.pre) end
             if extradata.pre.meshID ~= extradata.post.meshID then Editor_UpdateGizmoData(extradata.entity) end
         end
+        if extradata.type == "material" then
+            local materialcomponent = wiscene.Component_GetMaterial(extradata.entity)
+            if materialcomponent then component_set_generic(materialcomponent, extradata.pre) end
+        end
+        if extradata.type == "emitter" then
+            local emittercomponent = wiscene.Component_GetEmitter(extradata.entity)
+            if emittercomponent then component_set_generic(emittercomponent, extradata.pre) end
+        end
         if extradata.type == "light" then
             local lightcomponent = wiscene.Component_GetLight(extradata.entity)
             if lightcomponent then component_set_light(lightcomponent, extradata.pre) end
             if extradata.pre.type ~= extradata.post.type then Editor_UpdateGizmoData(extradata.entity) end
         end
-        if extradata.type == "sound" then
-            local soundcomponent = wiscene.Component_GetSound(extradata.entity)
-            if soundcomponent then component_set_sound(soundcomponent, extradata.pre) end
+        if extradata.type == "rigidbody" then
+            local rigidbodycomponent = wiscene.Component_GetRigidBodyPhysics(extradata.entity)
+            if rigidbodycomponent then component_set_generic(rigidbodycomponent, extradata.pre) end
+        end
+        if extradata.type == "softbody" then
+            local softbodycomponent = wiscene.Component_GetSoftBodyPhysics(extradata.entity)
+            if softbodycomponent then component_set_generic(softbodycomponent, extradata.pre) end
         end
         if extradata.type == "weather" then
             local weathercomponent = wiscene.Component_GetWeather(extradata.entity)
             if weathercomponent then component_set_weather(weathercomponent, extradata.pre) end
         end
-        if extradata.type == "material" then
-            local materialcomponent = wiscene.Component_GetMaterial(extradata.entity)
-            if materialcomponent then component_set_generic(materialcomponent, extradata.pre) end
+        if extradata.type == "sound" then
+            local soundcomponent = wiscene.Component_GetSound(extradata.entity)
+            if soundcomponent then component_set_sound(soundcomponent, extradata.pre) end
+        end
+        if extradata.type == "collider" then
+            local collidercomponent = wiscene.Component_GetCollider(extradata.entity)
+            if collidercomponent then component_set_generic(collidercomponent, extradata.pre) end
         end
         if extradata.type == "instance" then
             local instancecomponent = scene.Component_GetInstance(extradata.entity)
@@ -665,6 +756,7 @@ local display_edit_parameters = function(component, parameter_list, edit_store)
         -- TODO: draw specific ui types by condition
         local label = data[1]
         local type = data[2]
+        local extradata = data[3]
 
         if type == "int" then
             local ret = false
@@ -695,6 +787,12 @@ local display_edit_parameters = function(component, parameter_list, edit_store)
         if type == "check" then
             local ret = false
             ret, edit_store[key] = imgui.InputText(label, edit_store[key], 255)
+            if ret then changed = true end
+        end
+
+        if (type == "combo") and (extradata ~= nil) then
+            local ret = false
+            ret, edit_store[key] = imgui.Combo(label, edit_store[key], extradata.choices)
             if ret then changed = true end
         end
     end
@@ -801,7 +899,8 @@ local drawcompinspect = function()
                     if ret_tree then
                         local changed = false
 
-                        display_edit_parameters(transformcomponent, compio_transform, editor_transform)
+                        local changed_params = display_edit_parameters(transformcomponent, compio_transform, editor_transform)
+                        if changed_params then changed = true end
 
                         if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
                         if changed then
@@ -840,7 +939,8 @@ local drawcompinspect = function()
                             if mesh_namecomponent then mesh_name = editor_object.MeshID .. " - " .. mesh_namecomponent.GetName() end
                         end
 
-                        display_edit_parameters(objectcomponent, compio_object, editor_object)
+                        local changed_params = display_edit_parameters(objectcomponent, compio_object, editor_object)
+                        if changed_params then changed = true end
 
                         imgui.InputText("Mesh ID##meshid", mesh_name, 255, imgui.constant.InputTextFlags.ReadOnly)
                         imgui.SameLine()
@@ -887,6 +987,38 @@ local drawcompinspect = function()
                 end
                 --
 
+                -- EmitterComponent
+                local emittercomponent = wiscene.Component_GetEmitter(entity)
+                if emittercomponent then
+                    local editor_emitter = compinspect.component.emitter
+
+                    local ret_tree = imgui.TreeNode("Emitter Component")
+                    if ret_tree then
+                        local changed = false
+
+                        local changed_params = display_edit_parameters(emittercomponent, compio_emitter, editor_emitter)
+                        if changed_params then changed = true end
+
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "emitter",
+                                pre = {},
+                                post = deepcopy(editor_emitter)
+                            }
+                            build_edit_prestate(emittercomponent, compio_emitter, editdata.pre)
+                            edit_execcmd("mod_comp", editdata)
+                        end
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then 
+                        build_edit_prestate(emittercomponent, compio_emitter, editor_emitter) 
+                    end
+                end
+                --
+
                 -- LightComponent
                 local lightcomponent = wiscene.Component_GetLight(entity)
                 if lightcomponent then
@@ -897,12 +1029,9 @@ local drawcompinspect = function()
                     --
                     if ret_tree then
                         local changed = false
-
-                        local changed_type = false
-                        changed_type, editor_light.Type = imgui.Combo("\xef\x82\xb0##filter",editor_light.Type,"Directional\0Point\0Spot\0")
-                        if changed_type then changed = true end
                         
-                        display_edit_parameters(lightcomponent, compio_light, editor_light)
+                        local changed_params = display_edit_parameters(lightcomponent, compio_light, editor_light)
+                        if changed_params then changed = true end
                         
                         local changed_set_shadow = false
                         editor_light.set_shadow = lightcomponent.IsCastShadow()
@@ -941,59 +1070,130 @@ local drawcompinspect = function()
                 end
                 --
 
-                -- SoundComponent
-                local soundcomponent = wiscene.Component_GetSound(entity)
-                if soundcomponent then
-                    local editor_sound = compinspect.component.sound
+                -- MaterialComponent
+                local materialcomponent = wiscene.Component_GetMaterial(entity)
+                if materialcomponent then
+                    local editor_material = compinspect.component.material
 
-                    local ret_tree = imgui.TreeNode("Sound Component")
+                    local ret_tree = imgui.TreeNode("Material Component")
                     if ret_tree then
                         local changed = false
 
-                        display_edit_parameters(soundcomponent, compio_sound, editor_sound)
+                        local changed_params = display_edit_parameters(materialcomponent, compio_material, editor_material)
+                        if changed_params then changed = true end
 
-                        local changed_set_loop = false
-                        editor_sound.set_loop = soundcomponent.IsLooped()
-                        changed_set_loop, editor_sound.set_loop = imgui.Checkbox("Loop Sound", editor_sound.set_loop)
-                        if changed_set_loop then changed = true end
-
-                        local changed_set_2d = false
-                        editor_sound.set_2d = soundcomponent.IsDisable3D()
-                        changed_set_2d, editor_sound.set_2d = imgui.Checkbox("2D sound", editor_sound.set_2d)
-                        if changed_set_2d then changed = true end
-
-                        if soundcomponent.IsPlaying() then
-                            if imgui.Button("Stop") then 
-                                editor_sound.play = false
-                                changed = true
-                            end
-                        else
-                            if imgui.Button("Play") then 
-                                editor_sound.play = true
-                                changed = true
-                            end
-                        end
-                        
                         if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
 
                         if changed then
                             local editdata = {
                                 entity = entity,
-                                type = "sound",
-                                pre = {
-                                    set_loop = soundcomponent.IsLooped(),
-                                    set_2d = soundcomponent.IsDisable3D(),
-                                    play = soundcomponent.IsPlaying()
-                                },
-                                post = deepcopy(editor_sound)
+                                type = "material",
+                                pre = {},
+                                post = deepcopy(editor_material)
                             }
-                            build_edit_prestate(soundcomponent, compio_sound, editdata.pre)
+                            build_edit_prestate(materialcomponent, compio_material, editdata.pre)
                             edit_execcmd("mod_comp", editdata)
                         end
                         imgui.TreePop()
                     end
                     if not imgui.IsItemFocused() then 
-                        build_edit_prestate(soundcomponent, compio_sound, editor_sound)
+                        build_edit_prestate(materialcomponent, compio_material, editor_material) 
+                    end
+                end
+                --
+
+                -- RigidBodyComponent
+                local rigidbodycomponent = wiscene.Component_GetRigidBodyPhysics(entity)
+                if rigidbodycomponent then
+                    local editor_rbody = compinspect.component.rigidbody
+
+                    local ret_tree = imgui.TreeNode("Rigid Body Component")
+                    if ret_tree then
+                        local changed = false
+
+                        local changed_params = display_edit_parameters(rigidbodycomponent, compio_rigidbody, editor_rbody)
+                        if changed_params then changed = true end
+
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "rigidbody",
+                                pre = {},
+                                post = deepcopy(editor_rbody)
+                            }
+                            build_edit_prestate(rigidbodycomponent, compio_rigidbody, editdata.pre)
+                            edit_execcmd("mod_comp", editdata)
+                        end
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then 
+                        build_edit_prestate(rigidbodycomponent, compio_rigidbody, editor_rbody) 
+                    end
+                end
+                --
+
+                -- SoftBodyComponent
+                local softbodycomponent = wiscene.Component_GetSoftBodyPhysics(entity)
+                if softbodycomponent then
+                    local editor_sbody = compinspect.component.softbody
+
+                    local ret_tree = imgui.TreeNode("Soft Body Component")
+                    if ret_tree then
+                        local changed = false
+
+                        local changed_params = display_edit_parameters(softbodycomponent, compio_softbody, editor_sbody)
+                        if changed_params then changed = true end
+
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "softbody",
+                                pre = {},
+                                post = deepcopy(editor_rbody)
+                            }
+                            build_edit_prestate(softbodycomponent, compio_softbody, editdata.pre)
+                            edit_execcmd("mod_comp", editdata)
+                        end
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then 
+                        build_edit_prestate(softbodycomponent, compio_softbody, editor_sbody) 
+                    end
+                end
+                --
+
+                -- ForceFieldComponent
+                local forcecomponent = wiscene.Component_GetForceField(entity)
+                if forcecomponent then
+                    local editor_force = compinspect.component.force
+
+                    local ret_tree = imgui.TreeNode("Force Field Component")
+                    if ret_tree then
+                        local changed = false
+
+                        local changed_params = display_edit_parameters(forcecomponent, compio_force, editor_force)
+                        if changed_params then changed = true end
+
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "force",
+                                pre = {},
+                                post = deepcopy(editor_rbody)
+                            }
+                            build_edit_prestate(forcecomponent, compio_force, editdata.pre)
+                            edit_execcmd("mod_comp", editdata)
+                        end
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then 
+                        build_edit_prestate(forcecomponent, compio_force, editor_force) 
                     end
                 end
                 --
@@ -1052,34 +1252,92 @@ local drawcompinspect = function()
                 end
                 --
 
-                -- MaterialComponent
-                local materialcomponent = wiscene.Component_GetMaterial(entity)
-                if materialcomponent then
-                    local editor_material = compinspect.component.material
+                -- SoundComponent
+                local soundcomponent = wiscene.Component_GetSound(entity)
+                if soundcomponent then
+                    local editor_sound = compinspect.component.sound
 
-                    local ret_tree = imgui.TreeNode("Material Component")
+                    local ret_tree = imgui.TreeNode("Sound Component")
                     if ret_tree then
-
                         local changed = false
 
-                        display_edit_parameters(materialcomponent, compio_material, editor_material)
+                        local changed_params = display_edit_parameters(soundcomponent, compio_sound, editor_sound)
+                        if changed_params then changed = true end
+
+                        local changed_set_loop = false
+                        editor_sound.set_loop = soundcomponent.IsLooped()
+                        changed_set_loop, editor_sound.set_loop = imgui.Checkbox("Loop Sound", editor_sound.set_loop)
+                        if changed_set_loop then changed = true end
+
+                        local changed_set_2d = false
+                        editor_sound.set_2d = soundcomponent.IsDisable3D()
+                        changed_set_2d, editor_sound.set_2d = imgui.Checkbox("2D sound", editor_sound.set_2d)
+                        if changed_set_2d then changed = true end
+
+                        if soundcomponent.IsPlaying() then
+                            if imgui.Button("Stop") then 
+                                editor_sound.play = false
+                                changed = true
+                            end
+                        else
+                            if imgui.Button("Play") then 
+                                editor_sound.play = true
+                                changed = true
+                            end
+                        end
                         
                         if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
 
                         if changed then
                             local editdata = {
                                 entity = entity,
-                                type = "material",
-                                pre = {},
-                                post = deepcopy(editor_material)
+                                type = "sound",
+                                pre = {
+                                    set_loop = soundcomponent.IsLooped(),
+                                    set_2d = soundcomponent.IsDisable3D(),
+                                    play = soundcomponent.IsPlaying()
+                                },
+                                post = deepcopy(editor_sound)
                             }
-                            build_edit_prestate(materialcomponent, compio_material, editdata.pre)
+                            build_edit_prestate(soundcomponent, compio_sound, editdata.pre)
                             edit_execcmd("mod_comp", editdata)
                         end
                         imgui.TreePop()
                     end
                     if not imgui.IsItemFocused() then 
-                        build_edit_prestate(materialcomponent, compio_material, editor_material) 
+                        build_edit_prestate(soundcomponent, compio_sound, editor_sound)
+                    end
+                end
+                --
+
+                -- ColliderComponent
+                local collidercomponent = wiscene.Component_GetCollider(entity)
+                if collidercomponent then
+                    local editor_collider = compinspect.component.collider
+
+                    local ret_tree = imgui.TreeNode("Collider Component")
+                    if ret_tree then
+                        local changed = false
+
+                        local changed_params = display_edit_parameters(collidercomponent, compio_collider, editor_collider)
+                        if changed_params then changed = true end
+
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "collider",
+                                pre = {},
+                                post = deepcopy(editor_rbody)
+                            }
+                            build_edit_prestate(collidercomponent, compio_collider, editdata.pre)
+                            edit_execcmd("mod_comp", editdata)
+                        end
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then 
+                        build_edit_prestate(collidercomponent, compio_collider, editor_collider) 
                     end
                 end
                 --
@@ -1088,24 +1346,14 @@ local drawcompinspect = function()
                 local instancecomponent = scene.Component_GetInstance(entity)
                 if instancecomponent then
                     local editor_instance = compinspect.component.instance
-                    -- Init
-                    if editor_instance.Strategy == nil then editor_instance.Strategy = instancecomponent.Strategy end
-                    if editor_instance.Type == nil then editor_instance.Type = instancecomponent.Type end
-                    --
+
                     local ret_tree = imgui.TreeNode("Instance Component")
                     if ret_tree then
                         local changed = false
 
-                        display_edit_parameters(instancecomponent, compio_instance, editor_instance)
+                        local changed_params = display_edit_parameters(instancecomponent, compio_instance, editor_instance)
+                        if changed_params then changed = true end
 
-                        local changed_strategy = false
-                        changed_strategy, editor_instance.Strategy = imgui.Combo("Load Strategy",editor_light.Strategy,"Direct\0Instantiate\0Preload\0")
-                        if changed_strategy then changed = true end
-
-                        local changed_type = false
-                        changed_type, editor_instance.Type = imgui.Combo("Type",editor_light.Type,"Default\0Library\0")
-                        if changed_type then changed = true end
-                        
                         if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
 
                         if changed then
@@ -1124,9 +1372,7 @@ local drawcompinspect = function()
                         imgui.TreePop()
                     end
                     if not imgui.IsItemFocused() then 
-                        build_edit_prestate(instancecomponent, compio_instance, editor_instance) 
-                        editor_instance.Strategy = instancecomponent.Strategy
-                        editor_instance.Type = instancecomponent.Type
+                        build_edit_prestate(instancecomponent, compio_instance, editor_instance)
                     end
                 end
                 --
