@@ -61,6 +61,7 @@ namespace Game::Resources
 
         // For scene streaming please use this!
         struct Stream{
+            std::string external_substitute_object; // If the substitute model is outside then we may need to load it
             wi::ecs::Entity substitute_object;
             wi::primitive::AABB stream_zone;
 

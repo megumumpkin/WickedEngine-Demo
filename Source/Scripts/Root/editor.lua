@@ -14,9 +14,9 @@ D("editor_data",{
                 meshes = {},
                 materials = {},
                 animations = {},
-
                 weathers = {},
                 lights = {},
+                instances = {}
             }
         },
         compinspect = {
@@ -26,7 +26,12 @@ D("editor_data",{
                 transform = {},
                 object = {},
                 light = {},
-                sound = {}
+                sound = {},
+                weather = {
+                    atmosphere = {},
+                    cloud = {},
+                },
+                instance = {}
             }
         },
         importwindow = {
@@ -89,49 +94,166 @@ local wiscene = scene.GetWiScene()
 local CAM_MOVE_SPD = 0.3
 local CAM_ROT_SPD = 0.03
 
+local compio_name = {
+    Name = {"Name", "text"}
+}
+
+local compio_transform = {
+    Translation_local = {"Local Position", "float3"},
+    Rotation_local = {"Local Rotation", "float4"},
+    Scale_local = {"Local Scale", "float3"},
+}
+
+local compio_object = {
+    Color = {"Color", "float4"},
+    EmissiveColor = {"EmissiveColor", "float4"},
+    CascadeMask = {"CascadeMask", "int"},
+    RendertypeMask = {"RendertypeMask", "int"},
+}
+
+local compio_light = {
+    Range = {"Range", "float"},
+    Intensity = {"Intensity", "float"},
+    Color = {"Color", "float3"},
+    OuterConeAngle = {"Outer Cone Angle", "float"},
+    InnerConeAngle = {"Inner Cone Angle", "float"},
+}
+
+local compio_sound = {
+    Filename = {"Filename", "text"},
+    Volume = {"Volume", "float"}
+}
+
+local compio_weather_atmos = {
+    bottomRadius = {"Bottom Radius", "float"},
+	topRadius = {"Top Radius", "float"},
+	planetCenter = {"Planet Center", "float3"},
+	rayleighDensityExpScale = {"Rayleigh Density Exp Scale", "float"},
+	rayleighScattering = {"Rayleigh Scattering", "float3"},
+	mieDensityExpScale = {"Mie Density Exp Scale", "float"},
+	mieScattering = {"Mie Scattering", "float3"},
+	mieExtinction = {"Mie Extinction", "float3"},
+	mieAbsorption = {"Mie Absorption", "float3"},
+	miePhaseG = {"Mie G Phase", "float"},
+	absorptionDensity0LayerWidth = {"Absorption Density Layer 0 - Width", "float"},
+	absorptionDensity0ConstantTerm = {"Absorption Density Layer 0 - Constant Term", "float"},
+	absorptionDensity0LinearTerm = {"Absorption Density Layer 0 - Linear Term", "float"},
+	absorptionDensity1ConstantTerm = {"Absorption Density Layer 1 - Constant Term", "float"},
+	absorptionDensity1LinearTerm = {"Absorption Density Layer 1 - Linear Term", "float"},
+	absorptionExtinction = {"Absorption Extinction", "float3"},
+	groundAlbedo = {"Ground Albedo", "float3"},
+}
+
+local compio_weather_cloud = {
+    Albedo = {"Albedo Color", "float3"},
+	CloudAmbientGroundMultiplier = {"Cloud Ambient Ground Multiplier", "float"},
+	ExtinctionCoefficient = {"Extinction Coefficient", "float3"},
+	HorizonBlendAmount = {"Horizon Blend Amount", "float"},
+	HorizonBlendPower = {"Horizon Blend Power", "float"},
+	WeatherDensityAmount = {"Weather Density Amount", "float"},
+	CloudStartHeight = {"Cloud Start Height", "float"},
+	CloudThickness = {"Cloud Thickness", "float"},
+	SkewAlongWindDirection = {"Skew Along Wind Direction", "float"},
+	TotalNoiseScale = {"Total Noise Scale", "float"},
+	DetailScale = {"Detail Scale", "float"},
+	WeatherScale = {"Weather Scale", "float"},
+	CurlScale = {"Curl Scale", "float"},
+	DetailNoiseModifier = {"Detail Noise Modifier", "float"},
+	TypeAmount = {"Type Amount", "float"},
+	TypeMinimum = {"Type Minimum", "float"},
+	AnvilAmount = {"Anvil Amount", "float"},
+	AnvilOverhangHeight = {"Anvil Overhang Height", "float"},
+	AnimationMultiplier = {"Animation Multiplier", "float"},
+	WindSpeed = {"Wind Speed", "float"},
+	WindAngle = {"Wind Angle", "float"},
+	WindUpAmount = {"Wind Up Amount", "float"},
+	CoverageWindSpeed = {"Coverage Wind Speed", "float"},
+	CoverageWindAngle = {"Coverage Wind Angle", "float"},
+	CloudGradientSmall = {"Cloud Gradient Small", "float3"},
+	CloudGradientMedium = {"Cloud Gradient Medium", "float3"},
+	CloudGradientLarge = {"Cloud Gradient Large", "float3"},
+}
+
+local compio_weather = {
+    sunColor = {"Sun Color" , "float3"},
+    sunDirection = {"Sun Direction"  , "float3"},
+    skyExposure = {"Sky Exposure" , "float"},
+    horizon = {"Horizon Color" , "float3"},
+    zenith = {"Zenith Color" , "float3"},
+    ambient = {"Ambient Color" , "float3"},
+    fogStart = {"Fog Start" , "float"},
+    fogEnd = {"Fog End" , "float"},
+    fogHeightStart = {"Fog Height Start" , "float"},
+    fogHeightEnd = {"Fog Height End" , "float"},
+    windDirection = {"Wind Direction" , "float3"},
+    windRandomness = {"Wind Randomness" , "float"},
+    windWaveSize = {"Wind Wave Size" , "float"},
+    windSpeed = {"Wind Speed" , "float"},
+    stars = {"Star Density" , "float"}
+}
+
+local compio_instance = {
+    File = {"File", "text"},
+    EntityName = {"Subtarget Entity Name", "text"}
+}
+
 local component_set_name = function(component, editdata)
-    component.Name = editdata.namestr
+    component.Name = editdata.Name
 end
 
 local component_set_layer = function(component, editdata)
-    component.LayerMask = editdata.mask
+    component.LayerMask = editdata.LayerMask
 end
 
 local component_set_transform = function(component, editdata)
-    component.Translation_local = editdata.pos
-    component.Rotation_local = editdata.rot
-    component.Scale_local = editdata.sca
+    for key, data in compio_weather do
+        component[key] = editdata[key]
+    end
     component.SetDirty()
 end
 
 local component_set_object = function(component, editdata)
-    component.MeshID = editdata.meshID
-    component.Color = editdata.col
-    component.EmissiveColor = editdata.emissivecol
-    component.CascadeMask = editdata.cascademask
-    component.RendertypeMask = editdata.rendertypemask
+    component.MeshID = editdata.MeshID
+    component.Color = editdata.Color
+    component.EmissiveColor = editdata.EmissiveColor
+    component.CascadeMask = editdata.CascadeMask
+    component.RendertypeMask = editdata.RendertypeMask
 end
 
 local component_set_light = function(component, editdata)
-    component.Type = editdata.type
-    component.Range = editdata.range
-    component.Intensity = editdata.intensity
-    component.Color = editdata.col
-    component.OuterConeAngle = editdata.outcang
-    component.InnerConeAngle = editdata.incang
+    component.Type = editdata.Type
+    component.Range = editdata.Range
+    component.Intensity = editdata.Intensity
+    component.Color = editdata.Color
+    component.OuterConeAngle = editdata.OuterConeAngle
+    component.InnerConeAngle = editdata.InnerConeAngle
     component.SetCastShadow(editdata.set_shadow)
     component.SetVolumetricsEnabled(editdata.set_volumetric)
 end
 
 local component_set_sound = function(component, editdata)
-    component.Filename = editdata.fname
-    component.Volume = editdata.vol
+    component.Filename = editdata.Filename
+    component.Volume = editdata.Volume
     component.SetLooped(editdata.set_loop)
     component.SetDisable3D(editdata.set_3d)
     if editdata.play then
         component.Play()
     else
         component.Stop()
+    end
+end
+
+local component_set_weather = function(component, editdata)
+    local atmos_params = component.AtmosphereParameters
+    for key, data in pairs(editdata.atmosphere) do
+        atmos_params[key] = data
+    end
+    local cloud_params = component.VolumetricCloudParameters
+    for key, data in pairs(editdata.cloud) do
+        cloud_params[key] = data
+    end
+    for key, _ in pairs(compio_weather) do
+        component[key] = editdata[key]
     end
 end
 
@@ -188,6 +310,7 @@ local edit_execcmd = function(command, extradata, holdout)
             if extradata.type == "object" then
                 local objectcomponent = wiscene.Component_GetObject(extradata.entity)
                 if objectcomponent then component_set_object(objectcomponent, extradata.post) end
+                if extradata.pre.meshID ~= extradata.post.meshID then Editor_UpdateGizmoData(extradata.entity) end
             end
             if extradata.type == "light" then
                 local lightcomponent = wiscene.Component_GetLight(extradata.entity)
@@ -197,6 +320,10 @@ local edit_execcmd = function(command, extradata, holdout)
             if extradata.type == "sound" then
                 local soundcomponent = wiscene.Component_GetSound(extradata.entity)
                 if soundcomponent then component_set_sound(soundcomponent, extradata.post) end
+            end
+            if extradata.type == "weather" then
+                local weathercomponent = wiscene.Component_GetWeather(extradata.entity)
+                if weathercomponent then component_set_weather(weathercomponent, extradata.post) end
             end
         end
     end
@@ -258,6 +385,7 @@ local edit_undocmd = function()
         if extradata.type == "object" then
             local objectcomponent = wiscene.Component_GetObject(extradata.entity)
             if objectcomponent then component_set_object(objectcomponent, extradata.pre) end
+            if extradata.pre.meshID ~= extradata.post.meshID then Editor_UpdateGizmoData(extradata.entity) end
         end
         if extradata.type == "light" then
             local lightcomponent = wiscene.Component_GetLight(extradata.entity)
@@ -267,6 +395,10 @@ local edit_undocmd = function()
         if extradata.type == "sound" then
             local soundcomponent = wiscene.Component_GetSound(extradata.entity)
             if soundcomponent then component_set_sound(soundcomponent, extradata.pre) end
+        end
+        if extradata.type == "weather" then
+            local weathercomponent = wiscene.Component_GetWeather(extradata.entity)
+            if weathercomponent then component_set_weather(weathercomponent, extradata.pre) end
         end
     end
     if command == "del_obj" then
@@ -484,6 +616,60 @@ local drawscenegraphview = function()
     end
 end
 
+local display_edit_parameters = function(component, parameter_list, edit_store)
+    local changed = false
+
+    for key, data in pairs(parameter_list) do
+        -- Init
+        if edit_store[key] == nil then edit_store[key] = component[key] end
+        -- 
+
+        -- TODO: draw specific ui types by condition
+        local label = data[1]
+        local type = data[2]
+
+        if type == "int" then
+            local ret = false
+            ret, edit_store[key] = imgui.InputInt(label, edit_store[key])
+            if ret then changed = true end
+        end
+
+        if type == "float" then
+            _, edit_store[key] = imgui.InputFloat(label, edit_store[key], 0, 0, "%.12f")
+        end
+
+        if type == "float2" then
+            _, edit_store[key].X, edit_store[key].Y = imgui.InputFloat2(label, edit_store[key].X, edit_store[key].Y, "%.12f")
+        end
+
+        if type == "float3" then
+            _, edit_store[key].X, edit_store[key].Y, edit_store[key].Z = imgui.InputFloat3(label, edit_store[key].X, edit_store[key].Y, edit_store[key].Z, "%.12f")
+        end
+
+        if type == "float4" then
+            _, edit_store[key].X, edit_store[key].Y, edit_store[key].Z, edit_store[key].W = imgui.InputFloat4(label, edit_store[key].X, edit_store[key].Y, edit_store[key].Z, edit_store[key].W, "%.12f")
+        end
+
+        if type == "text" then
+            _, edit_store[key] = imgui.InputText(label, edit_store[key], 255)
+        end
+
+        if type == "check" then
+            local ret = false
+            ret, edit_store[key] = imgui.InputText(label, edit_store[key], 255)
+            if ret then changed = true end
+        end
+    end
+
+    return changed
+end
+
+local build_edit_prestate = function(component, parameter_list, pre_storage)
+    for key, _ in pairs(parameter_list) do
+        pre_storage[key] = component[key]
+    end
+end
+
 local drawcompinspect = function()
     local compinspect = D.editor_data.elements.compinspect
     if compinspect.win_visible then
@@ -497,27 +683,24 @@ local drawcompinspect = function()
                 local namecomponent = wiscene.Component_GetName(entity)
                 if namecomponent then
                     local editor_name = compinspect.component.name
-                    --Init
-                    if editor_name.namestr == nil then editor_name.namestr = namecomponent.Name end
-                    --
                     local ret_tree = imgui.TreeNode("Name Component")
                     if ret_tree then
-                        _, editor_name.namestr = imgui.InputText("Name", editor_name.namestr, 255)
+                        display_edit_parameters(namecomponent, compio_name, editor_name)
                         
                         if input.Press(KEYBOARD_BUTTON_ENTER) then
                             local editdata = {
                                 entity = entity,
                                 type = "name",
-                                pre = {
-                                    namestr = namecomponent.Name
-                                },
+                                pre = {},
                                 post = deepcopy(editor_name)
                             }
+                            build_edit_prestate(namecomponent, compio_name, editdata.pre)
                             edit_execcmd("mod_comp", editdata)
                         end
+
                         imgui.TreePop()
                     end
-                    if not imgui.IsItemFocused() then editor_name.namestr = namecomponent.Name end
+                    if not imgui.IsItemFocused() then build_edit_prestate(namecomponent, compio_name, editor_name) end
                 end
                 --
 
@@ -559,10 +742,10 @@ local drawcompinspect = function()
                                 entity = entity,
                                 type = "layer",
                                 pre = {
-                                    mask = layercomponent.LayerMask
+                                    LayerMask = layercomponent.LayerMask
                                 },
                                 post = {
-                                    mask = set
+                                    LayerMask = set
                                 }
                             }
                             edit_execcmd("mod_comp", editdata)
@@ -576,40 +759,28 @@ local drawcompinspect = function()
                 if transformcomponent then
                     local editor_transform = compinspect.component.transform
                     local ret_tree = imgui.TreeNode("Transform Component")
-                    --Init
-                    if editor_transform.pos == nil then editor_transform.pos = transformcomponent.Translation_local end
-                    if editor_transform.rot == nil then editor_transform.rot = transformcomponent.Rotation_local end
-                    if editor_transform.sca == nil then editor_transform.sca = transformcomponent.Scale_local end
-                    --
+
                     if ret_tree then
                         local changed = false
 
-                        _, editor_transform.pos.X, editor_transform.pos.Y, editor_transform.pos.Z = imgui.InputFloat3("Position", editor_transform.pos.X, editor_transform.pos.Y, editor_transform.pos.Z)
-                        _, editor_transform.rot.X, editor_transform.rot.Y, editor_transform.rot.Z, editor_transform.rot.W = imgui.InputFloat4("Quaternion Rotation", editor_transform.rot.X, editor_transform.rot.Y, editor_transform.rot.Z, editor_transform.rot.W)
-                        _, editor_transform.sca.X, editor_transform.sca.Y, editor_transform.sca.Z = imgui.InputFloat3("Scale", editor_transform.sca.X, editor_transform.sca.Y, editor_transform.sca.Z)
-                        
+                        display_edit_parameters(transformcomponent, compio_transform, editor_transform)
+
                         if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
                         if changed then
                             local editdata = {
                                 entity = entity,
                                 type = "transform",
-                                pre = {
-                                    pos = transformcomponent.Translation_local,
-                                    rot = transformcomponent.Rotation_local,
-                                    sca = transformcomponent.Scale_local
-                                },
+                                pre = {},
                                 post = deepcopy(editor_transform)
                             }
+                            build_edit_prestate(transformcomponent, compio_transform, editdata.pre)
                             edit_execcmd("mod_comp", editdata)
                         end
 
                         imgui.TreePop()
                     end
                     if not imgui.IsItemFocused() then 
-                        editor_transform.pos = transformcomponent.GetPosition()
-                        local rot_quat = transformcomponent.GetRotation()
-                        editor_transform.rot = vector.QuaternionToRollPitchYaw(rot_quat)
-                        editor_transform.sca = transformcomponent.GetScale()
+                        build_edit_prestate(transformcomponent, compio_transform, editor_transform)
                     end
                 end
                 --
@@ -618,22 +789,20 @@ local drawcompinspect = function()
                 local objectcomponent = wiscene.Component_GetObject(entity)
                 if objectcomponent then
                     local editor_object = compinspect.component.transform
-                    --Init
-                    if editor_object.meshID == nil then editor_object.meshID = objectcomponent.MeshID end
-                    if editor_object.cascademask == nil then editor_object.cascademask = objectcomponent.CascadeMask end
-                    if editor_object.rendertypemask == nil then editor_object.rendertypemask = objectcomponent.RendertypeMask end
-                    if editor_object.col == nil then editor_object.col = objectcomponent.Color end
-                    if editor_object.emscol == nil then editor_object.emscol = objectcomponent.EmissiveColor end
+                    -- Init
+                    if editor_object.MeshID == nil then editor_object.MeshID = objectcomponent.MeshID end
                     --
                     local ret_tree = imgui.TreeNode("Object Component")
                     if ret_tree then
                         local changed = false
 
-                        local mesh_name = editor_object.meshID .. " - NO MESH"
-                        if editor_object.meshID > 0 then
-                            local mesh_namecomponent = wiscene.Component_GetName(editor_object.meshID)
-                            if mesh_namecomponent then mesh_name = editor_object.meshID .. " - " .. mesh_namecomponent.GetName() end
+                        local mesh_name = editor_object.MeshID .. " - NO MESH"
+                        if editor_object.MeshID > 0 then
+                            local mesh_namecomponent = wiscene.Component_GetName(editor_object.MeshID)
+                            if mesh_namecomponent then mesh_name = editor_object.MeshID .. " - " .. mesh_namecomponent.GetName() end
                         end
+
+                        display_edit_parameters(objectcomponent, compio_object, editor_object)
 
                         imgui.InputText("Mesh ID##meshid", mesh_name, 255, imgui.constant.InputTextFlags.ReadOnly)
                         imgui.SameLine()
@@ -648,21 +817,13 @@ local drawcompinspect = function()
                                     type = "object",
                                     pre = {
                                         meshID = objectcomponent.MeshID,
-                                        col = objectcomponent.Color,
-                                        emissivecol = objectcomponent.EmissiveColor,
-                                        cascademask = objectcomponent.CascadeMask,
-                                        rendertypemask = objectcomponent.RendertypeMask
                                     },
                                     post = deepcopy(editor_object)
                                 }
+                                build_edit_prestate(objectcomponent, compio_object, editdata.pre)
                                 edit_execcmd("mod_comp", editdata)
                             end)
                         end
-
-                        _, editor_object.cascademask = imgui.InputInt("Cascade Mask##ccmask", editor_object.cascademask)
-                        _, editor_object.rendertypemask = imgui.InputInt("Render Type Mask##rtmask", editor_object.rendertypemask)
-                        _, editor_object.col.X, editor_object.col.Y, editor_object.col.Z, editor_object.col.W = imgui.InputFloat4("Color##col", editor_object.col.X, editor_object.col.Y, editor_object.col.Z, editor_object.col.W)
-                        _, editor_object.emscol.X, editor_object.emscol.Y, editor_object.emscol.Z, editor_object.emscol.W = imgui.InputFloat4("Emissive Color##emscol", editor_object.emscol.X, editor_object.emscol.Y, editor_object.emscol.Z, editor_object.emscol.W)
 
                         if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
 
@@ -672,13 +833,10 @@ local drawcompinspect = function()
                                 type = "object",
                                 pre = {
                                     meshID = objectcomponent.MeshID,
-                                    col = objectcomponent.Color,
-                                    emissivecol = objectcomponent.EmissiveColor,
-                                    cascademask = objectcomponent.CascadeMask,
-                                    rendertypemask = objectcomponent.RendertypeMask
                                 },
                                 post = deepcopy(editor_object)
                             }
+                            build_edit_prestate(objectcomponent, compio_object, editdata.pre)
                             edit_execcmd("mod_comp", editdata)
                         end
 
@@ -686,10 +844,7 @@ local drawcompinspect = function()
                     end
                     if not imgui.IsItemFocused() then 
                         editor_object.meshID = objectcomponent.GetMeshID()
-                        editor_object.cascademask = objectcomponent.CascadeMask
-                        editor_object.rendertypemask = objectcomponent.RendertypeMask
-                        editor_object.col = objectcomponent.Color
-                        editor_object.emscol = objectcomponent.EmissiveColor
+                        build_edit_prestate(objectcomponent, compio_object, editor_object)
                     end
                 end
                 --
@@ -700,25 +855,16 @@ local drawcompinspect = function()
                     local editor_light = compinspect.component.light
                     local ret_tree = imgui.TreeNode("Light Component")
                     --Init
-                    if editor_light.type == nil then editor_light.type = lightcomponent.Type end
-                    if editor_light.col == nil then editor_light.col = lightcomponent.Color end
-                    if editor_light.range == nil then editor_light.range = lightcomponent.Range end
-                    if editor_light.intensity == nil then editor_light.intensity = lightcomponent.Intensity end
-                    if editor_light.outcang == nil then editor_light.outcang = lightcomponent.OuterConeAngle end
-                    if editor_light.incang == nil then editor_light.incang = lightcomponent.InnerConeAngle end
+                    if editor_light.Type == nil then editor_light.Type = lightcomponent.Type end
                     --
                     if ret_tree then
                         local changed = false
 
                         local changed_type = false
-                        changed_type, editor_light.type = imgui.Combo("\xef\x82\xb0##filter",editor_light.type,"Directional\0Point\0Spot\0")
+                        changed_type, editor_light.Type = imgui.Combo("\xef\x82\xb0##filter",editor_light.Type,"Directional\0Point\0Spot\0")
                         if changed_type then changed = true end
                         
-                        _, editor_light.range = imgui.InputFloat("Range", editor_light.range)
-                        _, editor_light.intensity = imgui.InputFloat("Intensity", editor_light.intensity)
-                        _, editor_light.col.X, editor_light.col.Y, editor_light.col.Z = imgui.InputFloat3("Color##col", editor_light.col.X, editor_light.col.Y, editor_light.col.Z)
-                        _, editor_light.outcang = imgui.InputFloat("Outer Cone Angle##outcang", editor_light.outcang)
-                        _, editor_light.incang = imgui.InputFloat("Inner Cone Angle##incang", editor_light.incang)
+                        display_edit_parameters(lightcomponent, compio_light, editor_light)
                         
                         local changed_set_shadow = false
                         editor_light.set_shadow = lightcomponent.IsCastShadow()
@@ -738,27 +884,21 @@ local drawcompinspect = function()
                                 type = "light",
                                 pre = {
                                     type = lightcomponent.Type,
-                                    col = lightcomponent.Color,
-                                    range = lightcomponent.Range,
-                                    intensity = lightcomponent.Intensity,
-                                    outcang = lightcomponent.OuterConeAngle,
-                                    incang = lightcomponent.InnerConeAngle,
                                     set_shadow = lightcomponent.IsCastShadow(),
                                     set_volumetric = lightcomponent.IsVolumetricsEnabled()
                                 },
                                 post = deepcopy(editor_light)
                             }
+                            build_edit_prestate(lightcomponent, compio_light, editdata.pre)
                             edit_execcmd("mod_comp", editdata)
                         end
                         
                         imgui.TreePop()
                     end
                     if not imgui.IsItemFocused() then 
-                        editor_light.col = lightcomponent.Color
-                        editor_light.range = lightcomponent.Range
-                        editor_light.intensity = lightcomponent.Intensity 
-                        editor_light.outcang = lightcomponent.OuterConeAngle
-                        editor_light.incang = lightcomponent.InnerConeAngle
+                        editor_light.Type = lightcomponent.Type,
+                        build_edit_prestate(lightcomponent, compio_light, editor_light)
+
                     end
                 end
                 --
@@ -767,16 +907,12 @@ local drawcompinspect = function()
                 local soundcomponent = wiscene.Component_GetSound(entity)
                 if soundcomponent then
                     local editor_sound = compinspect.component.sound
-                    --Init
-                    if editor_sound.fname == nil then editor_sound.fname = soundcomponent.Filename end
-                    if editor_sound.vol == nil then editor_sound.vol = soundcomponent.Volume end
-                    --
+
                     local ret_tree = imgui.TreeNode("Sound Component")
                     if ret_tree then
                         local changed = false
 
-                        _, editor_sound.fname = imgui.InputText("Filename", editor_sound.fname, 255)
-                        _, editor_sound.vol = imgui.InputFloat("Volume", editor_sound.vol, 255)
+                        display_edit_parameters(soundcomponent, compio_sound, editor_sound)
 
                         local changed_set_loop = false
                         editor_sound.set_loop = soundcomponent.IsLooped()
@@ -807,42 +943,103 @@ local drawcompinspect = function()
                                 entity = entity,
                                 type = "sound",
                                 pre = {
-                                    fname = soundcomponent.Filename,
-                                    vol = soundcomponent.Volume,
                                     set_loop = soundcomponent.IsLooped(),
                                     set_2d = soundcomponent.IsDisable3D(),
                                     play = soundcomponent.IsPlaying()
                                 },
                                 post = deepcopy(editor_sound)
                             }
+                            build_edit_prestate(soundcomponent, compio_sound, editdata.pre)
                             edit_execcmd("mod_comp", editdata)
                         end
                         imgui.TreePop()
                     end
-                    if not imgui.IsItemFocused() then editor_sound.fname = soundcomponent.Filename end
+                    if not imgui.IsItemFocused() then 
+                        build_edit_prestate(soundcomponent, compio_sound, editor_sound)
+                    end
                 end
                 --
 
                 -- WeatherComponent
                 local weathercomponent = wiscene.Component_GetWeather(entity)
                 if weathercomponent then
-                    local editor_name = compinspect.component.name
-                    --Init
-                    -- if editor_name.namestr == nil then editor_name.namestr = namecomponent.Name end
-                    --
+                    local editor_weather = compinspect.component.weather
+
+                    local params_atmos = weathercomponent.AtmosphereParameters
+                    local params_cloud = weathercomponent.VolumetricCloudParameters
+
                     local ret_tree = imgui.TreeNode("Weather Component")
                     if ret_tree then
+
                         local changed = false
 
-                        -- _, editor_name.namestr = imgui.InputText("Name", editor_name.namestr, 255)
-                        
-                        if input.Down(KEYBOARD_BUTTON_ENTER) then changed = true end
-                        if changed then
+                        display_edit_parameters(weathercomponent, compio_weather, editor_weather)
 
+                        local ret_tree_atmos = imgui.TreeNode("Atmosphere Parameters")
+                        if ret_tree_atmos then
+                            display_edit_parameters(params_atmos, compio_weather_atmos, editor_weather.atmosphere)
+                            imgui.TreePop()
+                        end
+
+                        local ret_tree_cloud = imgui.TreeNode("Cloud Parameters")
+                        if ret_tree_cloud then
+                            display_edit_parameters(params_cloud, compio_weather_cloud, editor_weather.cloud)
+                            imgui.TreePop()
+                        end
+                        
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "weather",
+                                pre = {
+                                    atmosphere = {},
+                                    cloud = {}
+                                },
+                                post = deepcopy(editor_weather)
+                            }
+                            build_edit_prestate(params_atmos, compio_weather_atmos, editdata.pre.atmosphere)
+                            build_edit_prestate(params_cloud, compio_weather_cloud, editdata.pre.cloud)
+                            build_edit_prestate(weathercomponent, compio_weather, editdata.pre)
+                            edit_execcmd("mod_comp", editdata)
                         end
                         imgui.TreePop()
                     end
-                    if not imgui.IsItemFocused() then  end
+                    if not imgui.IsItemFocused() then 
+                        build_edit_prestate(params_atmos, compio_weather_atmos, params_atmos)
+                        build_edit_prestate(params_cloud, compio_weather_cloud, params_cloud)
+                        build_edit_prestate(weathercomponent, compio_weather, editor_weather) 
+                    end
+                end
+                --
+
+                -- InstanceComponent
+                local instancecomponent = scene.Component_GetInstance(entity)
+                if instancecomponent then
+                    local editor_instance = compinspect.component.instance
+
+                    local ret_tree = imgui.TreeNode("Instance Component")
+                    if ret_tree then
+                        local changed = false
+
+                        display_edit_parameters(instancecomponent, compio_instance, editor_instance)
+                        
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "instance",
+                                pre = {},
+                                post = deepcopy(editor_instance)
+                            }
+                            build_edit_prestate(instancecomponent, compio_instance, editdata.pre)
+                            edit_execcmd("mod_comp", editdata)
+                        end
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then build_edit_prestate(instancecomponent, compio_instance, editor_instance) end
                 end
                 --
 
@@ -922,6 +1119,7 @@ local update_scenegraph = function()
         D.editor_data.elements.scenegraphview.list.animations = wiscene.Entity_GetAnimationArray()
         D.editor_data.elements.scenegraphview.list.lights = wiscene.Entity_GetLightArray()
         D.editor_data.elements.scenegraphview.list.weathers = wiscene.Entity_GetWeatherArray()
+        D.editor_data.elements.scenegraphview.list.instances = scene.Entity_GetInstanceArray()
     end
 
     D.editor_data.elements.scenegraphview.wait_update = false

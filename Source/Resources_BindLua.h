@@ -16,18 +16,27 @@ namespace Game::ScriptBindings::Resources
 		static Luna<Library_Instance_BindLua>::FunctionType methods[];
 		static Luna<Library_Instance_BindLua>::PropertyType properties[];
 
-		Library_Instance_BindLua(Game::Resources::Library::Instance* component) :component(component) {}
+		inline void BuildBindings()
+		{
+			File = wi::lua::StringProperty(&component->file);
+			EntityName = wi::lua::StringProperty(&component->entity_name);
+			Strategy = wi::lua::IntProperty(reinterpret_cast<int*>(&component->strategy));
+			Type = wi::lua::IntProperty(reinterpret_cast<int*>(&component->type));
+		}
+
+		Library_Instance_BindLua(Game::Resources::Library::Instance* component) :component(component) { BuildBindings(); }
 		Library_Instance_BindLua(lua_State *L);
 		~Library_Instance_BindLua();
 
-        int SetFile(lua_State* L);
-		int GetFile(lua_State* L);
-        int SetEntityName(lua_State* L);
-		int GetEntityName(lua_State* L);
-        int SetStrategy(lua_State* L);
-		int GetStrategy(lua_State* L);    
-        int SetType(lua_State* L);
-		int GetType(lua_State* L);
+		wi::lua::StringProperty File;
+		wi::lua::StringProperty EntityName;
+		wi::lua::IntProperty Strategy;
+		wi::lua::IntProperty Type;
+
+		PropertyFunction(File)
+		PropertyFunction(EntityName)
+		PropertyFunction(Strategy)
+		PropertyFunction(Type)
     };
 
     class Library_Disabled_BindLua
@@ -40,12 +49,18 @@ namespace Game::ScriptBindings::Resources
 		static Luna<Library_Disabled_BindLua>::FunctionType methods[];
 		static Luna<Library_Disabled_BindLua>::PropertyType properties[];
 
-		Library_Disabled_BindLua(Game::Resources::Library::Disabled* component) :component(component) {}
+		inline void BuildBindings()
+		{
+			Entity = wi::lua::LongLongProperty(reinterpret_cast<long long*>(&component->entity));
+		}
+
+		Library_Disabled_BindLua(Game::Resources::Library::Disabled* component) :component(component) { BuildBindings(); }
 		Library_Disabled_BindLua(lua_State *L);
 		~Library_Disabled_BindLua();
 
-        int SetEntity(lua_State* L);
-		int GetEntity(lua_State* L);
+		wi::lua::LongLongProperty Entity;
+
+        PropertyFunction(Entity);
     };
 
     class Library_Stream_BindLua
@@ -58,12 +73,22 @@ namespace Game::ScriptBindings::Resources
 		static Luna<Library_Stream_BindLua>::FunctionType methods[];
 		static Luna<Library_Stream_BindLua>::PropertyType properties[];
 
+		inline void BuildBindings()
+		{
+			ExternalSubstitute = wi::lua::StringProperty(&component->external_substitute_object);
+			Substitute = wi::lua::LongLongProperty(reinterpret_cast<long long*>(&component->substitute_object));
+		}
+
 		Library_Stream_BindLua(Game::Resources::Library::Stream* component) :component(component) {}
 		Library_Stream_BindLua(lua_State *L);
 		~Library_Stream_BindLua();
 
-        int SetSubstitute(lua_State* L);
-		int GetSubstitute(lua_State* L);
+		wi::lua::StringProperty ExternalSubstitute;
+		wi::lua::LongLongProperty Substitute;
+
+		PropertyFunction(ExternalSubstitute)
+		PropertyFunction(Substitute)
+
         int SetZone(lua_State* L);
 		int GetZone(lua_State* L);
     };

@@ -312,6 +312,11 @@ void Scene::Library_Update(float dt){
         auto& stream = streams[i];
         auto stream_entity = streams.GetEntity(i);
 
+        if((stream.external_substitute_object != "") & (stream.substitute_object == wi::ecs::INVALID_ENTITY))
+        {
+            // TODO load preview model to scene as instance
+        }
+
         if(stream.stream_zone.intersects(stream_boundary))
         {
             auto instance = instances.GetComponent(stream_entity);

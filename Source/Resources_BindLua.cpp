@@ -146,6 +146,7 @@ namespace Game::ScriptBindings::Resources{
     {
         owning = true;
         component = new Game::Resources::Library::Instance;
+        BuildBindings();
     }
     Library_Instance_BindLua::~Library_Instance_BindLua()
     {
@@ -153,82 +154,6 @@ namespace Game::ScriptBindings::Resources{
             delete component;
         }
     }
-    int Library_Instance_BindLua::SetFile(lua_State* L)
-    {
-        int argc = wi::lua::SGetArgCount(L);
-        if (argc > 0)
-        {
-            std::string file = wi::lua::SGetString(L, 1);
-            component->file = file;
-        }
-        else
-        {
-            wi::lua::SError(L, "InstanceComponent::SetFile(string file) not enough arguments!");
-        }
-        return 0;
-    }
-    int Library_Instance_BindLua::GetFile(lua_State* L)
-    {
-        wi::lua::SSetString(L, component->file);
-        return 1;
-    }
-    int Library_Instance_BindLua::SetEntityName(lua_State* L)
-    {
-        int argc = wi::lua::SGetArgCount(L);
-        if (argc > 0)
-        {
-            std::string entity_name = wi::lua::SGetString(L, 1);
-            component->entity_name = entity_name;
-        }
-        else
-        {
-            wi::lua::SError(L, "InstanceComponent::SetEntityName(string entity_name) not enough arguments!");
-        }
-        return 0;
-    }
-    int Library_Instance_BindLua::GetEntityName(lua_State* L)
-    {
-        wi::lua::SSetString(L, component->entity_name);
-        return 1;
-    }
-    int Library_Instance_BindLua::SetStrategy(lua_State* L)
-    {
-        int argc = wi::lua::SGetArgCount(L);
-        if (argc > 0)
-        {
-            Game::Resources::Library::Instance::LOADING_STRATEGY strategy = (Game::Resources::Library::Instance::LOADING_STRATEGY) wi::lua::SGetInt(L, 1);
-            component->strategy = strategy;
-        }
-        else
-        {
-            wi::lua::SError(L, "InstanceComponent::SetStrategy(enum LOADING_STRATEGY) not enough arguments!");
-        }
-        return 0;
-    }
-    int Library_Instance_BindLua::GetStrategy(lua_State* L)
-    {
-        wi::lua::SSetInt(L, component->strategy);
-        return 1;
-    }
-    int Library_Instance_BindLua::SetType(lua_State* L)
-    {
-        int argc = wi::lua::SGetArgCount(L);
-        if (argc > 0)
-        {
-            Game::Resources::Library::Instance::INSTANCE_TYPE type = (Game::Resources::Library::Instance::INSTANCE_TYPE) wi::lua::SGetInt(L, 1);
-            component->type = type;
-        }
-        else
-        {
-            wi::lua::SError(L, "InstanceComponent::SetType(enum INSTANCE_TYPE) not enough arguments!");
-        }
-        return 0;
-    }
-    int Library_Instance_BindLua::GetType(lua_State* L)
-    {
-        wi::lua::SSetInt(L, component->type);
-        return 1;
-    };
 
 
 
@@ -244,31 +169,13 @@ namespace Game::ScriptBindings::Resources{
     {
         owning = true;
         component = new Game::Resources::Library::Disabled;
+        BuildBindings();
     }
     Library_Disabled_BindLua::~Library_Disabled_BindLua()
     {
         if(owning){
             delete component;
         }
-    }
-    int Library_Disabled_BindLua::SetEntity(lua_State* L)
-    {
-        int argc = wi::lua::SGetArgCount(L);
-        if (argc > 0)
-        {
-            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
-            component->entity = entity;
-        }
-        else
-        {
-            wi::lua::SError(L, "DisabledComponent::SetEntity(Entity entity) not enough arguments!");
-        }
-        return 0;
-    }
-    int Library_Disabled_BindLua::GetEntity(lua_State* L)
-    {
-        wi::lua::SSetLongLong(L, component->entity);
-        return 1;
     }
 
 
@@ -278,6 +185,7 @@ namespace Game::ScriptBindings::Resources{
         { NULL, NULL }
     };
     Luna<Library_Stream_BindLua>::PropertyType Library_Stream_BindLua::properties[] = {
+        lunaproperty(Library_Stream_BindLua, ExternalSubstitute),
         lunaproperty(Library_Stream_BindLua, Substitute),
         lunaproperty(Library_Stream_BindLua, Zone),
         { NULL, NULL }
@@ -286,31 +194,13 @@ namespace Game::ScriptBindings::Resources{
     {
         owning = true;
         component = new Game::Resources::Library::Stream;
+        BuildBindings();
     }
     Library_Stream_BindLua::~Library_Stream_BindLua()
     {
         if(owning){
             delete component;
         }
-    }
-    int Library_Stream_BindLua::SetSubstitute(lua_State* L)
-    {
-        int argc = wi::lua::SGetArgCount(L);
-        if (argc > 0)
-        {
-            wi::ecs::Entity substitute_object = (wi::ecs::Entity)wi::lua::SGetInt(L, 1);
-            component->substitute_object = substitute_object;
-        }
-        else
-        {
-            wi::lua::SError(L, "StreamComponent::SetSubstitute(Entity entity) not enough arguments!");
-        }
-        return 0;
-    }
-    int Library_Stream_BindLua::GetSubstitute(lua_State* L)
-    {
-        wi::lua::SSetInt(L, component->substitute_object);
-        return 1;
     }
     int Library_Stream_BindLua::SetZone(lua_State* L)
     {
