@@ -31,6 +31,7 @@ D("editor_data",{
                     atmosphere = {},
                     cloud = {},
                 },
+                material = {},
                 instance = {}
             }
         },
@@ -192,32 +193,53 @@ local compio_weather = {
     stars = {"Star Density" , "float"}
 }
 
+local compio_material = {
+    BaseColor = {"Base Color", "float4"},
+	EmissiveColor = {"Emissive Color", "float4"},
+	EngineStencilRef = {"Engine Stencil Ref", "int"},
+	UserStencilRef = {"User Stencil Ref", "int"},
+	UserBlendMode = {"User Blend Mode", "int"},
+	SpecularColor = {"SpecularColor", "float4"},
+	SubsurfaceScattering = {"Subsurface Scattering", "float4"},
+	TexMulAdd = {"Texture Color Multiply", "float4"},
+	Roughness = {"Roughness", "float"},
+	Reflectance = {"Reflectance", "float"},
+	Metalness = {"Metalness", "float"},
+	NormalMapStrength = {"Normal Map Strength", "float"},
+	ParallaxOcclusionMapping = {"Parallax Occlusion Mapping", "float"},
+	DisplacementMapping = {"Displacement Mapping", "float"},
+	Refraction = {"Refraction", "float"},
+	Transmission = {"Transmission", "float"},
+	AlphaRef = {"Alpha Ref", "float"},
+	SheenColor = {"Sheen Color", "float3"},
+	SheenRoughness = {"Sheen Roughness", "float"},
+	Clearcoat = {"Clearcoat", "float"},
+	ClearcoatRoughness = {"Clearcoat Roughness", "float"},
+	TexAnimDirection = {"Texture Anim Direction", "float2"},
+	TexAnimFrameRate = {"Texture Anim FrameRate", "float"},
+	texAnimElapsedTime = {"Texture Anim Elapsed Time", "float"},
+	customShaderID = {"Custom Shader ID", "int"},
+}
+
 local compio_instance = {
     File = {"File", "text"},
     EntityName = {"Subtarget Entity Name", "text"}
 }
 
-local component_set_name = function(component, editdata)
-    component.Name = editdata.Name
-end
+local compio_stream = {
+    ExternalSubstitute = {"External Substitute Model", "text"},
+    Substitute = {"Substitute", "int"}
+}
 
-local component_set_layer = function(component, editdata)
-    component.LayerMask = editdata.LayerMask
+local component_set_generic = function(component, editdata)
+    for key, data in pairs(editdata) do
+        component[key] = data
+    end
 end
 
 local component_set_transform = function(component, editdata)
-    for key, data in compio_weather do
-        component[key] = editdata[key]
-    end
+    component_set_generic(component, editdata)
     component.SetDirty()
-end
-
-local component_set_object = function(component, editdata)
-    component.MeshID = editdata.MeshID
-    component.Color = editdata.Color
-    component.EmissiveColor = editdata.EmissiveColor
-    component.CascadeMask = editdata.CascadeMask
-    component.RendertypeMask = editdata.RendertypeMask
 end
 
 local component_set_light = function(component, editdata)
@@ -244,15 +266,15 @@ local component_set_sound = function(component, editdata)
 end
 
 local component_set_weather = function(component, editdata)
-    local atmos_params = component.AtmosphereParameters
-    for key, data in pairs(editdata.atmosphere) do
-        atmos_params[key] = data
-    end
-    local cloud_params = component.VolumetricCloudParameters
-    for key, data in pairs(editdata.cloud) do
-        cloud_params[key] = data
-    end
+    component_set_generic(component.AtmosphereParameters, editdata.atmosphere)
+    component_set_generic(omponent.VolumetricCloudParameters, editdata.cloud)
     for key, _ in pairs(compio_weather) do
+        component[key] = editdata[key]
+    end
+end
+
+local component_set_instance = function(component, editdata)
+    for key, _ in pairs(compio_instance) do
         component[key] = editdata[key]
     end
 end
@@ -297,11 +319,11 @@ local edit_execcmd = function(command, extradata, holdout)
         if type(extradata) == "table" then
             if extradata.type == "name" then
                 local namecomponent = wiscene.Component_GetName(extradata.entity)
-                if namecomponent then component_set_name(namecomponent, extradata.post) end  
+                if namecomponent then component_set_generic(namecomponent, extradata.post) end  
             end
             if extradata.type == "layer" then
                 local layercomponent = wiscene.Component_GetLayer(extradata.entity)
-                if layercomponent then component_set_layer(layercomponent, extradata.post) end
+                if layercomponent then component_set_generic(layercomponent, extradata.post) end
             end
             if extradata.type == "transform" then
                 local transformcomponent = wiscene.Component_GetTransform(extradata.entity)
@@ -309,7 +331,7 @@ local edit_execcmd = function(command, extradata, holdout)
             end
             if extradata.type == "object" then
                 local objectcomponent = wiscene.Component_GetObject(extradata.entity)
-                if objectcomponent then component_set_object(objectcomponent, extradata.post) end
+                if objectcomponent then component_set_generic(objectcomponent, extradata.post) end
                 if extradata.pre.meshID ~= extradata.post.meshID then Editor_UpdateGizmoData(extradata.entity) end
             end
             if extradata.type == "light" then
@@ -324,6 +346,14 @@ local edit_execcmd = function(command, extradata, holdout)
             if extradata.type == "weather" then
                 local weathercomponent = wiscene.Component_GetWeather(extradata.entity)
                 if weathercomponent then component_set_weather(weathercomponent, extradata.post) end
+            end
+            if extradata.type == "material" then
+                local materialcomponent = wiscene.Component_GetMaterial(extradata.entity)
+                if materialcomponent then component_set_generic(materialcomponent, extradata.post) end
+            end
+            if extradata.type == "instance" then
+                local instancecomponent = scene.Component_GetInstance(extradata.entity)
+                if instancecomponent then component_set_instance(instancecomponent, extradata.post) end
             end
         end
     end
@@ -372,11 +402,11 @@ local edit_undocmd = function()
     if command == "mod_comp" then
         if extradata.type == "name" then
             local namecomponent = wiscene.Component_GetName(extradata.entity)
-            if namecomponent then component_set_name(namecomponent, extradata.pre) end  
+            if namecomponent then component_set_generic(namecomponent, extradata.pre) end  
         end
         if extradata.type == "layer" then
             local layercomponent = wiscene.Component_GetLayer(extradata.entity)
-            if layercomponent then component_set_layer(layercomponent, extradata.pre) end
+            if layercomponent then component_set_generic(layercomponent, extradata.pre) end
         end
         if extradata.type == "transform" then
             local transformcomponent = wiscene.Component_GetTransform(extradata.entity)
@@ -384,7 +414,7 @@ local edit_undocmd = function()
         end
         if extradata.type == "object" then
             local objectcomponent = wiscene.Component_GetObject(extradata.entity)
-            if objectcomponent then component_set_object(objectcomponent, extradata.pre) end
+            if objectcomponent then component_set_generic(objectcomponent, extradata.pre) end
             if extradata.pre.meshID ~= extradata.post.meshID then Editor_UpdateGizmoData(extradata.entity) end
         end
         if extradata.type == "light" then
@@ -399,6 +429,14 @@ local edit_undocmd = function()
         if extradata.type == "weather" then
             local weathercomponent = wiscene.Component_GetWeather(extradata.entity)
             if weathercomponent then component_set_weather(weathercomponent, extradata.pre) end
+        end
+        if extradata.type == "material" then
+            local materialcomponent = wiscene.Component_GetMaterial(extradata.entity)
+            if materialcomponent then component_set_generic(materialcomponent, extradata.pre) end
+        end
+        if extradata.type == "instance" then
+            local instancecomponent = scene.Component_GetInstance(extradata.entity)
+            if instancecomponent then component_set_instance(instancecomponent, extradata.post) end
         end
     end
     if command == "del_obj" then
@@ -1014,16 +1052,59 @@ local drawcompinspect = function()
                 end
                 --
 
+                -- MaterialComponent
+                local materialcomponent = wiscene.Component_GetMaterial(entity)
+                if materialcomponent then
+                    local editor_material = compinspect.component.material
+
+                    local ret_tree = imgui.TreeNode("Material Component")
+                    if ret_tree then
+
+                        local changed = false
+
+                        display_edit_parameters(materialcomponent, compio_material, editor_material)
+                        
+                        if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
+
+                        if changed then
+                            local editdata = {
+                                entity = entity,
+                                type = "material",
+                                pre = {},
+                                post = deepcopy(editor_material)
+                            }
+                            build_edit_prestate(materialcomponent, compio_material, editdata.pre)
+                            edit_execcmd("mod_comp", editdata)
+                        end
+                        imgui.TreePop()
+                    end
+                    if not imgui.IsItemFocused() then 
+                        build_edit_prestate(materialcomponent, compio_material, editor_material) 
+                    end
+                end
+                --
+
                 -- InstanceComponent
                 local instancecomponent = scene.Component_GetInstance(entity)
                 if instancecomponent then
                     local editor_instance = compinspect.component.instance
-
+                    -- Init
+                    if editor_instance.Strategy == nil then editor_instance.Strategy = instancecomponent.Strategy end
+                    if editor_instance.Type == nil then editor_instance.Type = instancecomponent.Type end
+                    --
                     local ret_tree = imgui.TreeNode("Instance Component")
                     if ret_tree then
                         local changed = false
 
                         display_edit_parameters(instancecomponent, compio_instance, editor_instance)
+
+                        local changed_strategy = false
+                        changed_strategy, editor_instance.Strategy = imgui.Combo("Load Strategy",editor_light.Strategy,"Direct\0Instantiate\0Preload\0")
+                        if changed_strategy then changed = true end
+
+                        local changed_type = false
+                        changed_type, editor_instance.Type = imgui.Combo("Type",editor_light.Type,"Default\0Library\0")
+                        if changed_type then changed = true end
                         
                         if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
 
@@ -1031,7 +1112,10 @@ local drawcompinspect = function()
                             local editdata = {
                                 entity = entity,
                                 type = "instance",
-                                pre = {},
+                                pre = {
+                                    Strategy = instancecomponent.Strategy,
+                                    Type = instancecomponent.Type,
+                                },
                                 post = deepcopy(editor_instance)
                             }
                             build_edit_prestate(instancecomponent, compio_instance, editdata.pre)
@@ -1039,7 +1123,11 @@ local drawcompinspect = function()
                         end
                         imgui.TreePop()
                     end
-                    if not imgui.IsItemFocused() then build_edit_prestate(instancecomponent, compio_instance, editor_instance) end
+                    if not imgui.IsItemFocused() then 
+                        build_edit_prestate(instancecomponent, compio_instance, editor_instance) 
+                        editor_instance.Strategy = instancecomponent.Strategy
+                        editor_instance.Type = instancecomponent.Type
+                    end
                 end
                 --
 
