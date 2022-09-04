@@ -441,6 +441,84 @@ int Editor_LoadWiScene(lua_State* L)
     return 0;
 }
 
+int Editor_ImguiImage(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc >= 3)
+    {
+        std::string imagefile = wi::lua::SGetString(L, 1);
+        float width = wi::lua::SGetFloat(L, 2);
+        float height = wi::lua::SGetFloat(L, 3);
+
+        // Allocate resource first if it does not exist
+        auto find_image = Editor::GetData()->resourcemap.find(imagefile);
+        if(find_image == Editor::GetData()->resourcemap.end())
+        {
+            Editor::GetData()->resourcemap[imagefile] = wi::resourcemanager::Load(imagefile);
+        }
+
+        auto& resource = Editor::GetData()->resourcemap[imagefile];
+        if (resource.IsValid() && resource.GetTexture().IsValid())
+        {
+            wi::graphics::Texture* image = (wi::graphics::Texture*)&resource.GetTexture();
+            float iwidth = image->desc.width;
+            float iheight = image->desc.height;
+
+            float ratio = iwidth / iheight;
+            float hratio = iheight / iwidth;
+            float pratio = width / height;
+
+            float image_width = (ratio < pratio)? height * ratio : width;
+            float image_height = (ratio < pratio)? height : width * hratio;
+
+            ImGui::Image(image, ImVec2(image_width, image_height));
+        }
+    }
+    return 0;
+}
+
+int Editor_ImguiImageButton(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc >= 3)
+    {
+        std::string imagefile = wi::lua::SGetString(L, 1);
+        float width = wi::lua::SGetFloat(L, 2);
+        float height = wi::lua::SGetFloat(L, 3);
+
+        // Allocate resource first if it does not exist
+        auto find_image = Editor::GetData()->resourcemap.find(imagefile);
+        if(find_image == Editor::GetData()->resourcemap.end())
+        {
+            Editor::GetData()->resourcemap[imagefile] = wi::resourcemanager::Load(imagefile);
+        }
+
+        auto& resource = Editor::GetData()->resourcemap[imagefile];
+        if (resource.IsValid() && resource.GetTexture().IsValid())
+        {
+            wi::graphics::Texture* image = (wi::graphics::Texture*)&resource.GetTexture();
+            float iwidth = image->desc.width;
+            float iheight = image->desc.height;
+
+            float ratio = iwidth / iheight;
+            float hratio = iheight / iwidth;
+            float pratio = width / height;
+
+            float image_width = (ratio < pratio)? height * ratio : width;
+            float image_height = (ratio < pratio)? height : width * hratio;
+
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3, 3));
+            auto result = ImGui::ImageButton(image, ImVec2(image_width, image_height));
+            ImGui::PopStyleVar();
+
+            wi::lua::SSetBool(L, result);
+
+            return 1;
+        }
+    }
+    return 0;
+}
+
 void Editor::Init()
 {
     wi::lua::RunText("EditorAPI = true");
@@ -464,6 +542,9 @@ void Editor::Init()
     wi::lua::RegisterFunc("Editor_UpdateGizmoData", Editor_UpdateGizmoData);
 
     wi::lua::RegisterFunc("Editor_LoadWiScene", Editor_LoadWiScene);
+
+    wi::lua::RegisterFunc("Editor_ImguiImage", Editor_ImguiImage);
+    wi::lua::RegisterFunc("Editor_ImguiImageButton", Editor_ImguiImageButton);
 
     Editor::GetData()->transform_translator.SetEnabled(true);
     Editor::GetData()->transform_translator.scene = &Game::Resources::GetScene().wiscene;

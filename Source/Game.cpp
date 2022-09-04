@@ -131,7 +131,12 @@ void Application::Initialize_ImGUI(){
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::StyleColorsDark();
 
-    ImGui_ImplSDL2_InitForVulkan(window);
+#ifdef _WIN32
+	hWnd = window;
+	ImGui_ImplWin32_Init(window);
+#elif defined(SDL2)
+	ImGui_ImplSDL2_InitForVulkan(window);
+#endif
 
     IM_ASSERT(io.BackendRendererUserData == NULL && "Already initialized a renderer backend!");
 

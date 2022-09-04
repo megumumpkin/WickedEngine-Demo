@@ -24,6 +24,7 @@ D("editor_data",{
             component = {
                 name = {},
                 transform = {},
+                layers = {},
                 object = {},
                 material = {},
                 emitter = {},
@@ -116,6 +117,22 @@ local compio_object = {
     {"EmissiveColor", "EmissiveColor", "float4"},
     {"CascadeMask", "CascadeMask", "int"},
     {"RendertypeMask", "RendertypeMask", "int"},
+}
+
+local compio_material_texturenames = {
+    "Base Color Map",
+    "Normal Map",
+    "Surface Map",
+    "Emissive Map",
+    "Displacement Map",
+    "Occlusion Map",
+    "Transmission Map",
+    "Sheen Color Map",
+    "Sheen Roughness Map",
+    "Clearcoat Map",
+    "Clearcoat Roughness Map",
+    "Clearcoat Normal Map",
+    "Specular Map",
 }
 
 local compio_material = {
@@ -436,7 +453,7 @@ local edit_execcmd = function(command, extradata, holdout)
                 if emittercomponent then component_set_generic(emittercomponent, extradata.post) end
             end
             if extradata.type == "hairparticle" then
-                local hairparticlecomponent = wiscene.Component_GetHairParticle(extradata.entity)
+                local hairparticlecomponent = wiscene.Component_GetHairParticleSystem(extradata.entity)
                 if hairparticlecomponent then component_set_generic(hairparticlecomponent, extradata.post) end
             end
             if extradata.type == "light" then
@@ -543,7 +560,7 @@ local edit_undocmd = function()
             if emittercomponent then component_set_generic(emittercomponent, extradata.pre) end
         end
         if extradata.type == "hairparticle" then
-            local hairparticlecomponent = wiscene.Component_GetHairParticle(extradata.entity)
+            local hairparticlecomponent = wiscene.Component_GetHairParticleSystem(extradata.entity)
             if hairparticlecomponent then component_set_generic(hairparticlecomponent, extradata.pre) end
         end
         if extradata.type == "light" then
@@ -900,14 +917,12 @@ local drawcompinspect = function()
                 drawcomp("Name Component", "name", entity, namecomponent, compio_name, compinspect.component.name, 
                     function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
 
-                -- LayerComponent
                 local layercomponent = wiscene.Component_GetLayer(entity)
-                if layercomponent then
-                    local ret_tree = imgui.TreeNode("Layer Component")
-                    if ret_tree then
+                drawcomp("Layer Component", "layer", entity, layercomponent, {}, {}, 
+                    function(mcomponent, meditor) 
                         local changed = false
                         local layers = layercomponent.LayerMask
-                        local set = 0
+                        meditor.LayerMask = 0
                         
                         for flag_id = 0, 31, 1 do
                             local block = 1 << flag_id
@@ -920,35 +935,23 @@ local drawcompinspect = function()
 
                             local get = 0
                             if get_check == true then
-                                set = set | block
+                                meditor.LayerMask = meditor.LayerMask | block
                             end
                         end
                         if imgui.Button("Select ALL") then
-                            set = 0xffffffff
+                            meditor.LayerMask = 0xffffffff
                             changed = true
                         end
                         imgui.SameLine()
                         if imgui.Button("Select NONE") then 
-                            set = 0 
+                            meditor.LayerMask = 0 
                             changed = true
                         end
-                        imgui.TreePop()
-                        if changed then
-                            local editdata = {
-                                entity = entity,
-                                type = "layer",
-                                pre = {
-                                    LayerMask = layercomponent.LayerMask
-                                },
-                                post = {
-                                    LayerMask = set
-                                }
-                            }
-                            edit_execcmd("mod_comp", editdata)
-                        end
-                    end
-                end
-                --
+                        return changed
+                    end, 
+                    function(mcomponent, mprestate) 
+                        mprestate.LayerMask = mcomponent.LayerMask
+                    end)
 
                 local transformcomponent = wiscene.Component_GetTransform(entity)
                 drawcomp("Transform Component", "transform", entity, transformcomponent, compio_transform, compinspect.component.transform, 
@@ -998,7 +1001,17 @@ local drawcompinspect = function()
 
                 local materialcomponent = wiscene.Component_GetMaterial(entity)
                 drawcomp("Material Component", "material", entity, materialcomponent, compio_material, compinspect.component.material, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                    function(mcomponent, meditor) 
+                        for index, label in ipairs(compio_material_texturenames) do
+                            -- backlog_post(index)
+                            local texname = mcomponent.GetTexture(index-1)
+                            local result = Editor_ImguiImageButton(texname, 100.0, 100.0)
+                            if result then backlog_post(texname) end
+                        end
+                    end, 
+                    function(mcomponent, mprestate) 
+
+                    end)
 
                 local rigidbodycomponent = wiscene.Component_GetRigidBodyPhysics(entity)
                 drawcomp("Rigid Body Component", "rigidbody", entity, rigidbodycomponent, compio_rigidbody, compinspect.component.rigidbody, 
