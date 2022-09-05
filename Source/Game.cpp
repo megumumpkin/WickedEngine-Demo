@@ -98,7 +98,7 @@ const char* Game::GetApplicationName(){
 }
 
 void Application::Initialize(){
-	wi::resourcemanager::SetMode(wi::resourcemanager::Mode::ALLOW_RETAIN_FILEDATA);
+	wi::resourcemanager::SetMode(wi::resourcemanager::Mode::ALLOW_RETAIN_FILEDATA_BUT_DISABLE_EMBEDDING);
 
 	wi::renderer::SetShaderSourcePath(wi::helper::GetCurrentPath()+"/"+Resources::SourcePath::SHADER+"/");
 	wi::renderer::SetShaderPath(wi::helper::GetCurrentPath()+"/"+Resources::SourcePath::SHADER+"/");

@@ -112,6 +112,14 @@ namespace Game::ScriptBindings::Resources{
             auto L = wi::lua::GetLuaState();
 
             wi::lua::RunText(R"(
+                DATATYPE_SCENE_DATA = ".bscn"
+                DATATYPE_SCRIPT = ".lua"
+
+                SOURCEPATH_SHADER = "Data/Shader"
+                SOURCEPATH_INTERFACE = "Data/Interface"
+                SOURCEPATH_LOCALE = "Data/Locale"
+                SOURCEPATH_ASSET = "Data/Asset"
+
                 INSTANCE_LOAD_DIRECT = 0
                 INSTANCE_LOAD_INSTANTIATE = 1
                 INSTANCE_LOAD_PRELOAD = 2
@@ -140,6 +148,7 @@ namespace Game::ScriptBindings::Resources{
         lunaproperty(Library_Instance_BindLua, EntityName),
         lunaproperty(Library_Instance_BindLua, Strategy),
         lunaproperty(Library_Instance_BindLua, Type),
+        lunaproperty(Library_Instance_BindLua, Lock),
         { NULL, NULL }
     };
     Library_Instance_BindLua::Library_Instance_BindLua(lua_State *L)
@@ -153,6 +162,17 @@ namespace Game::ScriptBindings::Resources{
         if(owning){
             delete component;
         }
+    }
+
+    int Library_Instance_BindLua::Init(lua_State *L)
+    {
+        component->Init();
+        return 0;
+    }
+    int Library_Instance_BindLua::Unload(lua_State *L)
+    {
+        component->Unload();
+        return 0;
     }
 
 
@@ -186,7 +206,6 @@ namespace Game::ScriptBindings::Resources{
     };
     Luna<Library_Stream_BindLua>::PropertyType Library_Stream_BindLua::properties[] = {
         lunaproperty(Library_Stream_BindLua, ExternalSubstitute),
-        lunaproperty(Library_Stream_BindLua, Substitute),
         lunaproperty(Library_Stream_BindLua, Zone),
         { NULL, NULL }
     };
@@ -372,8 +391,6 @@ namespace Game::ScriptBindings::Resources{
         if (argc > 0)
         {
             wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
-
-            scene->instances.Create(entity);
 
             auto& component = scene->instances.Create(entity);
             Luna<Library_Instance_BindLua>::push(L, new Library_Instance_BindLua(&component));

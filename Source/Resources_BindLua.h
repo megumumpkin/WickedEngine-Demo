@@ -22,6 +22,7 @@ namespace Game::ScriptBindings::Resources
 			EntityName = wi::lua::StringProperty(&component->entity_name);
 			Strategy = wi::lua::IntProperty(reinterpret_cast<int*>(&component->strategy));
 			Type = wi::lua::IntProperty(reinterpret_cast<int*>(&component->type));
+			Lock = wi::lua::BoolProperty(&component->lock);
 		}
 
 		Library_Instance_BindLua(Game::Resources::Library::Instance* component) :component(component) { BuildBindings(); }
@@ -32,11 +33,16 @@ namespace Game::ScriptBindings::Resources
 		wi::lua::StringProperty EntityName;
 		wi::lua::IntProperty Strategy;
 		wi::lua::IntProperty Type;
+		wi::lua::BoolProperty Lock;
 
 		PropertyFunction(File)
 		PropertyFunction(EntityName)
 		PropertyFunction(Strategy)
 		PropertyFunction(Type)
+		PropertyFunction(Lock)
+
+		int Init(lua_State* L);
+		int Unload(lua_State* L);
     };
 
     class Library_Disabled_BindLua
@@ -76,7 +82,6 @@ namespace Game::ScriptBindings::Resources
 		inline void BuildBindings()
 		{
 			ExternalSubstitute = wi::lua::StringProperty(&component->external_substitute_object);
-			Substitute = wi::lua::LongLongProperty(reinterpret_cast<long long*>(&component->substitute_object));
 		}
 
 		Library_Stream_BindLua(Game::Resources::Library::Stream* component) :component(component) {}
@@ -84,10 +89,8 @@ namespace Game::ScriptBindings::Resources
 		~Library_Stream_BindLua();
 
 		wi::lua::StringProperty ExternalSubstitute;
-		wi::lua::LongLongProperty Substitute;
 
 		PropertyFunction(ExternalSubstitute)
-		PropertyFunction(Substitute)
 
         int SetZone(lua_State* L);
 		int GetZone(lua_State* L);

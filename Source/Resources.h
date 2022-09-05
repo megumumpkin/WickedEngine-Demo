@@ -42,6 +42,8 @@ namespace Game::Resources
             wi::ecs::Entity collection_id;
             wi::unordered_set<wi::ecs::Entity> entities;
 
+            bool lock = false; // Lock resource from automatically loading (Good for editing)
+
             void Init(wi::jobsystem::context* joblist = nullptr);
             void Unload();
 
@@ -62,7 +64,6 @@ namespace Game::Resources
         // For scene streaming please use this!
         struct Stream{
             std::string external_substitute_object; // If the substitute model is outside then we may need to load it
-            wi::ecs::Entity substitute_object;
             wi::primitive::AABB stream_zone;
 
             // Non serialized attributes

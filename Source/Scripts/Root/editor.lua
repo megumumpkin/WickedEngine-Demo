@@ -80,7 +80,11 @@ D("editor_data",{
         add_object = false,
         add_light = false,
         add_sound = false,
+        add_emitter = false,
+        add_hairparticle = false,
         add_weather = false,
+        add_instance = false,
+        add_material = false,
     },
     navigation = {
         camera = GetCamera(),
@@ -334,6 +338,7 @@ local compio_instance = {
     {"EntityName", "Subtarget Entity Name", "text"},
     {"Strategy", "Loading Strategy", "combo", { choices = "Direct\0Instance\0Preload\0" }},
     {"Type", "Type", "combo", { choices = "Default\0Library\0" }},
+    {"Lock", "Lock For Editing", "check"},
 }
 
 local compio_stream = {
@@ -417,11 +422,56 @@ local edit_execcmd = function(command, extradata, holdout)
                 local layer = wiscene.Component_CreateLayer(entity)
                 local sound = wiscene.Component_CreateSound(entity)
             end
+            if extradata.type == "emitter" then
+                local transform = wiscene.Component_CreateTransform(entity)
+                local layer = wiscene.Component_CreateLayer(entity)
+                local material = wiscene.Component_CreateMaterial(entity)
+                local emitter = wiscene.Component_CreateEmitter(entity)
+            end
+            if extradata.type == "hairparticle" then
+                local transform = wiscene.Component_CreateTransform(entity)
+                local layer = wiscene.Component_CreateLayer(entity)
+                local material = wiscene.Component_CreateMaterial(entity)
+                local hairparticle = wiscene.Component_CreateHairParticleSystem(entity)
+            end
             if extradata.type == "weather" then
                 local weather = wiscene.Component_CreateWeather(entity)
                 weather.SetRealisticSky(true)
                 weather.SetVolumetricClouds(true)
             end
+            if extradata.type == "instance" then
+                local transform = wiscene.Component_CreateTransform(entity)
+                local layer = wiscene.Component_CreateLayer(entity)
+                local instance = scene.Component_CreateInstance(entity)
+                instance.Lock = true
+            end
+            if extradata.type == "material" then
+                local material = wiscene.Component_CreateMaterial(entity)
+            end
+        end
+    end
+
+    if command == "add_comp" then
+        if type(extradata) == "table" then
+            if extradata.type == "name" then wiscene.Component_CreateName(extradata.entity) end
+            if extradata.type == "transform" then wiscene.Component_CreateTransform(extradata.entity) end
+            if extradata.type == "layer" then wiscene.Component_CreateLayer(extradata.entity) end
+            if extradata.type == "object" then wiscene.Component_CreateObject(extradata.entity) end
+            if extradata.type == "light" then wiscene.Component_CreateLight(extradata.entity) end
+            if extradata.type == "sound" then wiscene.Component_CreateSound(extradata.entity) end
+            if extradata.type == "material" then wiscene.Component_CreateMaterial(extradata.entity) end
+            if extradata.type == "emitter" then wiscene.Component_CreateEmitter(extradata.entity) end
+            if extradata.type == "hairparticle" then wiscene.Component_CreateHairParticleSystem(extradata.entity) end
+            if extradata.type == "weather" then 
+                local weather wiscene.Component_CreateWeather(extradata.entity) 
+                weather.SetRealisticSky(true)
+                weather.SetVolumetricClouds(true)
+            end
+            if extradata.type == "instance" then 
+                local instance = scene.Component_CreateInstance(entity)
+                instance.Lock = true
+            end
+            if extradata.type == "stream" then scene.Component_CreateInstance(entity) end
         end
     end
 
@@ -499,6 +549,23 @@ local edit_execcmd = function(command, extradata, holdout)
         end
         wiscene.Entity_Remove(extradata.entity)
     end
+
+    -- if command == "del_comp" then
+    --     if type(extradata) == "table" then
+    --         if extradata.type == "name" then wiscene.Component_CreateName(extradata.entity) end
+    --         if extradata.type == "transform" then wiscene.Component_CreateTransform(extradata.entity) end
+    --         if extradata.type == "layer" then wiscene.Component_CreateLayer(extradata.entity) end
+    --         if extradata.type == "object" then wiscene.Component_CreateObject(extradata.entity) end
+    --         if extradata.type == "light" then wiscene.Component_CreateLight(extradata.entity) end
+    --         if extradata.type == "sound" then wiscene.Component_CreateSound(extradata.entity) end
+    --         if extradata.type == "material" then wiscene.Component_CreateMaterial(extradata.entity) end
+    --         if extradata.type == "emitter" then wiscene.Component_CreateEmitter(extradata.entity) end
+    --         if extradata.type == "hairparticle" then wiscene.Component_CreateHairParticleSystem(extradata.entity) end
+    --         if extradata.type == "weather" then wiscene.Component_CreateWeather(extradata.entity) end
+    --         if extradata.type == "instance" then scene.Component_CreateInstance(entity) end
+    --         if extradata.type == "stream" then scene.Component_CreateInstance(entity) end
+    --     end
+    -- end
 
     -- To run new command or just redo previous commands
     if holdout == nil then
@@ -590,7 +657,7 @@ local edit_undocmd = function()
         end
         if extradata.type == "instance" then
             local instancecomponent = scene.Component_GetInstance(extradata.entity)
-            if instancecomponent then component_set_instance(instancecomponent, extradata.post) end
+            if instancecomponent then component_set_instance(instancecomponent, extradata.pre) end
         end
     end
     if command == "del_obj" then
@@ -638,26 +705,33 @@ local drawtopbar = function()
         if changed_camspdmode then D.editor_data.navigation.camera_speed_mul = 3.0 * (D.editor_data.navigation.camera_speed_mul_select+1) end
 
         if imgui.BeginPopupContextWindow("MBFM") then
-            D.editor_data.actions.resource_new = imgui.MenuItem("\xee\x93\xae New Resource",nil,D.editor_data.actions.resource_new)
-            D.editor_data.actions.resource_rename = imgui.MenuItem("\xef\x81\x84 Rename Resource",nil,D.editor_data.actions.resource_rename)
-            D.editor_data.actions.resource_save = imgui.MenuItem("\xef\x83\x87 Save Resource",nil,D.editor_data.actions.resource_save)
+            local actions = D.editor_data.actions
+            actions.resource_new = imgui.MenuItem("\xee\x93\xae New Resource", nil, actions.resource_new)
+            actions.resource_rename = imgui.MenuItem("\xef\x81\x84 Rename Resource", nil, actions.resource_rename)
+            actions.resource_save = imgui.MenuItem("\xef\x83\x87 Save Resource", nil, actions.resource_save)
             imgui.EndPopup()
         end
 
         if imgui.BeginPopupContextWindow("MBIM") then
-            D.editor_data.actions.link_dcc = imgui.MenuItem("\xef\x83\x81 Create DCC Link",nil,D.editor_data.actions.link_dcc)
-            D.editor_data.actions.import_wiscene = imgui.MenuItem("\xee\x92\xb8 Import WiScene",nil,D.editor_data.actions.import_wiscene)
-            D.editor_data.actions.add_object = imgui.MenuItem("\xef\x86\xb2 Add Object",nil,D.editor_data.actions.add_object)
-            D.editor_data.actions.add_light = imgui.MenuItem("\xef\x83\xab Add Light",nil,D.editor_data.actions.add_light)
-            D.editor_data.actions.add_sound = imgui.MenuItem("\xef\x80\xa8 Add Sound",nil,D.editor_data.actions.add_sound)
-            D.editor_data.actions.add_weather = imgui.MenuItem("\xef\x9b\x84 Add Weather",nil,D.editor_data.actions.add_weather)
+            local actions = D.editor_data.actions
+            actions.link_dcc = imgui.MenuItem("\xef\x83\x81 Create DCC Link", nil, actions.link_dcc)
+            actions.import_wiscene = imgui.MenuItem("\xee\x92\xb8 Import WiScene", nil, actions.import_wiscene)
+            actions.add_object = imgui.MenuItem("\xef\x86\xb2 Add Object", nil, actions.add_object)
+            actions.add_light = imgui.MenuItem("\xef\x83\xab Add Light", nil, actions.add_light)
+            actions.add_sound = imgui.MenuItem("\xef\x80\xa8 Add Sound", nil, actions.add_sound)
+            actions.add_emitter = imgui.MenuItem("\xef\x81\xad Add Emitter", nil, actions.add_emitter)
+            actions.add_hairparticle = imgui.MenuItem("\xef\x93\x98 Add HairParticle", nil, actions.add_hairparticle)
+            actions.add_weather = imgui.MenuItem("\xef\x9b\x84 Add Weather", nil, actions.add_weather)
+            actions.add_instance = imgui.MenuItem("\xef\x87\x80 Add Instance", nil, actions.add_instance)
+            actions.add_material = imgui.MenuItem("\xef\x95\xb6 Add Material", nil, actions.add_material)
             imgui.EndPopup()
         end
 
         if imgui.BeginPopupContextWindow("MBWM") then
-            ret, D.editor_data.elements.scenegraphview.win_visible = imgui.MenuItem_4("\xef\xa0\x82 Scene Graph Viewer","",D.editor_data.elements.scenegraphview.win_visible)
-            ret, D.editor_data.elements.compinspect.win_visible = imgui.MenuItem_4("\xef\x82\x85 Component Inspector","",D.editor_data.elements.compinspect.win_visible)
-            ret, D.editor_data.elements.helper_demo.win_visible = imgui.MenuItem_4("\xef\x8b\x90 IMGUI Demo Window","",D.editor_data.elements.helper_demo.win_visible)
+            local elements = D.editor_data.elements
+            ret, elements.scenegraphview.win_visible = imgui.MenuItem_4("\xef\xa0\x82 Scene Graph Viewer","", elements.scenegraphview.win_visible)
+            ret, elements.compinspect.win_visible = imgui.MenuItem_4("\xef\x82\x85 Component Inspector","", elements.compinspect.win_visible)
+            ret, elements.helper_demo.win_visible = imgui.MenuItem_4("\xef\x8b\x90 IMGUI Demo Window","", elements.helper_demo.win_visible)
             imgui.EndPopup()
         end
 
@@ -848,7 +922,7 @@ local display_edit_parameters = function(component, parameter_list, edit_store)
 
         if type == "check" then
             local ret = false
-            ret, edit_store[key] = imgui.InputText(label, edit_store[key], 255)
+            ret, edit_store[key] = imgui.Checkbox(label, edit_store[key])
             if ret then changed = true end
         end
 
@@ -1176,7 +1250,15 @@ local update_sysmenu_actions = function()
     local actions = D.editor_data.actions
     -- File menu actions
     if actions.resource_new then
-        backlog_post("ACT_STUB: new resource not working")
+        -- Delete scene data and history
+        if type(actions.command_list) == "table" then
+            actions.command_head = 0
+            actions.command_list = {}
+            Editor_WipeDeletedEntityList()
+        end
+        wiscene.Clear()
+        edit_execcmd("init")
+
         actions.resource_new = false
     end
     if actions.resource_rename then
@@ -1184,7 +1266,8 @@ local update_sysmenu_actions = function()
         actions.resource_rename = false
     end
     if actions.resource_save then
-        backlog_post("ACT_STUB: save resource not working")
+        Editor_SaveScene(SOURCEPATH_ASSET .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA)
+        
         actions.resource_save = false
     end
     --
@@ -1211,9 +1294,25 @@ local update_sysmenu_actions = function()
         edit_execcmd("add_obj", {type = "sound", name = "New Sound"})
         actions.add_sound = false
     end
+    if actions.add_emitter then
+        edit_execcmd("add_obj", {type = "emitter", name = "New Emitter"})
+        actions.add_emitter = false
+    end
+    if actions.add_hairparticle then
+        edit_execcmd("add_obj", {type = "hairparticle", name = "New Hair Particle System"})
+        actions.add_hairparticle = false
+    end
     if actions.add_weather then
         edit_execcmd("add_obj", {type = "weather", name = "New Weather"})
         actions.add_weather = false
+    end
+    if actions.add_instance then
+        edit_execcmd("add_obj", {type = "instance", name = "New Instance"})
+        actions.add_instance = false
+    end
+    if actions.add_material then
+        edit_execcmd("add_obj", {type = "material", name = "New Material"})
+        actions.add_material = false
     end
     --
 end

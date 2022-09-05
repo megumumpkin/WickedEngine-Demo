@@ -112,6 +112,8 @@ namespace Editor{
         wi::unordered_map<wi::ecs::Entity, ClipData> clips_copy;
 
         wi::unordered_map<std::string, wi::Resource> resourcemap;
+        
+        wi::unordered_set<wi::ecs::Entity> unsaved_instances;
     };
     enum EDITOR_STENCILREF : uint8_t
     {

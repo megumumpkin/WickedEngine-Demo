@@ -365,6 +365,12 @@ int Editor_StashDeletedEntity(lua_State* L)
     return 0;
 }
 
+int Editor_WipeDeletedEntityList(lua_State* L)
+{
+    Editor::GetData()->clips_deleted.clear();
+    return 0;
+}
+
 int Editor_RestoreDeletedEntity(lua_State* L)
 {
     auto argc = wi::lua::SGetArgCount(L);
@@ -440,6 +446,42 @@ int Editor_LoadWiScene(lua_State* L)
     }
     return 0;
 }
+
+int Editor_SaveScene(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        auto filepath = wi::lua::SGetString(L, 1);
+        auto& scene = Game::Resources::GetScene();
+        // Step 1: Check if there are unsaved instances and then save them!
+        for(auto& instance_entity : Editor::GetData()->unsaved_instances)
+        {
+            auto instance = scene.instances.GetComponent(instance_entity);
+            // TODO
+        }
+        // Step 2: Unload all instances
+        for(int i = 0; i < scene.instances.GetCount(); ++i)
+        {
+            scene.instances[i].Unload();
+        }
+        // Step 3: Save the scene
+        auto archive = wi::Archive(filepath,false);
+        scene.wiscene.Serialize(archive);
+
+        // Step 4: Restore the scene instances
+        for(int i = 0; i < scene.instances.GetCount(); ++i)
+        {
+            if(!scene.streams.Contains(scene.instances.GetEntity(i))) { scene.instances[i].Init(); }
+        }
+    }
+    else 
+    {
+        wi::lua::SError(L, "Editor_SaveScene(string filepath) not enough arguments!");
+    }
+    return 0;
+}
+
 
 int Editor_ImguiImage(lua_State* L)
 {
@@ -538,10 +580,12 @@ void Editor::Init()
     wi::lua::RegisterFunc("Editor_StashDeletedEntity", Editor_StashDeletedEntity);
     wi::lua::RegisterFunc("Editor_RestoreDeletedEntity", Editor_RestoreDeletedEntity);
     wi::lua::RegisterFunc("Editor_DeletedEntityDrop", Editor_DeletedEntityDrop);
+    wi::lua::RegisterFunc("Editor_WipeDeletedEntityList", Editor_WipeDeletedEntityList);
 
     wi::lua::RegisterFunc("Editor_UpdateGizmoData", Editor_UpdateGizmoData);
 
     wi::lua::RegisterFunc("Editor_LoadWiScene", Editor_LoadWiScene);
+    wi::lua::RegisterFunc("Editor_SaveScene", Editor_SaveScene);
 
     wi::lua::RegisterFunc("Editor_ImguiImage", Editor_ImguiImage);
     wi::lua::RegisterFunc("Editor_ImguiImageButton", Editor_ImguiImageButton);

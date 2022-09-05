@@ -163,17 +163,26 @@ void Library::Instance::Init(wi::jobsystem::context* joblist){
 }
 
 void Library::Instance::Unload(){
-    for(auto& entity : entities){
-        auto hierarchyComponent = scene->wiscene.hierarchy.GetComponent(entity);
-
-        if(hierarchyComponent != nullptr)
-        {
-            if(hierarchyComponent->parentID == instance_id)
-            {
-                scene->wiscene.Entity_Remove(entity);
-            }
-        }
+    if(instance_id == collection_id)
+    {
+        scene->collections.erase(wi::helper::string_hash(file.c_str()));
     }
+
+    for(auto& entity : entities){
+        // auto hierarchyComponent = scene->wiscene.hierarchy.GetComponent(entity);
+
+        // if(hierarchyComponent != nullptr)
+        // {
+        //     if(hierarchyComponent->parentID == instance_id)
+        //     {
+        //         scene->wiscene.Entity_Remove(entity);
+        //     }
+        // }
+        scene->wiscene.Entity_Remove(entity);
+    }
+    entities.clear();
+
+    collection_id = wi::ecs::INVALID_ENTITY;
 }
 
 void Library::Instance::Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri){
@@ -181,11 +190,15 @@ void Library::Instance::Serialize(wi::Archive& archive, wi::ecs::EntitySerialize
     {
         archive >> file;
         archive >> entity_name;
+        archive >> (uint32_t&)strategy;
+        archive >> (uint32_t&)type;
     }
     else
     {
         archive << file;
         archive << entity_name;
+        archive << strategy;
+        archive << type;
     }
 }
 
@@ -198,7 +211,14 @@ void Library::Disabled::Serialize(wi::Archive& archive, wi::ecs::EntitySerialize
 
 
 void Library::Stream::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri){
-    wi::ecs::SerializeEntity(archive, substitute_object, seri);
+    if(archive.IsReadMode())
+    {
+        archive >> external_substitute_object;
+    }
+    else 
+    {
+        archive << external_substitute_object;
+    }
     stream_zone.Serialize(archive, seri);
 }
 
@@ -300,11 +320,11 @@ void Scene::Library_Update(float dt){
         auto& instance = instances[i];
         auto instance_entity = instances.GetEntity(i);
         
-        if(!streams.Contains(instance_entity) && (instance.scene == nullptr))
+        if(instance.scene == nullptr)
         {
             instance.scene = this;
             instance.instance_id = instance_entity;
-            instance.Init();
+            if(!instance.lock && !streams.Contains(instance_entity)) { instance.Init(); }
         }
     }
     for(int i = 0; i < streams.GetCount(); ++i)
@@ -312,20 +332,21 @@ void Scene::Library_Update(float dt){
         auto& stream = streams[i];
         auto stream_entity = streams.GetEntity(i);
 
-        if((stream.external_substitute_object != "") & (stream.substitute_object == wi::ecs::INVALID_ENTITY))
-        {
-            // TODO load preview model to scene as instance
-        }
-
         if(stream.stream_zone.intersects(stream_boundary))
         {
             auto instance = instances.GetComponent(stream_entity);
             if(instance != nullptr){
                 // Init instances first if the data is not loaded
-                if(instance->scene == nullptr){
-                    instance->scene = this;
-                    instance->instance_id = stream_entity;
+                if((instance->collection_id == wi::ecs::INVALID_ENTITY) && !instance->lock){
                     instance->Init();
+                    for(auto& entity : instance->entities)
+                    {
+                        auto objectComponent = wiscene.objects.GetComponent(entity);
+                        if(objectComponent != nullptr)
+                        {
+                            stream.instance_original_transparency[entity] = objectComponent->color.w;
+                        }
+                    }
                 }
 
                 // Once loading is done we then can transition this to the loaded data
@@ -335,7 +356,7 @@ void Scene::Library_Update(float dt){
 
                     if(stream.transition > 0.f) // Preload script after it is done!
                     {
-                        // TODO
+                        
                     }
                 }
             }
@@ -349,14 +370,12 @@ void Scene::Library_Update(float dt){
             if(stream.transition == 0.f){
                 auto instance = instances.GetComponent(stream_entity);
                 if(instance != nullptr){
-                    if(instance->scene != nullptr){
+                    if((instance->collection_id != wi::ecs::INVALID_ENTITY) && !instance->lock){
                         instance->Unload();
-                        instance->scene = nullptr;
+                        instance->collection_id = wi::ecs::INVALID_ENTITY;
+                        stream.instance_original_transparency.clear();
                     }
                 }
-                // TODO
-                // auto scriptobject = scriptobjects.GetComponent(stream_entity);
-                // if(scriptobject != nullptr) scriptobject->Unload();
             }
         }
 
@@ -364,7 +383,16 @@ void Scene::Library_Update(float dt){
         if(stream.transition > 0.f && stream.transition < 1.f){
             for(auto& object_it : stream.instance_original_transparency){
                 auto objectComponent = wiscene.objects.GetComponent(object_it.first);
-                objectComponent->color.w = object_it.second * stream.transition;
+                if(objectComponent != nullptr)
+                {
+                    objectComponent->color.w = object_it.second * stream.transition;
+                }
+            }
+            // Render previews too if available
+            auto streampreview = wiscene.objects.GetComponent(stream_entity);
+            if(streampreview != nullptr)
+            {
+                streampreview->color.w = 1.0 - stream.transition;
             }
         }
     }
