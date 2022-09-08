@@ -127,6 +127,8 @@ namespace Game::ScriptBindings::Resources
         int Entity_Disable(lua_State* L);
         int Entity_Enable(lua_State* L);
 
+		int Component_RemoveInstance(lua_State* L);
+
 		int Entity_GetInstanceArray(lua_State* L);
 		int Entity_GetDisabledArray(lua_State* L);
 		int Entity_GetStreamArray(lua_State* L);

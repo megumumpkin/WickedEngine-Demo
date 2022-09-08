@@ -118,7 +118,9 @@ namespace Game::ScriptBindings::Resources{
                 SOURCEPATH_SHADER = "Data/Shader"
                 SOURCEPATH_INTERFACE = "Data/Interface"
                 SOURCEPATH_LOCALE = "Data/Locale"
-                SOURCEPATH_ASSET = "Data/Asset"
+                SOURCEPATH_SCENE = "Data/Scene"
+                SOURCEPATH_TEXTURE = "Data/Texture"
+                SOURCEPATH_SOUND = "Data/Sound"
 
                 INSTANCE_LOAD_DIRECT = 0
                 INSTANCE_LOAD_INSTANTIATE = 1
@@ -260,6 +262,7 @@ namespace Game::ScriptBindings::Resources{
         lunamethod(Scene_BindLua, Entity_SetStreamable),
         lunamethod(Scene_BindLua, Entity_Disable),
         lunamethod(Scene_BindLua, Entity_Enable),
+        lunamethod(Scene_BindLua, Component_RemoveInstance),
         lunamethod(Scene_BindLua, Entity_GetInstanceArray),
         lunamethod(Scene_BindLua, Entity_GetDisabledArray),
         lunamethod(Scene_BindLua, Entity_GetStreamArray),
@@ -447,6 +450,23 @@ namespace Game::ScriptBindings::Resources{
         else
         {
             wi::lua::SError(L, "GameScene::Entity_SetScript(Entity entity) not enough arguments!");
+        }
+        return 0;
+    }
+    int Scene_BindLua::Component_RemoveInstance(lua_State *L){
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+
+            if(scene->instances.Contains(entity))
+            {
+                scene->instances.Remove(entity);
+            }
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::Component_RemoveInstance(Entity entity) not enough arguments!");
         }
         return 0;
     }

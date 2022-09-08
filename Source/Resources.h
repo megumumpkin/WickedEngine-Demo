@@ -14,7 +14,9 @@ namespace Game::Resources
         static inline const std::string SHADER = "Data/Shader";
         static inline const std::string INTERFACE = "Data/Interface";
         static inline const std::string LOCALE = "Data/Locale";
-        static inline const std::string ASSET = "Data/Asset";
+        static inline const std::string SCENE = "Data/Scene";
+        static inline const std::string TEXTURE = "Data/Texture";
+        static inline const std::string SOUND = "Data/Sound";
     }
     struct Scene;
     namespace Library

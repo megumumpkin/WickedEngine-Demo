@@ -171,7 +171,7 @@ int Editor_GetObjectList(lua_State* L)
 
 inline void Editor_UpdateSelection()
 {
-    if(Editor::GetData()->selection.entity != wi::ecs::INVALID_ENTITY)
+    if((Editor::GetData()->selection.entity != wi::ecs::INVALID_ENTITY) && (Game::Resources::GetScene().wiscene.transforms.Contains(Editor::GetData()->selection.entity)))
     {
         if(Editor::GetData()->transform_translator.selected.empty())
         {
@@ -429,7 +429,7 @@ int Editor_LoadWiScene(lua_State* L)
         wi::scene::LoadModel(dscene.wiscene, file);
         if(as_instance)
         {
-            auto newfile = Game::Resources::SourcePath::ASSET+"/"+wi::helper::GetFileNameFromPath(file)+Game::Resources::DataType::SCENE_DATA;
+            auto newfile = Game::Resources::SourcePath::SCENE+"/"+wi::helper::GetFileNameFromPath(file)+Game::Resources::DataType::SCENE_DATA;
             auto saveto = wi::Archive(newfile,false);
             dscene.wiscene.Serialize(saveto);
             wi::ecs::Entity instance_entity = scene.CreateInstance(wi::helper::GetFileNameFromPath(file));
@@ -482,6 +482,21 @@ int Editor_SaveScene(lua_State* L)
     return 0;
 }
 
+int Editor_LoadScene(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        auto filepath = wi::lua::SGetString(L, 1);
+        auto& scene = Game::Resources::GetScene();
+        wi::scene::LoadModel(scene.wiscene, filepath);
+    }
+    else 
+    {
+        wi::lua::SError(L, "Editor_SaveScene(string filepath) not enough arguments!");
+    }
+    return 0;
+}
 
 int Editor_ImguiImage(lua_State* L)
 {
@@ -561,6 +576,225 @@ int Editor_ImguiImageButton(lua_State* L)
     return 0;
 }
 
+int Editor_ListDirectory(lua_State* L)
+{
+    wi::unordered_map<std::string, wi::vector<std::string>> dir_files;
+    
+    auto scene_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Scene");
+    for (auto& filenode : std::filesystem::recursive_directory_iterator(scene_root))
+    {
+        std::string path = filenode.path();
+        wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
+        std::string file, dir;
+        wi::helper::SplitPath(path, dir, file);
+        dir_files[dir].push_back(file);
+    }
+    auto texture_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Texture");
+    for (auto& filenode : std::filesystem::recursive_directory_iterator(texture_root))
+    {
+        std::string path = filenode.path();
+        wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
+        std::string file, dir;
+        wi::helper::SplitPath(path, dir, file);
+        dir_files[dir].push_back(file);
+    }
+    auto sound_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Sound");
+    for (auto& filenode : std::filesystem::recursive_directory_iterator(sound_root))
+    {
+        std::string path = filenode.path();
+        wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
+        std::string file, dir;
+        wi::helper::SplitPath(path, dir, file);
+        dir_files[dir].push_back(file);
+    }
+
+    lua_newtable(L);
+
+    for(auto& dir : dir_files)
+    {
+        lua_newtable(L);
+        for(int i = 0; i < dir.second.size(); ++i)
+        {
+            wi::lua::SSetString(L, dir.second[i]);
+            lua_rawseti(L,-2,i);
+        }
+        lua_setfield(L, -2, dir.first.c_str());
+    }
+
+    return 1;
+}
+
+int Editor_RenderScenePreview(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        auto resourcename = wi::lua::SGetString(L, 1);
+
+        auto& renderer = Editor::GetData()->preview_render;
+        auto& camera = Editor::GetData()->preview_camera;
+
+        auto& gamescene = Game::Resources::GetScene();
+        renderer.scene = &gamescene.wiscene;
+
+        wi::vector<uint32_t> original_layers;
+
+        wi::primitive::AABB bounds;
+        wi::ecs::Entity entity;
+        if(argc >= 2)
+        {
+            entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 2);
+        }
+        for(int i = 0; i<renderer.scene->layers.GetCount(); ++i)
+        {
+            if(entity != wi::ecs::INVALID_ENTITY)
+            {
+                original_layers.push_back(renderer.scene->layers[i].layerMask);
+                renderer.scene->layers[i].layerMask = 0;
+            }
+
+            auto layer_entity = renderer.scene->layers.GetEntity(i);
+            auto AABB_Object = renderer.scene->aabb_objects.GetComponent(layer_entity);
+            if(AABB_Object != nullptr){ bounds = wi::primitive::AABB::Merge(bounds, *AABB_Object); }
+        }
+        auto instanceComponent = Game::Resources::GetScene().instances.GetComponent(entity);
+        if(instanceComponent != nullptr)
+        {
+            for(auto& entity : instanceComponent->entities)
+            {
+                auto layerMask = renderer.scene->layers.GetComponent(entity);
+                layerMask->layerMask = 1;
+            }
+        }
+    
+        auto distance = std::min(bounds.getRadius()*2.3f,10000000.f);
+        wi::backlog::post(std::to_string(distance));
+
+        wi::scene::TransformComponent transform, transform_origin;
+
+        auto angular = 30.f / 180.f * XM_PI;
+        transform_origin.RotateRollPitchYaw(XMFLOAT3(angular, angular, 0)); 
+
+        transform.Translate(XMFLOAT3(0,0,-distance));
+        transform_origin.Translate(bounds.getCenter());
+        transform_origin.UpdateTransform();
+        transform.UpdateTransform_Parented(transform_origin);
+
+        camera.SetDirty();
+        camera.TransformCamera(transform);
+        
+        for(int count = 0; count < 3; ++count)
+        {
+            bool is_cull_enabled = wi::renderer::GetOcclusionCullingEnabled();
+            bool is_grid_set = wi::renderer::GetToDrawGridHelper();
+            wi::renderer::SetToDrawGridHelper(false);
+            renderer.Update(0.16f);
+            renderer.PostUpdate();
+            renderer.Render();
+            wi::renderer::SetToDrawGridHelper(is_grid_set);
+            wi::renderer::SetOcclusionCullingEnabled(is_cull_enabled);
+        }
+
+        Editor::GetData()->resourcemap[resourcename].SetTexture(*renderer.GetLastPostprocessRT());
+
+        if(original_layers.size() > 0)
+        {
+            for(int i = 0; i<renderer.scene->layers.GetCount(); ++i)
+            {
+                renderer.scene->layers[i].layerMask = original_layers[i];
+            }
+        }
+    }
+    else
+    {
+        wi::lua::SError(L, "Editor_RenderScenePreview(string imagename)");
+    }
+    return 0;
+}
+
+int Editor_RenderMaterialPreview(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc >= 2)
+    {
+        auto resourcename = wi::lua::SGetString(L, 1);
+        wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 2);
+
+        auto& renderer = Editor::GetData()->preview_render;
+        auto& camera = Editor::GetData()->preview_camera;
+
+        auto& gamescene = Editor::GetData()->preview_scene;
+        renderer.scene = &gamescene.wiscene;
+
+        wi::primitive::AABB bounds;
+        for(int i = 0; i<renderer.scene->layers.GetCount(); ++i)
+        {
+            auto layer_entity = renderer.scene->layers.GetEntity(i);
+            auto AABB_Object = renderer.scene->aabb_objects.GetComponent(layer_entity);
+            if(AABB_Object != nullptr){ bounds = wi::primitive::AABB::Merge(bounds, *AABB_Object); }
+        }
+    
+        auto distance = std::min(bounds.getRadius()*2.3f,10000000.f);
+        wi::backlog::post(std::to_string(distance));
+
+        wi::scene::TransformComponent transform;
+
+        transform.Translate(XMFLOAT3(0,0,-distance));
+        transform.UpdateTransform();
+
+        camera.SetDirty();
+        camera.TransformCamera(transform);
+        
+        for(int count = 0; count < 3; ++count)
+        {
+            bool is_cull_enabled = wi::renderer::GetOcclusionCullingEnabled();
+            bool is_grid_set = wi::renderer::GetToDrawGridHelper();
+            wi::renderer::SetToDrawGridHelper(false);
+            renderer.Update(0.16f);
+            renderer.PostUpdate();
+            renderer.Render();
+            wi::renderer::SetToDrawGridHelper(is_grid_set);
+            wi::renderer::SetOcclusionCullingEnabled(is_cull_enabled);
+        }
+
+        Editor::GetData()->resourcemap[resourcename].SetTexture(*renderer.GetLastPostprocessRT());
+    }
+    else
+    {
+        wi::lua::SError(L, "Editor_RenderMaterialPreview(string imagename, Entity material_entity)");
+    }
+    return 0;
+}
+
+int Editor_SaveImage(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if (argc > 0)
+    {
+        auto resource_name = wi::lua::SGetString(L, 1);
+        auto save_alias = resource_name;
+        if(argc >= 2)
+        {
+            save_alias = wi::lua::SGetString(L, 2);
+        }
+        auto find_image = Editor::GetData()->resourcemap.find(resource_name);
+        if(find_image != Editor::GetData()->resourcemap.end())
+        {
+            auto& resource = find_image->second;
+            if(resource.IsValid() && resource.GetTexture().IsTexture())
+            {
+                auto& texture = resource.GetTexture();
+                wi::helper::saveTextureToFile(texture, save_alias);
+            }
+        }
+    }
+    else
+    {
+        wi::lua::SError(L, "Editor_SaveImage(string resource_name)");
+    }
+    return 0;
+}
+
 void Editor::Init()
 {
     wi::lua::RunText("EditorAPI = true");
@@ -585,15 +819,26 @@ void Editor::Init()
     wi::lua::RegisterFunc("Editor_UpdateGizmoData", Editor_UpdateGizmoData);
 
     wi::lua::RegisterFunc("Editor_LoadWiScene", Editor_LoadWiScene);
+    wi::lua::RegisterFunc("Editor_LoadScene", Editor_LoadScene);
     wi::lua::RegisterFunc("Editor_SaveScene", Editor_SaveScene);
 
     wi::lua::RegisterFunc("Editor_ImguiImage", Editor_ImguiImage);
     wi::lua::RegisterFunc("Editor_ImguiImageButton", Editor_ImguiImageButton);
 
+    wi::lua::RegisterFunc("Editor_ListDirectory", Editor_ListDirectory);
+    wi::lua::RegisterFunc("Editor_RenderScenePreview", Editor_RenderScenePreview);
+    wi::lua::RegisterFunc("Editor_RenderMaterialPreview", Editor_RenderMaterialPreview);
+    wi::lua::RegisterFunc("Editor_SaveImage", Editor_SaveImage);
+
     Editor::GetData()->transform_translator.SetEnabled(true);
     Editor::GetData()->transform_translator.scene = &Game::Resources::GetScene().wiscene;
 
     wi::font::AddFontStyle("FontAwesomeV6", font_awesome_v6, sizeof(font_awesome_v6));
+
+    Editor::GetData()->preview_render.scene = &Editor::GetData()->preview_scene.wiscene;
+    Editor::GetData()->preview_render.camera = &Editor::GetData()->preview_camera;
+    // Editor::GetData()->preview_render.setSceneUpdateEnabled(false);
+    Editor::GetData()->preview_render.init(512,512);
 }
 
 void Editor::Update(float dt, wi::RenderPath2D& viewport)

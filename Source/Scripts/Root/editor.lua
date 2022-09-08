@@ -2,13 +2,19 @@ D("editor_data",{
     elements = {
         resexp = {
             win_visible = false,
+            updated = false,
             input = "",
+            selected_file = "",
+            selected_resname = "",
+            directory_stack = {},
+            directory_list = {}
         },
         scenegraphview = {
             win_visible = true,
             filter_selected = 0,
             selected_entity = 0,
             wait_update = false,
+            force_refresh = false,
             list = {
                 objects = {},
                 meshes = {},
@@ -74,6 +80,8 @@ D("editor_data",{
         resource_new = false,
         resource_rename = false,
         resource_save = false,
+        resource_open = false,
+        resource_instance = false,
         -- Add menu actions
         link_dcc = false,
         import_wiscene = false,
@@ -550,22 +558,22 @@ local edit_execcmd = function(command, extradata, holdout)
         wiscene.Entity_Remove(extradata.entity)
     end
 
-    -- if command == "del_comp" then
-    --     if type(extradata) == "table" then
-    --         if extradata.type == "name" then wiscene.Component_CreateName(extradata.entity) end
-    --         if extradata.type == "transform" then wiscene.Component_CreateTransform(extradata.entity) end
-    --         if extradata.type == "layer" then wiscene.Component_CreateLayer(extradata.entity) end
-    --         if extradata.type == "object" then wiscene.Component_CreateObject(extradata.entity) end
-    --         if extradata.type == "light" then wiscene.Component_CreateLight(extradata.entity) end
-    --         if extradata.type == "sound" then wiscene.Component_CreateSound(extradata.entity) end
-    --         if extradata.type == "material" then wiscene.Component_CreateMaterial(extradata.entity) end
-    --         if extradata.type == "emitter" then wiscene.Component_CreateEmitter(extradata.entity) end
-    --         if extradata.type == "hairparticle" then wiscene.Component_CreateHairParticleSystem(extradata.entity) end
-    --         if extradata.type == "weather" then wiscene.Component_CreateWeather(extradata.entity) end
-    --         if extradata.type == "instance" then scene.Component_CreateInstance(entity) end
-    --         if extradata.type == "stream" then scene.Component_CreateInstance(entity) end
-    --     end
-    -- end
+    if command == "del_comp" then
+        if type(extradata) == "table" then
+            if extradata.type == "name" then wiscene.Component_RemoveName(extradata.entity) end
+            if extradata.type == "transform" then wiscene.Component_RemoveTransform(extradata.entity) end
+            if extradata.type == "layer" then wiscene.Component_RemoveLayer(extradata.entity) end
+            if extradata.type == "object" then wiscene.Component_RemoveObject(extradata.entity) end
+            if extradata.type == "light" then wiscene.Component_RemoveLight(extradata.entity) end
+            if extradata.type == "sound" then wiscene.Component_RemoveSound(extradata.entity) end
+            if extradata.type == "material" then wiscene.Component_RemoveMaterial(extradata.entity) end
+            if extradata.type == "emitter" then wiscene.Component_RemoveEmitter(extradata.entity) end
+            if extradata.type == "hairparticle" then wiscene.Component_RemoveHairParticleSystem(extradata.entity) end
+            if extradata.type == "weather" then wiscene.Component_RemoveWeather(extradata.entity) end
+            if extradata.type == "instance" then scene.Component_RemoveInstance(extradata.entity) end
+            if extradata.type == "stream" then scene.Component_SetStreamable(false) end
+        end
+    end
 
     -- To run new command or just redo previous commands
     if holdout == nil then
@@ -600,7 +608,30 @@ local edit_undocmd = function()
     if command == "add_obj" then
         wiscene.Entity_Remove(extradata.entity)
     end
-    if command == "mod_comp" then
+    if command == "del_comp" then
+        if type(extradata) == "table" then
+            if extradata.type == "name" then wiscene.Component_CreateName(extradata.entity) end
+            if extradata.type == "transform" then wiscene.Component_CreateTransform(extradata.entity) end
+            if extradata.type == "layer" then wiscene.Component_CreateLayer(extradata.entity) end
+            if extradata.type == "object" then wiscene.Component_CreateObject(extradata.entity) end
+            if extradata.type == "light" then wiscene.Component_CreateLight(extradata.entity) end
+            if extradata.type == "sound" then wiscene.Component_CreateSound(extradata.entity) end
+            if extradata.type == "material" then wiscene.Component_CreateMaterial(extradata.entity) end
+            if extradata.type == "emitter" then wiscene.Component_CreateEmitter(extradata.entity) end
+            if extradata.type == "hairparticle" then wiscene.Component_CreateHairParticleSystem(extradata.entity) end
+            if extradata.type == "weather" then 
+                local weather = wiscene.Component_CreateWeather(extradata.entity) 
+                weather.SetRealisticSky(true)
+                weather.SetVolumetricClouds(true)
+            end
+            if extradata.type == "instance" then 
+                local instance = scene.Component_CreateInstance(entity)
+                instance.Lock = true
+            end
+            if extradata.type == "stream" then scene.Component_CreateInstance(entity) end
+        end
+    end
+    if (command == "mod_comp") or (command == "del_comp") then
         if extradata.type == "name" then
             local namecomponent = wiscene.Component_GetName(extradata.entity)
             if namecomponent then component_set_generic(namecomponent, extradata.pre) end  
@@ -766,6 +797,11 @@ local drawsceneexp = function()
     local resexp = D.editor_data.elements.resexp
 
     if resexp.win_visible then
+        if not resexp.updated then
+            resexp.directory_list = Editor_ListDirectory()
+            resexp.updated = true
+        end
+
         local sub_visible = false
         sub_visible, resexp.win_visible = imgui.Begin("\xef\x86\xb2 Scene Explorer", resexp.win_visible)
         if sub_visible then
@@ -778,10 +814,41 @@ local drawsceneexp = function()
             imgui.PopStyleVar()
 
             -- Display previews of scenes here!
+            -- if Editor_ImguiImageButton("Suzu", 100.0, 100.0) then end
+            for path, filelist in pairs(resexp.directory_list) do
+                local dirstack = {}
+                for stack in string.gmatch(path, "([^,]+)/") do table.insert(dirstack,stack) end
+                for _, file in ipairs(filelist) do
+                    -- backlog_post("DIR=" .. path .. " FILE=" .. file)
+                    if(dirstack[1] == "Scene") then
+                        local thumb_path = "Data/Editor/Thumb"
+                        if #dirstack > 2 then
+                            for idx = 2, #dirstack, 1 do thumb_path = thumb_path .. "/" .. dirstack[idx] end
+                        end
+                        local thumbname_split = {}
+                        for nstack in string.gmatch(file, "([^,]+)%.") do table.insert(thumbname_split, nstack) end
+                        if Editor_ImguiImageButton(thumb_path .. "/" .. thumbname_split[1] .. ".png", 100, 100) then
+                            resexp.selected_resname = thumbname_split[1]
+                            resexp.selected_file = "Data/" .. path .. file
+                            imgui.OpenPopup("REIM")
+                        end
+                    end
+                end
+            end
+
+            if imgui.BeginPopupContextWindow("REIM") then
+                local actions = D.editor_data.actions
+                actions.resource_open = imgui.MenuItem("Open", nil, actions.resource_open)
+                actions.resource_instance = imgui.MenuItem("Create Instance", nil, actions.resource_instance)
+                imgui.EndPopup()
+            end
 
             imgui.EndChild()
         end
+
         imgui.End()
+    else
+        resexp.updated = false
     end
 end
 
@@ -792,7 +859,7 @@ function Editor_DisplayEntityList(entities_list, selector, holdout)
         local nameComponent = wiscene.Component_GetName(entity)
         if nameComponent then name = nameComponent.Name end
 
-        local flag = imgui.constant.TreeNodeFlags.Leaf
+        local flag = imgui.constant.TreeNodeFlags.Leaf | imgui.constant.TreeNodeFlags.SpanAvailWidth
 
         if selector == entity then
             flag = flag | imgui.constant.TreeNodeFlags.Selected
@@ -819,7 +886,7 @@ function Editor_DisplayTreeList(entities_list, selector, holdout)
         local nameComponent = wiscene.Component_GetName(entity)
         if nameComponent then name = nameComponent.Name end
 
-        local flag = 0
+        local flag = imgui.constant.TreeNodeFlags.SpanFullWidth
         local has_children = true
         if type(scenegraphview.list.objects[string.format("%i" , entity)]) ~= "table" then 
             flag = flag | imgui.constant.TreeNodeFlags.Leaf
@@ -967,6 +1034,17 @@ local drawcomp = function(tree_title, act_name, entity, component, compio, edito
                 build_edit_prestate(component, compio, editdata.pre)
                 custom_def(component, editdata.pre)
                 edit_execcmd("mod_comp", editdata)
+            end
+
+            if imgui.Button("Remove " .. tree_title) then
+                local editdata = {
+                    entity = entity,
+                    type = act_name,
+                    pre = {}
+                }
+                build_edit_prestate(component, compio, editdata.pre)
+                custom_def(component, editdata.pre)
+                edit_execcmd("del_comp", editdata)
             end
 
             imgui.TreePop()
@@ -1233,7 +1311,7 @@ end
 
 local update_scenegraph = function()
     -- Update data only when the entity list changes
-    if Editor_IsEntityListUpdated() then
+    if Editor_IsEntityListUpdated() or D.editor_data.elements.scenegraphview.force_refresh then
         D.editor_data.elements.scenegraphview.list.objects = Editor_GetObjectList()
         D.editor_data.elements.scenegraphview.list.meshes = scene.Entity_GetMeshArray()
         D.editor_data.elements.scenegraphview.list.materials = wiscene.Entity_GetMaterialArray()
@@ -1241,6 +1319,8 @@ local update_scenegraph = function()
         D.editor_data.elements.scenegraphview.list.lights = wiscene.Entity_GetLightArray()
         D.editor_data.elements.scenegraphview.list.weathers = wiscene.Entity_GetWeatherArray()
         D.editor_data.elements.scenegraphview.list.instances = scene.Entity_GetInstanceArray()
+        
+        D.editor_data.elements.scenegraphview.force_refresh = false
     end
 
     D.editor_data.elements.scenegraphview.wait_update = false
@@ -1266,9 +1346,16 @@ local update_sysmenu_actions = function()
         actions.resource_rename = false
     end
     if actions.resource_save then
-        Editor_SaveScene(SOURCEPATH_ASSET .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA)
-        
+        Editor_SaveScene(SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA)
+        Editor_RenderScenePreview("SaveImg")
+        Editor_SaveImage("SaveImg","Data/Editor/Thumb/" .. D.editor_data.core_data.resname .. ".png")
         actions.resource_save = false
+    end
+    if actions.resource_open then
+        Editor_LoadScene(D.editor_data.elements.resexp.selected_file)
+        D.editor_data.core_data.resname = D.editor_data.elements.resexp.selected_resname
+        D.editor_data.elements.scenegraphview.force_refresh = true
+        actions.resource_open = false
     end
     --
     

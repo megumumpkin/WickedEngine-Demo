@@ -17,6 +17,7 @@
 
 #include "Editor_FontAwesomeV6.h"
 
+// ICON LIST ------------------------------------------
 #define ICON_LAYER				ICON_FA_LAYER_GROUP
 #define ICON_TRANSFORM			ICON_FA_LOCATION_DOT
 #define ICON_MESH				ICON_FA_CUBE
@@ -77,6 +78,8 @@
 #define ICON_SOFT				ICON_FA_LEAF
 #define ICON_HACKING			ICON_FA_COMPUTER
 
+// ----------------------------------------------------
+
 namespace Editor{
     struct ClipData
     {
@@ -114,6 +117,11 @@ namespace Editor{
         wi::unordered_map<std::string, wi::Resource> resourcemap;
         
         wi::unordered_set<wi::ecs::Entity> unsaved_instances;
+
+        // Preview Renderer Data
+        Game::RenderPipeline::DefaultPipeline preview_render;
+        wi::scene::CameraComponent preview_camera;
+        Game::Resources::Scene preview_scene;
     };
     enum EDITOR_STENCILREF : uint8_t
     {
