@@ -53,9 +53,13 @@ set (DEV_FILES
 	Source/ImGui/Widgets/ImGuizmo.h
 	Source/ImGui/Widgets/ImGuizmo.cpp
 
+	Source/json.hpp
+	Source/tiny_gltf.h
+
 	Source/Editor_FontAwesomeV6.h
 	Source/Editor_Translator.h
 	Source/Editor_Translator.cpp
+	Source/Editor_IO_GLTF.cpp
 	Source/Editor.h
 	Source/Editor.cpp
 )

@@ -85,6 +85,7 @@ D("editor_data",{
         -- Add menu actions
         link_dcc = false,
         import_wiscene = false,
+        import_gltf = false,
         add_object = false,
         add_light = false,
         add_sound = false,
@@ -747,6 +748,7 @@ local drawtopbar = function()
             local actions = D.editor_data.actions
             actions.link_dcc = imgui.MenuItem("\xef\x83\x81 Create DCC Link", nil, actions.link_dcc)
             actions.import_wiscene = imgui.MenuItem("\xee\x92\xb8 Import WiScene", nil, actions.import_wiscene)
+            actions.import_gltf = imgui.MenuItem("\xee\x92\xb8 Import GLTF", nil, actions.import_gltf)
             actions.add_object = imgui.MenuItem("\xef\x86\xb2 Add Object", nil, actions.add_object)
             actions.add_light = imgui.MenuItem("\xef\x83\xab Add Light", nil, actions.add_light)
             actions.add_sound = imgui.MenuItem("\xef\x80\xa8 Add Sound", nil, actions.add_sound)
@@ -797,7 +799,7 @@ local drawsceneexp = function()
     local resexp = D.editor_data.elements.resexp
 
     if resexp.win_visible then
-        if not resexp.updated then
+        if resexp.updated == false then
             resexp.directory_list = Editor_ListDirectory()
             resexp.updated = true
         end
@@ -818,8 +820,8 @@ local drawsceneexp = function()
             for path, filelist in pairs(resexp.directory_list) do
                 local dirstack = {}
                 for stack in string.gmatch(path, "([^,]+)/") do table.insert(dirstack,stack) end
+                backlog_post(#filelist)
                 for _, file in ipairs(filelist) do
-                    -- backlog_post("DIR=" .. path .. " FILE=" .. file)
                     if(dirstack[1] == "Scene") then
                         local thumb_path = "Data/Editor/Thumb"
                         if #dirstack > 2 then
@@ -1265,6 +1267,9 @@ local drawimportwindow = function()
                 if importwindow.type == "WISCENE" then
                     Editor_LoadWiScene(importwindow.file, importwindow.opt_wiscene.import_as_instance)
                 end
+                if (importwindow.type == "GLTF") or (importwindow.type == "GLB") then
+                    Editor_ImportGLTF(importwindow.file)
+                end
                 importwindow.win_visible = false
             end
             imgui.End()
@@ -1368,6 +1373,15 @@ local update_sysmenu_actions = function()
             import_opt.win_visible = true
         end)
         actions.import_wiscene = false
+    end
+    if actions.import_gltf then
+        filedialog(0,"GLTF Model File","gltf;glb",function(data)
+            local import_opt = D.editor_data.elements.importwindow
+            import_opt.file = data.filepath
+            import_opt.type = data.type
+            import_opt.win_visible = true
+        end)
+        actions.import_gltf = false
     end
     if actions.add_object then
         edit_execcmd("add_obj", {type = "object", name = "New Object"})

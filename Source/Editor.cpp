@@ -416,6 +416,21 @@ int Editor_DeletedEntityDrop(lua_State* L)
     return 0;
 }
 
+int Editor_ImportGLTF(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        std::string filepath = wi::lua::SGetString(L, 1);
+        Editor::IO::ImportModel_GLTF(filepath, Game::Resources::GetScene());
+    }
+    else
+    {
+        wi::lua::SError(L,"Editor_ImportGLTF(string filepath) not neight arguments");
+    }
+    return 0;
+}
+
 int Editor_LoadWiScene(lua_State* L)
 {
     auto& scene = Game::Resources::GetScene();
@@ -581,7 +596,7 @@ int Editor_ListDirectory(lua_State* L)
     wi::unordered_map<std::string, wi::vector<std::string>> dir_files;
     
     auto scene_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Scene");
-    for (auto& filenode : std::filesystem::recursive_directory_iterator(scene_root))
+    for (auto& filenode : std::filesystem::recursive_directory_iterator(scene_root,std::filesystem::directory_options::follow_directory_symlink))
     {
         std::string path = filenode.path();
         wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
@@ -590,7 +605,7 @@ int Editor_ListDirectory(lua_State* L)
         dir_files[dir].push_back(file);
     }
     auto texture_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Texture");
-    for (auto& filenode : std::filesystem::recursive_directory_iterator(texture_root))
+    for (auto& filenode : std::filesystem::recursive_directory_iterator(texture_root,std::filesystem::directory_options::follow_directory_symlink))
     {
         std::string path = filenode.path();
         wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
@@ -599,7 +614,7 @@ int Editor_ListDirectory(lua_State* L)
         dir_files[dir].push_back(file);
     }
     auto sound_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Sound");
-    for (auto& filenode : std::filesystem::recursive_directory_iterator(sound_root))
+    for (auto& filenode : std::filesystem::recursive_directory_iterator(sound_root,std::filesystem::directory_options::follow_directory_symlink))
     {
         std::string path = filenode.path();
         wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
@@ -615,8 +630,8 @@ int Editor_ListDirectory(lua_State* L)
         lua_newtable(L);
         for(int i = 0; i < dir.second.size(); ++i)
         {
-            wi::lua::SSetString(L, dir.second[i]);
-            lua_rawseti(L,-2,i);
+            lua_pushstring(L, dir.second[i].c_str());
+            lua_rawseti(L,-2,i+1);
         }
         lua_setfield(L, -2, dir.first.c_str());
     }
@@ -817,6 +832,8 @@ void Editor::Init()
     wi::lua::RegisterFunc("Editor_WipeDeletedEntityList", Editor_WipeDeletedEntityList);
 
     wi::lua::RegisterFunc("Editor_UpdateGizmoData", Editor_UpdateGizmoData);
+
+    wi::lua::RegisterFunc("Editor_ImportGLTF", Editor_ImportGLTF);
 
     wi::lua::RegisterFunc("Editor_LoadWiScene", Editor_LoadWiScene);
     wi::lua::RegisterFunc("Editor_LoadScene", Editor_LoadScene);

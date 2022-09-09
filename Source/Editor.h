@@ -81,6 +81,11 @@
 // ----------------------------------------------------
 
 namespace Editor{
+    namespace IO
+    {
+        void ImportModel_GLTF(const std::string& fileName, Game::Resources::Scene& scene);
+        void ExportModel_GLTF(const std::string& fileName, Game::Resources::Scene& scene);
+    }
     struct ClipData
     {
         wi::unordered_map<uint64_t, wi::ecs::Entity> remap;
