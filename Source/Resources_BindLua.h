@@ -136,5 +136,7 @@ namespace Game::ScriptBindings::Resources
 		int Entity_GetMeshArray(lua_State* L);
 
 		int LoadScene(lua_State* L);
+
+		int Clear(lua_State* L);
     };
 }

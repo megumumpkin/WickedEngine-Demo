@@ -115,6 +115,7 @@ namespace Editor{
         wi::scene::PickResult hovered;
         wi::scene::PickResult selection;
         Translator transform_translator;
+        wi::scene::TransformComponent transform_start;
 
         wi::unordered_map<uint32_t, ClipData> clips_deleted;
         wi::unordered_map<wi::ecs::Entity, ClipData> clips_copy;

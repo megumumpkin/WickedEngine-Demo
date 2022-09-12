@@ -143,6 +143,8 @@ namespace Game::ScriptBindings::Resources{
 
     const char Library_Instance_BindLua::className[] = "InstanceComponent";
     Luna<Library_Instance_BindLua>::FunctionType Library_Instance_BindLua::methods[] = {
+        lunamethod(Library_Instance_BindLua, Init),
+        lunamethod(Library_Instance_BindLua, Unload),
         { NULL, NULL }
     };
     Luna<Library_Instance_BindLua>::PropertyType Library_Instance_BindLua::properties[] = {
@@ -268,6 +270,7 @@ namespace Game::ScriptBindings::Resources{
         lunamethod(Scene_BindLua, Entity_GetStreamArray),
         lunamethod(Scene_BindLua, Entity_GetMeshArray),
         lunamethod(Scene_BindLua, LoadScene),
+        lunamethod(Scene_BindLua, Clear),
         { NULL, NULL }
     };
     Luna<Scene_BindLua>::PropertyType Scene_BindLua::properties[] = {
@@ -522,6 +525,9 @@ namespace Game::ScriptBindings::Resources{
             wi::lua::SError(L, "GameScene::LoadScene(String file) not enough arguments!");
         }
         return 0;
+    }
+    int Scene_BindLua::Clear(lua_State *L){
+        scene->Clear();
         return 0;
     }
 }

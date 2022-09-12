@@ -1,4 +1,5 @@
 #include "Editor.h"
+#include <wiMath_BindLua.h>
 
 Editor::Data* Editor::GetData(){
     static Data data;
@@ -30,7 +31,12 @@ int Editor_IsEntityListUpdated(lua_State* L)
     auto& entity_list = wiscene.names.GetEntityArray();
 
     bool changed = (Editor::GetData()->entitylist_sizecache != entity_list.size());
-    if(changed) Editor::GetData()->entitylist_sizecache = entity_list.size();
+    if(changed){ 
+        Editor::GetData()->entitylist_sizecache = entity_list.size();
+        if(Editor::GetData()->transform_translator.selected.size() > 0)
+            if(!Game::Resources::GetScene().wiscene.transforms.Contains(Editor::GetData()->transform_translator.selected[0].entity))
+                Editor::GetData()->transform_translator.selected.clear();
+    }
     wi::lua::SSetBool(L, changed);
     return 1;
 }
@@ -469,17 +475,20 @@ int Editor_SaveScene(lua_State* L)
     {
         auto filepath = wi::lua::SGetString(L, 1);
         auto& scene = Game::Resources::GetScene();
+
         // Step 1: Check if there are unsaved instances and then save them!
         for(auto& instance_entity : Editor::GetData()->unsaved_instances)
         {
             auto instance = scene.instances.GetComponent(instance_entity);
             // TODO
         }
+
         // Step 2: Unload all instances
         for(int i = 0; i < scene.instances.GetCount(); ++i)
         {
             scene.instances[i].Unload();
         }
+        
         // Step 3: Save the scene
         auto archive = wi::Archive(filepath,false);
         scene.wiscene.Serialize(archive);
@@ -504,6 +513,7 @@ int Editor_LoadScene(lua_State* L)
     {
         auto filepath = wi::lua::SGetString(L, 1);
         auto& scene = Game::Resources::GetScene();
+        scene.Clear();
         wi::scene::LoadModel(scene.wiscene, filepath);
     }
     else 
@@ -810,6 +820,82 @@ int Editor_SaveImage(lua_State* L)
     return 0;
 }
 
+int Editor_ExtractSubInstanceNames(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        auto filepath = wi::lua::SGetString(L, 1);
+
+        wi::ecs::Entity instance_entity = wi::ecs::INVALID_ENTITY;
+        if(argc >= 2)
+        {
+            instance_entity = (wi::ecs::Entity)wi::lua::SGetInt(L, 2);
+        }
+
+        wi::unordered_set<std::string> names;
+
+        auto& scene = Game::Resources::GetScene();
+
+        auto instanceComponent = scene.instances.GetComponent(instance_entity);
+        if(instanceComponent != nullptr)
+        {
+            for(auto& entity : instanceComponent->entities)
+            {
+                auto nameComponent = scene.wiscene.names.GetComponent(entity);
+                names.insert(nameComponent->name);
+            }
+        }
+        else
+        {
+            for(int i = 0; i < scene.wiscene.names.GetCount(); ++i)
+            {
+                names.insert(scene.wiscene.names[i].name);
+            }
+        }
+
+        wi::vector<std::string> names_export;
+        names_export.insert(names_export.begin(), names.begin(), names.end());
+
+        auto save = wi::Archive(filepath, false);
+        save << names_export;
+    }
+    else
+    {
+        wi::lua::SError(L, "Editor_ExtractSubInstanceNames(string filepath) not enough arguments!");
+    }
+
+    return 0;
+}
+
+int Editor_FetchSubInstanceNames(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        auto filepath = wi::lua::SGetString(L, 1);
+
+        wi::vector<std::string> names_import;
+        
+        auto load = wi::Archive(filepath, true);
+        load >> names_import;
+
+        lua_newtable(L);
+        for(int i = 0; i < names_import.size(); ++i)
+        {
+            wi::lua::SSetString(L, names_import[i]);
+            lua_rawseti(L, -2, i);
+        }
+
+        return 1;
+    }
+    else
+    {
+        wi::lua::SError(L, "Editor_FetchSubInstanceNames(string filepath) not enough arguments!");
+    }
+    return 0;
+}
+
 void Editor::Init()
 {
     wi::lua::RunText("EditorAPI = true");
@@ -847,6 +933,9 @@ void Editor::Init()
     wi::lua::RegisterFunc("Editor_RenderMaterialPreview", Editor_RenderMaterialPreview);
     wi::lua::RegisterFunc("Editor_SaveImage", Editor_SaveImage);
 
+    wi::lua::RegisterFunc("Editor_ExtractSubInstanceNames", Editor_ExtractSubInstanceNames);
+    wi::lua::RegisterFunc("Editor_FetchSubInstanceNames", Editor_FetchSubInstanceNames);
+
     Editor::GetData()->transform_translator.SetEnabled(true);
     Editor::GetData()->transform_translator.scene = &Game::Resources::GetScene().wiscene;
 
@@ -861,6 +950,55 @@ void Editor::Init()
 void Editor::Update(float dt, wi::RenderPath2D& viewport)
 {
     GetData()->transform_translator.Update(Game::Resources::GetScene().wiscene.camera, viewport);
+    if(GetData()->transform_translator.IsDragStarted())
+    {
+        auto& translator = GetData()->transform_translator;
+        if(translator.selected.size() > 0)
+        {
+            auto transformComponent = Game::Resources::GetScene().wiscene.transforms.GetComponent(translator.selected[0].entity);
+            Editor::GetData()->transform_start = *transformComponent;
+        }
+    }
+    if(GetData()->transform_translator.IsDragEnded())
+    {
+        auto& translator = GetData()->transform_translator;
+
+        if(translator.selected.size() > 0)
+        {
+            auto L = wi::lua::GetLuaState();
+            lua_getglobal(L, "editor_hook_execcmd");
+
+            wi::lua::SSetString(L, "mod_comp");
+            
+            lua_newtable(L);
+            wi::lua::SSetLongLong(L, translator.selected[0].entity);
+            lua_setfield(L, -2, "entity");
+            wi::lua::SSetString(L, "transform");
+            lua_setfield(L, -2, "type");
+            lua_newtable(L);
+
+            Luna<wi::lua::Vector_BindLua>::push(L, new wi::lua::Vector_BindLua(XMLoadFloat3(&Editor::GetData()->transform_start.translation_local)));
+            lua_setfield(L, -2, "Translation_local");
+            Luna<wi::lua::Vector_BindLua>::push(L, new wi::lua::Vector_BindLua(XMLoadFloat4(&Editor::GetData()->transform_start.rotation_local)));
+            lua_setfield(L, -2, "Rotation_local");
+            Luna<wi::lua::Vector_BindLua>::push(L, new wi::lua::Vector_BindLua(XMLoadFloat3(&Editor::GetData()->transform_start.scale_local)));
+            lua_setfield(L, -2, "Scale_local");
+            lua_setfield(L, -2, "pre");
+            lua_newtable(L);
+            auto transformComponent = Game::Resources::GetScene().wiscene.transforms.GetComponent(translator.selected[0].entity);
+            Luna<wi::lua::Vector_BindLua>::push(L, new wi::lua::Vector_BindLua(XMLoadFloat3(&transformComponent->translation_local)));
+            lua_setfield(L, -2, "Translation_local");
+            Luna<wi::lua::Vector_BindLua>::push(L, new wi::lua::Vector_BindLua(XMLoadFloat4(&transformComponent->rotation_local)));
+            lua_setfield(L, -2, "Rotation_local");
+            Luna<wi::lua::Vector_BindLua>::push(L, new wi::lua::Vector_BindLua(XMLoadFloat3(&transformComponent->scale_local)));
+            lua_setfield(L, -2, "Scale_local");
+            lua_setfield(L, -2, "post");
+
+            wi::lua::SSetBool(L,false);
+            
+            lua_call(L, 3, 0);
+        }
+    }
     Editor_ProcessHovered();
 }
 

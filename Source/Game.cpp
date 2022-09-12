@@ -408,16 +408,19 @@ void ApplicationView::Start(){
 }
 
 void ApplicationView::PreUpdate(){
+	std::scoped_lock thread_lock (Game::Resources::GetScene().mutex_scenestream);
 	RenderPath2D::PreUpdate();
 	renderPath->PreUpdate();
 }
 
 void ApplicationView::FixedUpdate(){
+	std::scoped_lock thread_lock (Game::Resources::GetScene().mutex_scenestream);
 	RenderPath2D::FixedUpdate();
 	renderPath->FixedUpdate();
 }
 
 void ApplicationView::Update(float dt){
+	std::scoped_lock thread_lock (Game::Resources::GetScene().mutex_scenestream);
     ApplicationView::Update_ImGUI();
 	Game::ScriptBindings::Update(dt);
 	LiveUpdate::Update(dt);
@@ -451,11 +454,13 @@ void ApplicationView::Update_ImGUI(){}
 #endif
 
 void ApplicationView::PostUpdate(){
+	std::scoped_lock thread_lock (Game::Resources::GetScene().mutex_scenestream);
 	RenderPath2D::PostUpdate();
 	renderPath->PostUpdate();
 }
 
 void ApplicationView::Render() const{
+	std::scoped_lock thread_lock (Game::Resources::GetScene().mutex_scenestream);
 	renderPath->Render();
 
 	// Selection outline:
@@ -512,6 +517,7 @@ void ApplicationView::Render() const{
 }
 
 void ApplicationView::Compose(wi::graphics::CommandList cmd) const{
+	std::scoped_lock thread_lock (Game::Resources::GetScene().mutex_scenestream);
 	renderPath->Compose(cmd);
 
 	CameraComponent cam = *renderPath->camera;

@@ -6,8 +6,11 @@ D("editor_data",{
             input = "",
             selected_file = "",
             selected_resname = "",
+            selected_subinstance = "",
             directory_stack = {},
-            directory_list = {}
+            directory_list = {},
+            instance_popup = false,
+            subinstance_list = {}
         },
         scenegraphview = {
             win_visible = true,
@@ -347,7 +350,7 @@ local compio_instance = {
     {"EntityName", "Subtarget Entity Name", "text"},
     {"Strategy", "Loading Strategy", "combo", { choices = "Direct\0Instance\0Preload\0" }},
     {"Type", "Type", "combo", { choices = "Default\0Library\0" }},
-    {"Lock", "Lock For Editing", "check"},
+    -- {"Lock", "Lock For Editing", "check"},
 }
 
 local compio_stream = {
@@ -406,14 +409,11 @@ end
 local edit_execcmd = function(command, extradata, holdout)
     if command == "add_obj" then
         if type(extradata) == "table" then
-            local entity = 0
-            if holdout == nil then
-                entity = scene.Entity_Create()
-            else
-                entity = extradata.entity
+            if extradata.entity == nil then
+                extradata.entity = CreateEntity()
             end
             
-            extradata.entity = entity
+            local entity = extradata.entity
             local name = wiscene.Component_CreateName(entity)
             name.SetName(extradata.name)
             if extradata.type == "object" then
@@ -496,7 +496,11 @@ local edit_execcmd = function(command, extradata, holdout)
             end
             if extradata.type == "transform" then
                 local transformcomponent = wiscene.Component_GetTransform(extradata.entity)
-                if transformcomponent then component_set_transform(transformcomponent, extradata.post) end
+                if transformcomponent then 
+                    component_set_transform(transformcomponent, extradata.post) 
+                    transformcomponent.SetDirty(true)
+                    transformcomponent.UpdateTransform()
+                end
             end
             if extradata.type == "object" then
                 local objectcomponent = wiscene.Component_GetObject(extradata.entity)
@@ -556,6 +560,10 @@ local edit_execcmd = function(command, extradata, holdout)
             extradata.index = #D.editor_data.actions.command_list
             Editor_StashDeletedEntity(extradata.entity, extradata.index)
         end
+        local instance = scene.Component_GetInstance(extradata.entity)
+        if instance then
+            instance.Unload()
+        end
         wiscene.Entity_Remove(extradata.entity)
     end
 
@@ -591,6 +599,10 @@ local edit_execcmd = function(command, extradata, holdout)
     end
 
     D.editor_data.elements.scenegraphview.wait_update = true
+end
+
+function editor_hook_execcmd(command, editdata, holdout)
+    edit_execcmd(command,editdata)
 end
 
 local edit_redocmd = function()
@@ -643,7 +655,11 @@ local edit_undocmd = function()
         end
         if extradata.type == "transform" then
             local transformcomponent = wiscene.Component_GetTransform(extradata.entity)
-            if transformcomponent then component_set_transform(transformcomponent, extradata.pre) end
+            if transformcomponent then 
+                component_set_transform(transformcomponent, extradata.pre) 
+                transformcomponent.SetDirty(true)
+                transformcomponent.UpdateTransform()
+            end
         end
         if extradata.type == "object" then
             local objectcomponent = wiscene.Component_GetObject(extradata.entity)
@@ -815,12 +831,17 @@ local drawsceneexp = function()
             local view_oblist = imgui.BeginChild("##listview", 0, 0, true, childflags)
             imgui.PopStyleVar()
 
+            local containersize = imgui.GetContentRegionAvail()
+            local max_sameline = math.floor(containersize.x / 100) 
+
+            local item_counter = 1
+            local sameline_count = 1
+
             -- Display previews of scenes here!
             -- if Editor_ImguiImageButton("Suzu", 100.0, 100.0) then end
             for path, filelist in pairs(resexp.directory_list) do
                 local dirstack = {}
                 for stack in string.gmatch(path, "([^,]+)/") do table.insert(dirstack,stack) end
-                backlog_post(#filelist)
                 for _, file in ipairs(filelist) do
                     if(dirstack[1] == "Scene") then
                         local thumb_path = "Data/Editor/Thumb"
@@ -829,11 +850,23 @@ local drawsceneexp = function()
                         end
                         local thumbname_split = {}
                         for nstack in string.gmatch(file, "([^,]+)%.") do table.insert(thumbname_split, nstack) end
+                        
+                        if (sameline_count <= max_sameline) and (item_counter > 1) then 
+                            imgui.SameLine()
+                        else
+                            sameline_count = 1
+                        end
+                        
                         if Editor_ImguiImageButton(thumb_path .. "/" .. thumbname_split[1] .. ".png", 100, 100) then
                             resexp.selected_resname = thumbname_split[1]
                             resexp.selected_file = "Data/" .. path .. file
                             imgui.OpenPopup("REIM")
                         end
+                        if imgui.IsItemHovered() then
+                            imgui.SetTooltip(thumbname_split[1])
+                        end
+                        sameline_count = sameline_count + 1
+                        item_counter = item_counter + 1
                     end
                 end
             end
@@ -841,7 +874,32 @@ local drawsceneexp = function()
             if imgui.BeginPopupContextWindow("REIM") then
                 local actions = D.editor_data.actions
                 actions.resource_open = imgui.MenuItem("Open", nil, actions.resource_open)
-                actions.resource_instance = imgui.MenuItem("Create Instance", nil, actions.resource_instance)
+                resexp.instance_popup = imgui.MenuItem("Create Instance", nil, resexp.instance_popup)
+                imgui.EndPopup()
+            end
+
+            if resexp.instance_popup then
+                imgui.OpenPopup("REINST")
+                resexp.subinstance_list = Editor_FetchSubInstanceNames("Data/Editor/Instances/" .. resexp.selected_resname .. ".instlist")
+                resexp.instance_popup = false
+            end
+
+            if imgui.BeginPopupContextWindow("REINST") then
+                local actions = D.editor_data.actions
+                local act_inst_scene = false
+                act_inst_scene = imgui.MenuItem("Full Scene", nil, act_inst_scene)
+                if act_inst_scene then
+                    resexp.selected_subinstance = ""
+                    actions.resource_instance = true
+                end
+                for _, entityname in ipairs(resexp.subinstance_list) do
+                    local act_inst_entt = false
+                    act_inst_entt = imgui.MenuItem("Entity - " .. entityname, nil, act_inst_entt)
+                    if act_inst_entt then
+                        resexp.selected_subinstance = entityname
+                        actions.resource_instance = true
+                    end
+                end
                 imgui.EndPopup()
             end
 
@@ -1341,7 +1399,7 @@ local update_sysmenu_actions = function()
             actions.command_list = {}
             Editor_WipeDeletedEntityList()
         end
-        wiscene.Clear()
+        scene.Clear()
         edit_execcmd("init")
 
         actions.resource_new = false
@@ -1351,9 +1409,10 @@ local update_sysmenu_actions = function()
         actions.resource_rename = false
     end
     if actions.resource_save then
-        Editor_SaveScene(SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA)
         Editor_RenderScenePreview("SaveImg")
         Editor_SaveImage("SaveImg","Data/Editor/Thumb/" .. D.editor_data.core_data.resname .. ".png")
+        Editor_SaveScene(SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA)
+        Editor_ExtractSubInstanceNames("Data/Editor/Instances/" .. D.editor_data.core_data.resname .. ".instlist")
         actions.resource_save = false
     end
     if actions.resource_open then
@@ -1361,6 +1420,20 @@ local update_sysmenu_actions = function()
         D.editor_data.core_data.resname = D.editor_data.elements.resexp.selected_resname
         D.editor_data.elements.scenegraphview.force_refresh = true
         actions.resource_open = false
+    end
+    if actions.resource_instance then
+        local editdata = {
+            entity = CreateEntity(),
+            type = "instance",
+        }
+        edit_execcmd("add_obj", editdata)
+        local name = wiscene.Component_GetName(editdata.entity)
+        local instance = scene.Component_GetInstance(editdata.entity)
+        name.Name = D.editor_data.elements.resexp.selected_resname
+        instance.Lock = false
+        instance.File = D.editor_data.elements.resexp.selected_file
+        instance.EntityName = D.editor_data.elements.resexp.selected_subinstance
+        actions.resource_instance = false
     end
     --
     

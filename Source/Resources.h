@@ -45,6 +45,7 @@ namespace Game::Resources
             wi::unordered_set<wi::ecs::Entity> entities;
 
             bool lock = false; // Lock resource from automatically loading (Good for editing)
+            bool loading = false;
 
             void Init(wi::jobsystem::context* joblist = nullptr);
             void Unload();
@@ -108,6 +109,7 @@ namespace Game::Resources
         void Init();
         void Library_Update(float dt);
         void Update(float dt);
+        void Clear();
     };
     inline Scene& GetScene()
     {
