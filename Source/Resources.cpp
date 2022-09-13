@@ -5,166 +5,119 @@ using namespace Game::Resources;
 void Library::Instance::Init(wi::jobsystem::context* joblist){
     if(joblist == nullptr) joblist = &scene->job_scenestream;
 
-    auto static_filepath = file;
-    auto static_entityname = entity_name;
-    auto static_scene = scene;
-    
+    auto static_file = file.c_str();
+    auto static_entity_name = entity_name.c_str();
+    bool has_entity_name = (entity_name != "");
+
     wi::jobsystem::Execute(*joblist, [=](wi::jobsystem::JobArgs args_job){
-        loading = true;
         bool do_clone = false;
 
         scene->mutex_scenestream.lock();
-        auto find_collection = scene->collections.find(wi::helper::string_hash(file.c_str()));
-        if(find_collection == scene->collections.end()) // Load from disk if collection does not exist!
+
+        loading = true;
+        auto find_collection = scene->collections.find(wi::helper::string_hash(static_file));
+
+        scene->mutex_scenestream.unlock();
+        
+        if(find_collection == scene->collections.end())
         {
-            scene->mutex_scenestream.unlock();
-            // Check loading strategy first
-            if(strategy == LOAD_DIRECT && entity_name == ""){
-                // Store newly made collection to the list
-                {
-                    std::scoped_lock thread_lock (scene->mutex_scenestream);
-                    scene->collections[wi::helper::string_hash(file.c_str())] = instance_id;
-                }
-
+            if(strategy == LOAD_DIRECT && !has_entity_name)
+            {
+                scene->mutex_scenestream.lock();
                 collection_id = instance_id;
-
-                Scene load_scene;
-                auto prototype_root = wi::scene::LoadModel(load_scene.wiscene, file, XMMatrixIdentity(), true);
-
-                // Scan the loaded scene and enlist entities
-                load_scene.wiscene.FindAllEntities(entities);
-                entities.erase(prototype_root);
-
-                std::scoped_lock thread_lock (scene->mutex_scenestream);
-
-                // Merge and set parent to collection
-                scene->wiscene.Merge(load_scene.wiscene);
-                for(auto entity : entities)
-                {
-                    auto hierarchyComponent = scene->wiscene.hierarchy.GetComponent(entity);
-                    if(hierarchyComponent != nullptr)
-                    {
-                        if(hierarchyComponent->parentID == prototype_root)
-                        {
-                            scene->wiscene.Component_Attach(entity, instance_id, true);
-                        }
-                    }
-                }
-                scene->wiscene.Entity_Remove(prototype_root, false);
-
-                // Store newly made collection to the list
-                scene->collections[wi::helper::string_hash(file.c_str())] = instance_id;
-
-                // If we're loading as library we have to stash non-data objects!
-                if(type == LIBRARY){
-                    for(auto& entity : entities){
-                        bool ignore = (
-                            (scene->wiscene.materials.Contains(entity) == true) ||
-                            (scene->wiscene.meshes.Contains(entity) == true)
-                        );
-
-                        if(!ignore){ // Stash away non data objects by disabling them!
-                            scene->Entity_Disable(entity);
-                        }
-                    }
-                }
-            } else {
-                // Spawn another entity as library and then ask them to load it as library
-                auto lib_entity = scene->CreateInstance("LIB_"+file);
-                auto lib_instance = scene->instances.GetComponent(lib_entity);
-
-                lib_instance->scene = scene;
-                lib_instance->instance_id = lib_entity;
-                lib_instance->strategy = LOAD_DIRECT;
-                lib_instance->type = LIBRARY;
-                lib_instance->file = static_filepath;
-
+                scene->collections[wi::helper::string_hash(static_file)] = collection_id;
                 scene->mutex_scenestream.unlock();
 
-                wi::jobsystem::context preload_list;
+                Game::Resources::Scene load_scene;
+                wi::ecs::EntitySerializer seri;
 
-                lib_instance->Init(&preload_list);
-                wi::jobsystem::Wait(preload_list);
+                auto temp_root = wi::scene::LoadModel(load_scene.wiscene,static_file,XMMatrixIdentity(),true);
 
-                scene->mutex_scenestream.lock();
+                std::scoped_lock thread_lock (scene->mutex_scenestream);
 
-                find_collection = scene->collections.find(wi::helper::string_hash(static_filepath.c_str()));
+                load_scene.wiscene.FindAllEntities(entities);
+                entities.erase(temp_root);
+                scene->wiscene.Merge(load_scene.wiscene);
 
-                do_clone = true;
+                for(auto entity : entities)
+                {
+                    if(scene->wiscene.hierarchy.Contains(entity))
+                    {
+                        auto hierarchyComponent = scene->wiscene.hierarchy.GetComponent(entity);
+                        if(hierarchyComponent->parentID == temp_root)
+                            scene->wiscene.Component_Attach(entity, instance_id);
+                    }
+
+                    if(type == LIBRARY)
+                    {
+                        scene->Entity_Disable(entity);
+                    }
+                }
+                
+                scene->wiscene.Entity_Remove(temp_root, false);
             }
-        }
-        else do_clone = true;
-        
-        // We can just clone if the collection exists
-        if(do_clone)
-        { 
-            auto collection_entity = find_collection->second;
-            auto collection_instance = scene->instances.GetComponent(collection_entity);
+            else
+            {
+                std::scoped_lock thread_lock (scene->mutex_scenestream);
 
+                auto lib_name = "LIB"+std::string(static_file);
+
+                if(scene->wiscene.Entity_FindByName(lib_name.c_str()) == wi::ecs::INVALID_ENTITY)
+                {
+                    auto lib_entity = scene->CreateInstance(lib_name);
+                    auto lib_instance = scene->instances.GetComponent(lib_entity);
+                    
+                    lib_instance->file = static_file;
+                    lib_instance->type = LIBRARY;
+                }
+            }
+            
+        }
+        else
+        {
+            scene->mutex_scenestream.lock();
+            collection_id = find_collection->second;
+            auto collection = scene->instances.GetComponent(collection_id);            
             scene->mutex_scenestream.unlock();
 
-            if(collection_instance != nullptr)
+            while (collection->loading) {}
+
+            std::scoped_lock thread_lock (scene->mutex_scenestream);
+
+            wi::ecs::EntitySerializer seri;
+
+            for(auto entity : collection->entities)
             {
-                while(collection_instance->loading){}
-
-                wi::ecs::EntitySerializer seri;
-                collection_id = collection_entity;
-                
-                std::scoped_lock thread_lock (scene->mutex_scenestream);
-                for(auto& origin_entity :  collection_instance->entities)
+                bool clone = false;
+                if(std::string(static_entity_name) != "")
                 {
-                    bool clone = false;
-                    if(static_entityname != "")
+                    if(scene->wiscene.names.Contains(entity))
                     {
-                        auto find_entity = origin_entity;
-                        auto find_disabled = scene->disabled_list.find(find_entity);
-                        if(find_disabled != scene->disabled_list.end())
-                        {
-                            find_entity = find_disabled->second;
-                        }
-
-                        if(scene->wiscene.names.Contains(find_entity))
-                        {
-                            auto origin_name = scene->wiscene.names.GetComponent(find_entity);
-                            if(static_entityname == origin_name->name) 
-                                clone = true;
-                        }
+                        auto nameComponent = scene->wiscene.names.GetComponent(entity);
+                        if(nameComponent->name == std::string(static_entity_name))
+                            clone = true;
                     }
-                    else clone = true;
-
-                    auto cloned = (seri.remap.find(origin_entity) != seri.remap.end());
-
-                    if(clone && !cloned)
-                    {
-                        auto new_entity = scene->Entity_Clone(origin_entity, seri);
-                        
-                        if(static_scene->wiscene.hierarchy.Contains(new_entity))
-                        {
-                            auto hierarchyComponent = static_scene->wiscene.hierarchy.GetComponent(new_entity);
-                            if(hierarchyComponent->parentID == collection_entity)
-                                static_scene->wiscene.Component_Attach(new_entity, instance_id, true);
-                        }
-                    }
+                    
                 }
+                else clone = true;
 
-                for(auto& entity_remap : seri.remap)
+                bool cloned = (seri.remap.find(entity) != seri.remap.end());
+
+                if(clone && !cloned)
                 {
-                    entities.insert(entity_remap.second);
+                    auto clone_entity = scene->Entity_Clone(entity, seri);
+
+                    if(scene->wiscene.hierarchy.Contains(clone_entity))
+                    {
+                        auto hierarchyComponent = scene->wiscene.hierarchy.GetComponent(clone_entity);
+                        if(hierarchyComponent->parentID == collection_id)
+                            scene->wiscene.Component_Attach(clone_entity, instance_id);
+                    }
                 }
             }
         }
 
-        // For streaming objects, we need to track transition fx,
-        // so first we need to register objectComponents of the instance
-        // And then start the transition from zero!
-        auto streamComponent = scene->streams.GetComponent(instance_id);
-        if(streamComponent != nullptr)
-        {
-            for (auto& entity : entities){
-                auto objectComponent = scene->wiscene.objects.GetComponent(entity);
-                if(objectComponent != nullptr) streamComponent->instance_original_transparency[entity] = objectComponent->GetTransparency();
-            }
-        }
+        std::scoped_lock thread_lock (scene->mutex_scenestream);
 
         loading = false;
     });
@@ -252,68 +205,136 @@ void Scene::SetStreamable(wi::ecs::Entity entity, bool set, wi::primitive::AABB 
     }
 }
 
+static std::vector<std::string> disable_list = {
+    "wi::scene::Scene::impostors",
+    "wi::scene::Scene::objects",
+    "wi::scene::Scene::aabb_objects",
+    "wi::scene::Scene::rigidbodies",
+    "wi::scene::Scene::softbodies",
+    "wi::scene::Scene::armatures",
+    "wi::scene::Scene::lights",
+    "wi::scene::Scene::aabb_lights",
+    "wi::scene::Scene::cameras",
+    "wi::scene::Scene::probes",
+    "wi::scene::Scene::aabb_probes",
+    "wi::scene::Scene::forces",
+    "wi::scene::Scene::decals",
+    "wi::scene::Scene::aabb_decals",
+    "wi::scene::Scene::animations",
+    "wi::scene::Scene::emitters",
+    "wi::scene::Scene::hairs",
+    "wi::scene::Scene::weathers",
+    "wi::scene::Scene::sounds",
+    "wi::scene::Scene::inverse_kinematics",
+    "wi::scene::Scene::springs",
+    "wi::scene::Scene::colliders",
+    "wi::scene::Scene::scripts",
+    "wi::scene::Scene::expressions",
+    "wi::scene::Scene::terrains",
+    "game::component::streams"
+};
+
 void Scene::Entity_Disable(wi::ecs::Entity entity){
-    auto disable_handle = wi::ecs::CreateEntity();
+    auto& disable_store = Game::Resources::GetScene().disabled.Create(entity);
+
+    auto& store = disable_store.entity_store;
+    
+    store.SetReadModeAndResetPos(false);
 
     wi::ecs::EntitySerializer seri;
- 
-    if(wiscene.names.Contains(entity))
+    seri.allow_remap = false;
+    
+    for(auto& to_disable : disable_list)
     {
-        auto nameComponent = wiscene.names.GetComponent(entity);
-        auto& disabledNameStore = wiscene.names.Create(disable_handle); 
-        disabledNameStore.name = nameComponent->name;
+        auto compmgr = Game::Resources::GetScene().wiscene.componentLibrary.entries[to_disable].component_manager.get();
+        if(compmgr->Contains(entity))
+        {
+            store << true;
+            store << to_disable;
+            compmgr->Component_Serialize(entity, store, seri);
+            compmgr->Remove(entity);
+        }
     }
-
-    auto& disabledComponent = disabled.Create(disable_handle);
-
-    disabledComponent.entity_store.SetReadModeAndResetPos(false);
-    wiscene.Entity_Serialize(disabledComponent.entity_store, seri, entity,
-        wi::scene::Scene::EntitySerializeFlags::RECURSIVE | wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES);
-
-    disabled_list[entity] = disable_handle;
-    disabledComponent.remap = seri.remap;
-
-    wiscene.Entity_Remove(entity);
+    store << false;
+    disable_store.remap.insert(seri.remap.begin(), seri.remap.end());
 }
 
 void Scene::Entity_Enable(wi::ecs::Entity entity){
-    auto find_disabled = disabled_list.find(entity);
-    if(find_disabled != disabled_list.end())
+    auto disable_store = Game::Resources::GetScene().disabled.GetComponent(entity);
+    if(disable_store != nullptr)
     {
-        auto disabledComponent = disabled.GetComponent(find_disabled->second);
+        disable_store->entity_store.SetReadModeAndResetPos(true);
+
+        auto& read = disable_store->entity_store;
+        read.SetReadModeAndResetPos(true);
 
         wi::ecs::EntitySerializer seri;
-        seri.remap = disabledComponent->remap;
-        disabledComponent->entity_store.SetReadModeAndResetPos(true);
-        wiscene.Entity_Serialize(disabledComponent->entity_store, seri, wi::ecs::INVALID_ENTITY,
-            wi::scene::Scene::EntitySerializeFlags::RECURSIVE | wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES);
+        seri.allow_remap = false;
+        seri.remap.insert(disable_store->remap.begin(), disable_store->remap.end());
 
-        wiscene.Entity_Remove(find_disabled->second);
+        bool has_next = false;
+        std::string compmgr_name;
+        do
+        {
+            read >> has_next;
+            if(has_next)
+            {
+                read >> compmgr_name;
+
+                auto compmgr = Game::Resources::GetScene().wiscene.componentLibrary.entries[compmgr_name].component_manager.get();
+                compmgr->Remove(entity);
+                compmgr->Component_Serialize(entity, read, seri);
+            }   
+        }
+        while(has_next);
+
+        Game::Resources::GetScene().disabled.Remove(entity);
     }
 }
 
 wi::ecs::Entity Scene::Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri){
-    wi::Archive* archive;
+    wi::Archive archive;
 
-    wi::Archive new_archive;
-    auto find_disabled = disabled_list.find(entity);
-    if(find_disabled != disabled_list.end()) // If disabled then just clone the disabled data
-    {
-        auto disabledComponent = disabled.GetComponent(find_disabled->second);
-        archive = &disabledComponent->entity_store;
-        seri.remap = disabledComponent->remap;
-    }
-    else // If not then just copy it as usual
-    {
-        archive = &new_archive;
-        archive->SetReadModeAndResetPos(false);
-        wiscene.Entity_Serialize(*archive, seri, entity, wi::scene::Scene::EntitySerializeFlags::RECURSIVE);
-    }
+    archive.SetReadModeAndResetPos(false);
+    wiscene.Entity_Serialize(archive, seri, entity, wi::scene::Scene::EntitySerializeFlags::RECURSIVE);
 
-    archive->SetReadModeAndResetPos(true);
-    auto root = wiscene.Entity_Serialize(*archive, seri, wi::ecs::INVALID_ENTITY,
+    archive.SetReadModeAndResetPos(true);
+    auto root = wiscene.Entity_Serialize(archive, seri, wi::ecs::INVALID_ENTITY,
         wi::scene::Scene::EntitySerializeFlags::RECURSIVE | wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES);
 
+    if(disabled.Contains(root))
+    {
+        disabled.Remove(root);
+        auto disable_store = disabled.GetComponent(entity);
+        if(disable_store != nullptr)
+        {
+            disable_store->entity_store.SetReadModeAndResetPos(true);
+
+            auto& read = disable_store->entity_store;
+            read.SetReadModeAndResetPos(true);
+
+            wi::ecs::EntitySerializer d_seri;
+            d_seri.allow_remap = false;
+            d_seri.remap.insert(disable_store->remap.begin(), disable_store->remap.end());
+
+            bool has_next = false;
+            std::string compmgr_name;
+            do
+            {
+                read >> has_next;
+                if(has_next)
+                {
+                    read >> compmgr_name;
+
+                    auto compmgr = Game::Resources::GetScene().wiscene.componentLibrary.entries[compmgr_name].component_manager.get();
+                    compmgr->Remove(root);
+                    compmgr->Component_Serialize(root, read, d_seri);
+                }   
+            }
+            while(has_next);
+        }
+    }
+    
     return root;
 }
 
@@ -410,7 +431,6 @@ void Scene::Clear()
 {
     wiscene.Clear();
     collections.clear();
-    disabled_list.clear();
     stream_boundary = wi::primitive::AABB();
 }
 

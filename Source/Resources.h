@@ -85,7 +85,6 @@ namespace Game::Resources
 
         // Library system data
         wi::unordered_map<uint32_t, wi::ecs::Entity> collections;
-        wi::unordered_map<wi::ecs::Entity, wi::ecs::Entity> disabled_list;
 
         wi::primitive::AABB stream_boundary;
         float stream_transition_time = 0.5f;
