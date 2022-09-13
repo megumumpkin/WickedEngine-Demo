@@ -99,12 +99,14 @@ void Library::Instance::Init(wi::jobsystem::context* joblist){
                     }
                     
                 }
-                else clone = true;
 
                 bool cloned = (seri.remap.find(entity) != seri.remap.end());
 
-                if(clone && !cloned)
+                bool clone_rule_allow = scene->wiscene.transforms.Contains(entity);
+
+                if(clone && !cloned && clone_rule_allow)
                 {
+                    if(scene->wiscene.transforms.Contains(entity)){}
                     auto clone_entity = scene->Entity_Clone(entity, seri);
 
                     if(scene->wiscene.hierarchy.Contains(clone_entity))
