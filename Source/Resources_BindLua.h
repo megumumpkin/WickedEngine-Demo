@@ -8,8 +8,9 @@ namespace Game::ScriptBindings::Resources
 
     class Library_Instance_BindLua
     {
+	private:
+		std::unique_ptr<Game::Resources::Library::Instance> owning;
     public:
-        bool owning = false;
 		Game::Resources::Library::Instance* component = nullptr;
 
 		static const char className[];
@@ -25,9 +26,16 @@ namespace Game::ScriptBindings::Resources
 			Lock = wi::lua::BoolProperty(&component->lock);
 		}
 
-		Library_Instance_BindLua(Game::Resources::Library::Instance* component) :component(component) { BuildBindings(); }
-		Library_Instance_BindLua(lua_State *L);
-		~Library_Instance_BindLua();
+		Library_Instance_BindLua(Game::Resources::Library::Instance* component) :component(component)
+		{ 
+			BuildBindings(); 
+		}
+		Library_Instance_BindLua(lua_State *L)
+		{
+			owning = std::make_unique<Game::Resources::Library::Instance>();
+			component = owning.get();
+			BuildBindings();
+		}
 
 		wi::lua::StringProperty File;
 		wi::lua::StringProperty EntityName;
@@ -47,8 +55,9 @@ namespace Game::ScriptBindings::Resources
 
     class Library_Disabled_BindLua
     {
+	private:
+		std::unique_ptr<Game::Resources::Library::Disabled> owning;
     public:
-        bool owning = false;
 		Game::Resources::Library::Disabled* component = nullptr;
 
 		static const char className[];
@@ -57,15 +66,23 @@ namespace Game::ScriptBindings::Resources
 
 		inline void BuildBindings(){}
 
-		Library_Disabled_BindLua(Game::Resources::Library::Disabled* component) :component(component) { BuildBindings(); }
-		Library_Disabled_BindLua(lua_State *L);
-		~Library_Disabled_BindLua();
+		Library_Disabled_BindLua(Game::Resources::Library::Disabled* component) :component(component)
+		{ 
+			BuildBindings(); 
+		}
+		Library_Disabled_BindLua(lua_State *L)
+		{
+			owning = std::make_unique<Game::Resources::Library::Disabled>();
+			component = owning.get();
+			BuildBindings();
+		}
     };
 
     class Library_Stream_BindLua
     {
+	private:
+		std::unique_ptr<Game::Resources::Library::Stream> owning;
     public:
-        bool owning = false;
 		Game::Resources::Library::Stream* component = nullptr;
 
 		static const char className[];
@@ -77,9 +94,16 @@ namespace Game::ScriptBindings::Resources
 			ExternalSubstitute = wi::lua::StringProperty(&component->external_substitute_object);
 		}
 
-		Library_Stream_BindLua(Game::Resources::Library::Stream* component) :component(component) {}
-		Library_Stream_BindLua(lua_State *L);
-		~Library_Stream_BindLua();
+		Library_Stream_BindLua(Game::Resources::Library::Stream* component) :component(component)
+		{
+			BuildBindings();
+		}
+		Library_Stream_BindLua(lua_State *L)
+		{
+			owning = std::make_unique<Game::Resources::Library::Stream>();
+			component = owning.get();
+			BuildBindings();
+		}
 
 		wi::lua::StringProperty ExternalSubstitute;
 

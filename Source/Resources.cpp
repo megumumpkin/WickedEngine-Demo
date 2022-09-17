@@ -128,7 +128,7 @@ void Library::Instance::Init(wi::jobsystem::context* joblist){
 }
 
 void Library::Instance::Unload(){
-    if(instance_id == collection_id)
+    if((instance_id == collection_id) && collection_id > wi::ecs::INVALID_ENTITY)
     {
         scene->collections.erase(wi::helper::string_hash(file.c_str()));
     }
@@ -157,6 +157,11 @@ void Library::Instance::Serialize(wi::Archive& archive, wi::ecs::EntitySerialize
         archive << strategy;
         archive << type;
     }
+}
+
+Library::Instance::~Instance()
+{
+    Unload();
 }
 
 
@@ -341,9 +346,9 @@ void Scene::Library_Update(float dt){
 
         if(stream.stream_zone.intersects(stream_boundary))
         {
-            auto instance = instances.GetComponent(stream_entity);
-            if(instance != nullptr){
+            if(instances.Contains(stream_entity)){
                 // Init instances first if the data is not loaded
+                auto instance = instances.GetComponent(stream_entity);
                 if((instance->collection_id == wi::ecs::INVALID_ENTITY) && !instance->lock){
                     instance->Init();
                     for(auto& entity : instance->entities)
@@ -375,8 +380,9 @@ void Scene::Library_Update(float dt){
 
             // Removes instance after transition finishes
             if(stream.transition == 0.f){
-                auto instance = instances.GetComponent(stream_entity);
-                if(instance != nullptr){
+                if(instances.Contains(stream_entity))
+                {
+                    auto instance = instances.GetComponent(stream_entity);
                     if((instance->collection_id != wi::ecs::INVALID_ENTITY) && !instance->lock){
                         instance->Unload();
                         instance->collection_id = wi::ecs::INVALID_ENTITY;
@@ -389,16 +395,16 @@ void Scene::Library_Update(float dt){
         // If transition is ongoing, we're going to manipulate the transition of tracked objects!
         if(stream.transition > 0.f && stream.transition < 1.f){
             for(auto& object_it : stream.instance_original_transparency){
-                auto objectComponent = wiscene.objects.GetComponent(object_it.first);
-                if(objectComponent != nullptr)
+                if(wiscene.objects.Contains(object_it.first))
                 {
+                    auto objectComponent = wiscene.objects.GetComponent(object_it.first);
                     objectComponent->color.w = object_it.second * stream.transition;
                 }
             }
             // Render previews too if available
-            auto streampreview = wiscene.objects.GetComponent(stream_entity);
-            if(streampreview != nullptr)
+            if(wiscene.objects.Contains(stream_entity))
             {
+                auto streampreview = wiscene.objects.GetComponent(stream_entity);
                 streampreview->color.w = 1.0 - stream.transition;
             }
         }

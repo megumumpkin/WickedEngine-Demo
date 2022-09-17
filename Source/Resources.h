@@ -50,6 +50,8 @@ namespace Game::Resources
             void Unload();
 
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
+
+            ~Instance();
         };
 
         // Stores entity disablement

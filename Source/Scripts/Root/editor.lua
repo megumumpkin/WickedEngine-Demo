@@ -89,14 +89,6 @@ D("editor_data",{
         link_dcc = false,
         import_wiscene = false,
         import_gltf = false,
-        add_object = false,
-        add_light = false,
-        add_sound = false,
-        add_emitter = false,
-        add_hairparticle = false,
-        add_weather = false,
-        add_instance = false,
-        add_material = false,
     },
     navigation = {
         camera = GetCamera(),
@@ -350,12 +342,37 @@ local compio_instance = {
     {"EntityName", "Subtarget Entity Name", "text"},
     {"Strategy", "Loading Strategy", "combo", { choices = "Direct\0Instance\0Preload\0" }},
     {"Type", "Type", "combo", { choices = "Default\0Library\0" }},
-    -- {"Lock", "Lock For Editing", "check"},
+    {"Lock", "Lock For Editing", "check"},
 }
 
 local compio_stream = {
     {"ExternalSubstitute", "External Substitute Model", "text"},
-    {"Substitute", "Substitute", "int"}
+}
+
+local object_creators = {
+    {"\xef\x86\xb2 Add Object", {type = "object", name = "New Object"}},
+    {"\xef\x83\xab Add Light", {type = "light", name = "New Light"}},
+    {"\xef\x80\xa8 Add Sound", {type = "sound", name = "New Sound"}},
+    {"\xef\x81\xad Add Emitter", {type = "emitter", name = "New Emitter"}},
+    {"\xef\x93\x98 Add HairParticle", {type = "hairparticle", name = "New Hair Particle System"}},
+    {"\xef\x9b\x84 Add Weather", {type = "weather", name = "New Weather"}},
+    {"\xef\x87\x80 Add Instance", {type = "instance", name = "New Instance"}},
+    {"\xef\x95\xb6 Add Material", {type = "material", name = "New Material"}}
+}
+
+local component_creators = { -- TODO
+    {"\xef\x86\xb2 Add Name", "name"},
+    {"\xef\x86\xb2 Add Transform", "transform"},
+    {"\xef\x86\xb2 Add Layer", "layer"},
+    {"\xef\x86\xb2 Add Object", "object"},
+    {"\xef\x83\xab Add Light", "light"},
+    {"\xef\x80\xa8 Add Sound", "sound"},
+    {"\xef\x95\xb6 Add Material", "material"},
+    {"\xef\x81\xad Add Emitter", "emitter"},
+    {"\xef\x93\x98 Add HairParticle", "hairparticle"},
+    {"\xef\x9b\x84 Add Weather", "weather"},
+    {"\xef\x87\x80 Add Instance", "instance"},
+    {"\xef\x87\x80 Add Stream", "stream"},
 }
 
 local component_set_generic = function(component, editdata)
@@ -396,12 +413,6 @@ local component_set_weather = function(component, editdata)
     component_set_generic(component.AtmosphereParameters, editdata.atmosphere)
     component_set_generic(component.VolumetricCloudParameters, editdata.cloud)
     for key, _ in pairs(compio_weather) do
-        component[key] = editdata[key]
-    end
-end
-
-local component_set_instance = function(component, editdata)
-    for key, _ in pairs(compio_instance) do
         component[key] = editdata[key]
     end
 end
@@ -448,14 +459,14 @@ local edit_execcmd = function(command, extradata, holdout)
                 weather.SetRealisticSky(true)
                 weather.SetVolumetricClouds(true)
             end
+            if extradata.type == "material" then
+                local material = wiscene.Component_CreateMaterial(entity)
+            end
             if extradata.type == "instance" then
                 local transform = wiscene.Component_CreateTransform(entity)
                 local layer = wiscene.Component_CreateLayer(entity)
                 local instance = scene.Component_CreateInstance(entity)
                 instance.Lock = true
-            end
-            if extradata.type == "material" then
-                local material = wiscene.Component_CreateMaterial(entity)
             end
         end
     end
@@ -477,10 +488,10 @@ local edit_execcmd = function(command, extradata, holdout)
                 weather.SetVolumetricClouds(true)
             end
             if extradata.type == "instance" then 
-                local instance = scene.Component_CreateInstance(entity)
+                local instance = scene.Component_CreateInstance(extradata.entity)
                 instance.Lock = true
             end
-            if extradata.type == "stream" then scene.Component_CreateInstance(entity) end
+            -- if extradata.type == "stream" then scene.Component_CreateInstance(extradata.entity) end
         end
     end
 
@@ -550,7 +561,7 @@ local edit_execcmd = function(command, extradata, holdout)
             end
             if extradata.type == "instance" then
                 local instancecomponent = scene.Component_GetInstance(extradata.entity)
-                if instancecomponent then component_set_instance(instancecomponent, extradata.post) end
+                if instancecomponent then component_set_generic(instancecomponent, extradata.post) end
             end
         end
     end
@@ -638,10 +649,10 @@ local edit_undocmd = function()
                 weather.SetVolumetricClouds(true)
             end
             if extradata.type == "instance" then 
-                local instance = scene.Component_CreateInstance(entity)
+                local instance = scene.Component_CreateInstance(extradata.entity)
                 instance.Lock = true
             end
-            if extradata.type == "stream" then scene.Component_CreateInstance(entity) end
+            -- if extradata.type == "stream" then scene.Component_CreateInstance(extradata.entity) end
         end
     end
     if (command == "mod_comp") or (command == "del_comp") then
@@ -705,7 +716,7 @@ local edit_undocmd = function()
         end
         if extradata.type == "instance" then
             local instancecomponent = scene.Component_GetInstance(extradata.entity)
-            if instancecomponent then component_set_instance(instancecomponent, extradata.pre) end
+            if instancecomponent then component_set_generic(instancecomponent, extradata.pre) end
         end
     end
     if command == "del_obj" then
@@ -765,14 +776,14 @@ local drawtopbar = function()
             actions.link_dcc = imgui.MenuItem("\xef\x83\x81 Create DCC Link", nil, actions.link_dcc)
             actions.import_wiscene = imgui.MenuItem("\xee\x92\xb8 Import WiScene", nil, actions.import_wiscene)
             actions.import_gltf = imgui.MenuItem("\xee\x92\xb8 Import GLTF", nil, actions.import_gltf)
-            actions.add_object = imgui.MenuItem("\xef\x86\xb2 Add Object", nil, actions.add_object)
-            actions.add_light = imgui.MenuItem("\xef\x83\xab Add Light", nil, actions.add_light)
-            actions.add_sound = imgui.MenuItem("\xef\x80\xa8 Add Sound", nil, actions.add_sound)
-            actions.add_emitter = imgui.MenuItem("\xef\x81\xad Add Emitter", nil, actions.add_emitter)
-            actions.add_hairparticle = imgui.MenuItem("\xef\x93\x98 Add HairParticle", nil, actions.add_hairparticle)
-            actions.add_weather = imgui.MenuItem("\xef\x9b\x84 Add Weather", nil, actions.add_weather)
-            actions.add_instance = imgui.MenuItem("\xef\x87\x80 Add Instance", nil, actions.add_instance)
-            actions.add_material = imgui.MenuItem("\xef\x95\xb6 Add Material", nil, actions.add_material)
+            for _, creator in ipairs(object_creators) do
+                local label = creator[1]
+                local packet = creator[2]
+
+                local act = false
+                act = imgui.MenuItem(label, nil, act)
+                if act then edit_execcmd("add_obj", packet) end
+            end
             imgui.EndPopup()
         end
 
@@ -1121,6 +1132,7 @@ local drawcompinspect = function()
     if compinspect.win_visible then
         local sub_visible = false
         sub_visible, compinspect.win_visible = imgui.Begin("\xef\x82\x85 Component Inspector", compinspect.win_visible)
+
         if sub_visible then
             local entity = D.editor_data.elements.scenegraphview.selected_entity
             if entity > 0 then
@@ -1302,8 +1314,21 @@ local drawcompinspect = function()
                 drawcomp("Instance Component", "instance", entity, instancecomponent, compio_instance, compinspect.component.instance, 
                     function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
 
-                if imgui.Button("               Add Component               ") then end -- TODO
+                if imgui.Button("\t\t\t\t\tAdd Component\t\t\t\t\t") then imgui.OpenPopup("CEAC") end -- TODO
             end
+        end
+
+        if imgui.BeginPopupContextWindow("CEAC") then
+            local actions = D.editor_data.actions
+            for _, creator in ipairs(component_creators) do
+                local label = creator[1]
+                local packet = creator[2]
+
+                local act = false
+                act = imgui.MenuItem(label, nil, act)
+                if act then edit_execcmd("add_comp", {type = packet, entity = D.editor_data.elements.scenegraphview.selected_entity}) end
+            end
+            imgui.EndPopup()
         end
 
         imgui.End()
@@ -1457,38 +1482,6 @@ local update_sysmenu_actions = function()
             import_opt.win_visible = true
         end)
         actions.import_gltf = false
-    end
-    if actions.add_object then
-        edit_execcmd("add_obj", {type = "object", name = "New Object"})
-        actions.add_object = false
-    end
-    if actions.add_light then
-        edit_execcmd("add_obj", {type = "light", name = "New Light"})
-        actions.add_light = false
-    end
-    if actions.add_sound then
-        edit_execcmd("add_obj", {type = "sound", name = "New Sound"})
-        actions.add_sound = false
-    end
-    if actions.add_emitter then
-        edit_execcmd("add_obj", {type = "emitter", name = "New Emitter"})
-        actions.add_emitter = false
-    end
-    if actions.add_hairparticle then
-        edit_execcmd("add_obj", {type = "hairparticle", name = "New Hair Particle System"})
-        actions.add_hairparticle = false
-    end
-    if actions.add_weather then
-        edit_execcmd("add_obj", {type = "weather", name = "New Weather"})
-        actions.add_weather = false
-    end
-    if actions.add_instance then
-        edit_execcmd("add_obj", {type = "instance", name = "New Instance"})
-        actions.add_instance = false
-    end
-    if actions.add_material then
-        edit_execcmd("add_obj", {type = "material", name = "New Material"})
-        actions.add_material = false
     end
     --
 end

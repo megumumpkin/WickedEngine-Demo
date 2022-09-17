@@ -155,18 +155,6 @@ namespace Game::ScriptBindings::Resources{
         lunaproperty(Library_Instance_BindLua, Lock),
         { NULL, NULL }
     };
-    Library_Instance_BindLua::Library_Instance_BindLua(lua_State *L)
-    {
-        owning = true;
-        component = new Game::Resources::Library::Instance;
-        BuildBindings();
-    }
-    Library_Instance_BindLua::~Library_Instance_BindLua()
-    {
-        if(owning){
-            delete component;
-        }
-    }
 
     int Library_Instance_BindLua::Init(lua_State *L)
     {
@@ -188,18 +176,6 @@ namespace Game::ScriptBindings::Resources{
     Luna<Library_Disabled_BindLua>::PropertyType Library_Disabled_BindLua::properties[] = {
         { NULL, NULL }
     };
-    Library_Disabled_BindLua::Library_Disabled_BindLua(lua_State *L)
-    {
-        owning = true;
-        component = new Game::Resources::Library::Disabled;
-        BuildBindings();
-    }
-    Library_Disabled_BindLua::~Library_Disabled_BindLua()
-    {
-        if(owning){
-            delete component;
-        }
-    }
 
 
 
@@ -212,18 +188,7 @@ namespace Game::ScriptBindings::Resources{
         lunaproperty(Library_Stream_BindLua, Zone),
         { NULL, NULL }
     };
-    Library_Stream_BindLua::Library_Stream_BindLua(lua_State *L)
-    {
-        owning = true;
-        component = new Game::Resources::Library::Stream;
-        BuildBindings();
-    }
-    Library_Stream_BindLua::~Library_Stream_BindLua()
-    {
-        if(owning){
-            delete component;
-        }
-    }
+    
     int Library_Stream_BindLua::SetZone(lua_State* L)
     {
         int argc = wi::lua::SGetArgCount(L);
