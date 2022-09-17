@@ -483,17 +483,30 @@ int Editor_SaveScene(lua_State* L)
             // TODO
         }
 
+        wi::vector<wi::ecs::Entity> instance_library_removelist;
+
         // Step 2: Unload all instances
         for(int i = 0; i < scene.instances.GetCount(); ++i)
         {
             scene.instances[i].Unload();
+            auto instance_entity = scene.instances.GetEntity(i);
+            if(scene.wiscene.names.Contains(instance_entity))
+            {
+                auto nameComponent = scene.wiscene.names.GetComponent(instance_entity);
+                if(nameComponent->name.substr(0,4) == "LIB_") instance_library_removelist.push_back(instance_entity);
+            }
+        }
+
+        for(auto& entity : instance_library_removelist)
+        {
+            scene.wiscene.Entity_Remove(entity);
         }
         
-        // Step 3: Save the scene
+        // Step 4: Save the scene
         auto archive = wi::Archive(filepath,false);
         scene.wiscene.Serialize(archive);
 
-        // Step 4: Restore the scene instances
+        // Step 5: Restore the scene instances
         for(int i = 0; i < scene.instances.GetCount(); ++i)
         {
             if(!scene.streams.Contains(scene.instances.GetEntity(i))) { scene.instances[i].Init(); }
@@ -679,8 +692,16 @@ int Editor_RenderScenePreview(lua_State* L)
             }
 
             auto layer_entity = renderer.scene->layers.GetEntity(i);
-            auto AABB_Object = renderer.scene->aabb_objects.GetComponent(layer_entity);
-            if(AABB_Object != nullptr){ bounds = wi::primitive::AABB::Merge(bounds, *AABB_Object); }
+            if(renderer.scene->objects.Contains(layer_entity))
+            { 
+                auto object = renderer.scene->objects.GetComponent(layer_entity);
+                bounds = wi::primitive::AABB::Merge(
+                    bounds, 
+                    wi::primitive::AABB(
+                        XMFLOAT3(object->center.x - object->radius, object->center.y - object->radius, object->center.z - object->radius),
+                        XMFLOAT3(object->center.x + object->radius, object->center.y + object->radius, object->center.z + object->radius)
+                    ));
+            }
         }
         auto instanceComponent = Game::Resources::GetScene().instances.GetComponent(entity);
         if(instanceComponent != nullptr)
@@ -755,8 +776,16 @@ int Editor_RenderMaterialPreview(lua_State* L)
         for(int i = 0; i<renderer.scene->layers.GetCount(); ++i)
         {
             auto layer_entity = renderer.scene->layers.GetEntity(i);
-            auto AABB_Object = renderer.scene->aabb_objects.GetComponent(layer_entity);
-            if(AABB_Object != nullptr){ bounds = wi::primitive::AABB::Merge(bounds, *AABB_Object); }
+            if(renderer.scene->objects.Contains(layer_entity)){ 
+                auto object = renderer.scene->objects.GetComponent(layer_entity);
+                bounds = wi::primitive::AABB::Merge(
+                    bounds, 
+                    wi::primitive::AABB(
+                        XMFLOAT3(object->center.x - object->radius, object->center.y - object->radius, object->center.z - object->radius),
+                        XMFLOAT3(object->center.x + object->radius, object->center.y + object->radius, object->center.z + object->radius)
+                    ));
+                bounds = wi::primitive::AABB::Merge(bounds, wi::primitive::AABB()); 
+            }
         }
     
         auto distance = std::min(bounds.getRadius()*2.3f,10000000.f);
@@ -1020,10 +1049,10 @@ void Editor::ResizeBuffers(wi::graphics::GraphicsDevice* device, wi::RenderPath3
 		assert(success);
 		{
 			wi::graphics::RenderPassDesc desc;
-			desc.attachments.push_back(wi::graphics::RenderPassAttachment::RenderTarget(&GetData()->rt_selection_editor, wi::graphics::RenderPassAttachment::LoadOp::CLEAR));
+			desc.attachments.push_back(wi::graphics::RenderPassAttachment::RenderTarget(GetData()->rt_selection_editor, wi::graphics::RenderPassAttachment::LoadOp::CLEAR));
 			desc.attachments.push_back(
 				wi::graphics::RenderPassAttachment::DepthStencil(
-					renderPath->GetDepthStencil(),
+					*renderPath->GetDepthStencil(),
 					wi::graphics::RenderPassAttachment::LoadOp::LOAD,
 					wi::graphics::RenderPassAttachment::StoreOp::STORE,
 					wi::graphics::ResourceState::DEPTHSTENCIL_READONLY,
@@ -1051,14 +1080,14 @@ void Editor::ResizeBuffers(wi::graphics::GraphicsDevice* device, wi::RenderPath3
             wi::graphics::RenderPassDesc desc;
             desc.attachments.push_back(
                 wi::graphics::RenderPassAttachment::DepthStencil(
-                    &GetData()->rt_depthbuffer_editor,
+                    GetData()->rt_depthbuffer_editor,
                     wi::graphics::RenderPassAttachment::LoadOp::CLEAR,
                     wi::graphics::RenderPassAttachment::StoreOp::DONTCARE
                 )
             );
             desc.attachments.push_back(
                 wi::graphics::RenderPassAttachment::RenderTarget(
-                    &renderPath->GetRenderResult(),
+                    renderPath->GetRenderResult(),
                     wi::graphics::RenderPassAttachment::LoadOp::CLEAR,
                     wi::graphics::RenderPassAttachment::StoreOp::STORE
                 )

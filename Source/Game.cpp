@@ -408,16 +408,19 @@ void ApplicationView::Start(){
 }
 
 void ApplicationView::PreUpdate(){
+	std::scoped_lock thread_lock (Game::Resources::GetScene().mutex_scenestream);
 	RenderPath2D::PreUpdate();
 	renderPath->PreUpdate();
 }
 
 void ApplicationView::FixedUpdate(){
+	std::scoped_lock thread_lock (Game::Resources::GetScene().mutex_scenestream);
 	RenderPath2D::FixedUpdate();
 	renderPath->FixedUpdate();
 }
 
 void ApplicationView::Update(float dt){
+	std::scoped_lock thread_lock (Game::Resources::GetScene().mutex_scenestream);
     ApplicationView::Update_ImGUI();
 	Game::ScriptBindings::Update(dt);
 	LiveUpdate::Update(dt);

@@ -186,7 +186,6 @@ namespace Game::ScriptBindings::Resources{
         { NULL, NULL }
     };
     Luna<Library_Disabled_BindLua>::PropertyType Library_Disabled_BindLua::properties[] = {
-        lunaproperty(Library_Disabled_BindLua, Entity),
         { NULL, NULL }
     };
     Library_Disabled_BindLua::Library_Disabled_BindLua(lua_State *L)

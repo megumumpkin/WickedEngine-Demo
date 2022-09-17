@@ -1402,6 +1402,8 @@ local update_sysmenu_actions = function()
         scene.Clear()
         edit_execcmd("init")
 
+        D.editor_data.core_data.resname = "Untitled Scene"
+
         actions.resource_new = false
     end
     if actions.resource_rename then

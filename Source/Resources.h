@@ -45,7 +45,6 @@ namespace Game::Resources
             wi::unordered_set<wi::ecs::Entity> entities;
 
             bool lock = false; // Lock resource from automatically loading (Good for editing)
-            bool loading = false;
 
             void Init(wi::jobsystem::context* joblist = nullptr);
             void Unload();
@@ -54,12 +53,10 @@ namespace Game::Resources
         };
 
         // Stores entity disablement
-        struct Disabled{
-            wi::ecs::Entity entity;
-            
+        struct Disabled{            
             // Non serialized attributes
-            wi::unordered_map<uint64_t, wi::ecs::Entity> remap;
             wi::Archive entity_store;
+            wi::unordered_map<uint64_t, wi::ecs::Entity> remap;
 
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
         };
@@ -102,7 +99,7 @@ namespace Game::Resources
         // Entity Management
         void Entity_Disable(wi::ecs::Entity entity);
         void Entity_Enable(wi::ecs::Entity entity);
-        wi::ecs::Entity Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri);
+        wi::ecs::Entity Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri, bool recursive = true);
 
         // Scene processing functions
         void Init();

@@ -55,18 +55,11 @@ namespace Game::ScriptBindings::Resources
 		static Luna<Library_Disabled_BindLua>::FunctionType methods[];
 		static Luna<Library_Disabled_BindLua>::PropertyType properties[];
 
-		inline void BuildBindings()
-		{
-			Entity = wi::lua::LongLongProperty(reinterpret_cast<long long*>(&component->entity));
-		}
+		inline void BuildBindings(){}
 
 		Library_Disabled_BindLua(Game::Resources::Library::Disabled* component) :component(component) { BuildBindings(); }
 		Library_Disabled_BindLua(lua_State *L);
 		~Library_Disabled_BindLua();
-
-		wi::lua::LongLongProperty Entity;
-
-        PropertyFunction(Entity);
     };
 
     class Library_Stream_BindLua
