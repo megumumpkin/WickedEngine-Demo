@@ -2,132 +2,166 @@
 
 using namespace Game::Resources;
 
-void Library::Instance::Init(wi::jobsystem::context* joblist){
-    if(joblist == nullptr) joblist = &scene->job_scenestream;
-
-    auto static_file = file.c_str();
-    auto static_entity_name = entity_name.c_str();
-    bool has_entity_name = (entity_name != "");
-
-    if(collection_id == wi::ecs::INVALID_ENTITY)
+void Library::Instance::Init(){
+    if(load_state == UNLOADED)
     {
-        wi::jobsystem::Execute(*joblist, [=](wi::jobsystem::JobArgs args_job){
-            scene->mutex_scenestream.lock();
-            auto find_collection = scene->collections.find(wi::helper::string_hash(static_file));
-            scene->mutex_scenestream.unlock();
+        load_state = LOADING;
+
+        wi::jobsystem::Execute(scene->job_scenestream, [=](wi::jobsystem::JobArgs args)
+        {
+            bool has_lib = false;
+            Library::Instance lib_data;
+
+            bool instance_clone = false;
             
-            if(find_collection == scene->collections.end())
+            scene->mutex_scenestream.lock();
+            
+            auto job_data = *this;
+            
+            auto hashed_file = wi::helper::string_hash(job_data.file.c_str());
+            auto find_collection = job_data.scene->collections.find(hashed_file);
+
+            wi::ecs::Entity collection_entity = job_data.instance_id;
+            if(find_collection == job_data.scene->collections.end())
             {
-                if(strategy == LOAD_DIRECT && !has_entity_name && (scene->collections.find(wi::helper::string_hash(static_file)) == scene->collections.end()))
+                job_data.scene->mutex_scenestream.unlock();
+                auto load_data = &job_data;
+                if(job_data.strategy != LOAD_DIRECT || job_data.entity_name != "")
                 {
-                    scene->collections[wi::helper::string_hash(static_file)] = instance_id;
-                    Game::Resources::Scene load_scene;
-                    wi::ecs::EntitySerializer seri;
+                    has_lib = true;
+                    instance_clone = true;
 
-                    auto temp_root = wi::scene::LoadModel(load_scene.wiscene,static_file,XMMatrixIdentity(),true);
+                    load_data = &lib_data;
+                    load_data->scene = job_data.scene;
+                    load_data->file = job_data.file;
+                    load_data->type = LIBRARY;
+                    load_data->load_state = LOADED;
 
-                    std::scoped_lock thread_lock (scene->mutex_scenestream);
+                    std::scoped_lock thread_lock (job_data.scene->mutex_scenestream);
+                    collection_entity = wi::ecs::CreateEntity();
 
-                    load_scene.wiscene.FindAllEntities(entities);
-                    entities.erase(temp_root);
-                    scene->wiscene.Merge(load_scene.wiscene);
+                    load_data->instance_id = collection_entity;
 
-                    for(auto entity : entities)
-                    {
-                        if(scene->wiscene.hierarchy.Contains(entity))
-                        {
-                            auto hierarchyComponent = scene->wiscene.hierarchy.GetComponent(entity);
-                            if(hierarchyComponent->parentID == temp_root)
-                                scene->wiscene.Component_Attach(entity, instance_id);
-                        }
-
-                        if(type == LIBRARY && !scene->disabled.Contains(entity))
-                        {
-                            scene->Entity_Disable(entity);
-                        }
-                    }
-                    
-                    scene->wiscene.Entity_Remove(temp_root, false);
-
-                    collection_id = instance_id;
+                    auto& namecomponent = job_data.scene->wiscene.names.Create(collection_entity);
+                    namecomponent.name = "LIB_"+job_data.file;
+                    job_data.scene->wiscene.layers.Create(collection_entity);
+                    job_data.scene->wiscene.transforms.Create(collection_entity);
+                    job_data.collection_id = collection_entity;
                 }
-                else
+                load_data->collection_id = collection_entity;
+
+                Scene load_scene;
+                wi::ecs::EntitySerializer seri;
+
+                auto temp_root = wi::scene::LoadModel(load_scene.wiscene, load_data->file, XMMatrixIdentity(), true);
+                load_scene.wiscene.FindAllEntities(load_data->entities);
+                load_data->entities.erase(temp_root);
+
+                std::scoped_lock thread_lock (job_data.scene->mutex_scenestream);
+                job_data.scene->collections[hashed_file] = collection_entity;
+                job_data.scene->wiscene.Merge(load_scene.wiscene);
+
+                for(auto& entity : load_data->entities)
                 {
-                    std::scoped_lock thread_lock (scene->mutex_scenestream);
+                    auto hierarchyComponent = job_data.scene->wiscene.hierarchy.GetComponent(entity);
+                    if(hierarchyComponent != nullptr)
+                        if(hierarchyComponent->parentID == temp_root)
+                            job_data.scene->wiscene.Component_Attach(entity, load_data->instance_id);
 
-                    auto lib_name = "LIB_"+std::string(static_file);
-
-                    if(scene->wiscene.Entity_FindByName(lib_name.c_str()) == wi::ecs::INVALID_ENTITY)
-                    {
-                        auto lib_entity = scene->CreateInstance(lib_name);
-                        auto lib_instance = scene->instances.GetComponent(lib_entity);
-                        
-                        lib_instance->file = static_file;
-                        lib_instance->type = LIBRARY;
-                        lib_instance->instance_id = lib_entity;
-                        lib_instance->scene = scene;
-                    }
+                    if(load_data->type == LIBRARY)
+                        job_data.scene->Entity_Disable(entity);
                 }
                 
+                job_data.scene->wiscene.Entity_Remove(temp_root,false);
             }
-            else
+            else 
             {
-                scene->mutex_scenestream.lock();
-                auto temp_collection_id = find_collection->second;
-                auto collection = scene->instances.GetComponent(temp_collection_id); 
-                bool loaded = (collection->collection_id != wi::ecs::INVALID_ENTITY);
-                scene->mutex_scenestream.unlock();
+                job_data.scene->mutex_scenestream.unlock();
+                collection_entity = find_collection->second;
+                instance_clone = true;
+            }
 
-                std::scoped_lock thread_lock (scene->mutex_scenestream);
+            if(instance_clone)
+            {
+                bool done_loading = false;
+                bool cancel = false;
+                Library::Instance* collection = nullptr;
 
-                if(loaded)
+                if(has_lib)
+                {
+                    collection = &lib_data;
+                }
+                else 
+                {
+                    do
+                    {
+                        std::scoped_lock thread_lock (job_data.scene->mutex_scenestream);
+                        collection = job_data.scene->instances.GetComponent(collection_entity);
+                        if(collection != nullptr)
+                        {
+                            if(collection->load_state == LOADED)
+                                done_loading = true;
+                        }
+                        else 
+                            cancel = true;
+                    }
+                    while(!done_loading && !cancel);
+                }
+
+                if(!cancel)
                 {
                     wi::ecs::EntitySerializer seri;
-
-                    for(auto entity : collection->entities)
+                    std::scoped_lock thread_lock (job_data.scene->mutex_scenestream);
+                    for(auto& entity : collection->entities)
                     {
                         bool clone = false;
-                        if(std::string(static_entity_name) != "")
+                        if(job_data.entity_name != "")
                         {
                             if(scene->wiscene.names.Contains(entity))
                             {
-                                auto nameComponent = scene->wiscene.names.GetComponent(entity);
-                                if(nameComponent->name == std::string(static_entity_name))
+                                auto nameComponent = job_data.scene->wiscene.names.GetComponent(entity);
+                                if(nameComponent->name == job_data.entity_name)
                                     clone = true;
                             }
                             
-                        }else clone = true;
+                        }
+                        else 
+                            clone = true;
+                        
+                        bool clone_allowed = job_data.scene->wiscene.transforms.Contains(entity);
 
-                        bool clone_rule_allow = scene->wiscene.transforms.Contains(entity);
-
-                        if(clone && clone_rule_allow)
+                        if(clone && clone_allowed)
                         {
-                            auto clone_entity = scene->Entity_Clone(entity, seri, false);
+                            auto clone_entity = job_data.scene->Entity_Clone(entity, seri, false);
 
-                            if(scene->wiscene.hierarchy.Contains(clone_entity))
-                            {
-                                auto hierarchyComponent = scene->wiscene.hierarchy.GetComponent(clone_entity);
-                                if(hierarchyComponent->parentID == temp_collection_id)
-                                    scene->wiscene.Component_Attach(clone_entity, instance_id);
-                            }
+                            auto hierarchyComponent = job_data.scene->wiscene.hierarchy.GetComponent(clone_entity);
+                            if(hierarchyComponent != nullptr)
+                                if(hierarchyComponent->parentID == collection_entity)
+                                    job_data.scene->wiscene.Component_Attach(clone_entity, job_data.instance_id);
+
+                            job_data.entities.insert(clone_entity);
                         }
                     }
-
-                    for(auto entity_remap : seri.remap)
-                    {
-                        entities.insert(entity_remap.second);
-                    }
-
-                    collection_id = temp_collection_id;
                 }
             }
 
             std::scoped_lock thread_lock (scene->mutex_scenestream);
+
+            auto set_data = scene->instances.GetComponent(job_data.instance_id);
+            set_data->entities = job_data.entities;
+            set_data->load_state = LOADED;
+
+            if(has_lib)
+            {
+                auto& lib_finish = job_data.scene->instances.Create(collection_entity);
+                lib_finish = lib_data;
+            }
         });
     }
 }
 
-void Library::Instance::Unload(){
+void Library::Instance::Unload()
+{
     if((instance_id == collection_id) && collection_id > wi::ecs::INVALID_ENTITY)
     {
         scene->collections.erase(wi::helper::string_hash(file.c_str()));
@@ -142,7 +176,8 @@ void Library::Instance::Unload(){
     collection_id = wi::ecs::INVALID_ENTITY;
 }
 
-void Library::Instance::Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri){
+void Library::Instance::Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri)
+{
     if(archive.IsReadMode())
     {
         archive >> file;
@@ -159,18 +194,14 @@ void Library::Instance::Serialize(wi::Archive& archive, wi::ecs::EntitySerialize
     }
 }
 
-Library::Instance::~Instance()
-{
-    Unload();
-}
-
 
 
 void Library::Disabled::Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri){}
 
 
 
-void Library::Stream::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri){
+void Library::Stream::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri)
+{
     if(archive.IsReadMode())
     {
         archive >> external_substitute_object;
@@ -184,7 +215,8 @@ void Library::Stream::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer 
 
 
 
-wi::ecs::Entity Scene::CreateInstance(std::string name){
+wi::ecs::Entity Scene::CreateInstance(std::string name)
+{
     auto entity = wi::ecs::CreateEntity();
 
     auto& namecomponent = wiscene.names.Create(entity);
@@ -197,7 +229,8 @@ wi::ecs::Entity Scene::CreateInstance(std::string name){
     return entity;
 }
 
-void Scene::SetStreamable(wi::ecs::Entity entity, bool set, wi::primitive::AABB bound){
+void Scene::SetStreamable(wi::ecs::Entity entity, bool set, wi::primitive::AABB bound)
+{
     if(set)
     {
         auto& streamcomponent = streams.Create(entity);
@@ -238,7 +271,8 @@ static std::vector<std::string> disable_list = {
     "game::component::streams"
 };
 
-void Scene::Entity_Disable(wi::ecs::Entity entity){
+void Scene::Entity_Disable(wi::ecs::Entity entity)
+{
     auto& disable_store = disabled.Create(entity);
 
     auto& store = disable_store.entity_store;
@@ -259,7 +293,8 @@ void Scene::Entity_Disable(wi::ecs::Entity entity){
     disable_store.remap.insert(seri.remap.begin(), seri.remap.end());
 }
 
-void Scene::Entity_Enable(wi::ecs::Entity entity){
+void Scene::Entity_Enable(wi::ecs::Entity entity)
+{
     auto disable_store = disabled.GetComponent(entity);
     if(disable_store != nullptr)
     {
@@ -286,22 +321,25 @@ void Scene::Entity_Enable(wi::ecs::Entity entity){
     }
 }
 
-wi::ecs::Entity Scene::Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri, bool recursive){
+wi::ecs::Entity Scene::Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri, bool recursive)
+{
     wi::Archive archive;
 
+    auto flag_recursive = (recursive) ? wi::scene::Scene::EntitySerializeFlags::RECURSIVE : wi::scene::Scene::EntitySerializeFlags::NONE;
+
     archive.SetReadModeAndResetPos(false);
-    wiscene.Entity_Serialize(archive, seri, entity, wi::scene::Scene::EntitySerializeFlags::RECURSIVE);
+    wiscene.Entity_Serialize(archive, seri, entity, flag_recursive);
 
     archive.SetReadModeAndResetPos(true);
     auto root = wiscene.Entity_Serialize(archive, seri, wi::ecs::INVALID_ENTITY,
-        ((recursive) ? wi::scene::Scene::EntitySerializeFlags::RECURSIVE : wi::scene::Scene::EntitySerializeFlags::NONE) | wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES);
+        flag_recursive | wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES);
 
     if(disabled.Contains(root))
     {
         disabled.Remove(root);
-        if(disabled.Contains(entity))
+        auto disable_store = disabled.GetComponent(entity);
+        if(disable_store != nullptr)
         {
-            auto disable_store = disabled.GetComponent(entity);
             auto& read = disable_store->entity_store;
             read.SetReadModeAndResetPos(true);
 
@@ -324,7 +362,8 @@ wi::ecs::Entity Scene::Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySeria
     return root;
 }
 
-void Scene::Library_Update(float dt){
+void Scene::Library_Update(float dt)
+{
     // Directly load instance if not set to stream
     for(int i = 0; i < instances.GetCount(); ++i)
     {
@@ -336,7 +375,7 @@ void Scene::Library_Update(float dt){
             instance.scene = this;
             instance.instance_id = instance_entity;
         }
-        if(instance.collection_id == wi::ecs::INVALID_ENTITY && !instance.lock && !streams.Contains(instance_entity)) { instance.Init(); }
+        if(instance.load_state == Library::Instance::UNLOADED && !instance.lock && !streams.Contains(instance_entity)) { instance.Init(); }
     }
     // Else work with streaming
     for(int i = 0; i < streams.GetCount(); ++i)
@@ -349,7 +388,7 @@ void Scene::Library_Update(float dt){
             if(instances.Contains(stream_entity)){
                 // Init instances first if the data is not loaded
                 auto instance = instances.GetComponent(stream_entity);
-                if((instance->collection_id == wi::ecs::INVALID_ENTITY) && !instance->lock){
+                if((instance->load_state == Library::Instance::UNLOADED) && !instance->lock){
                     instance->Init();
                     for(auto& entity : instance->entities)
                     {
@@ -411,7 +450,8 @@ void Scene::Library_Update(float dt){
     }
 }
 
-void Scene::Update(float dt){
+void Scene::Update(float dt)
+{
     Library_Update(dt);
 }
 
@@ -422,6 +462,7 @@ void Scene::Clear()
     stream_boundary = wi::primitive::AABB();
 }
 
-void LiveUpdate::Update(float dt){
+void LiveUpdate::Update(float dt)
+{
     
 }

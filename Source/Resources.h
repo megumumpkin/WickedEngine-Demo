@@ -43,15 +43,19 @@ namespace Game::Resources
             wi::ecs::Entity instance_id;
             wi::ecs::Entity collection_id;
             wi::unordered_set<wi::ecs::Entity> entities;
+            enum LOADING_STATE
+            {
+                UNLOADED,
+                LOADING,
+                LOADED
+            }load_state;
 
             bool lock = false; // Lock resource from automatically loading (Good for editing)
 
-            void Init(wi::jobsystem::context* joblist = nullptr);
+            void Init();
             void Unload();
 
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
-
-            ~Instance();
         };
 
         // Stores entity disablement

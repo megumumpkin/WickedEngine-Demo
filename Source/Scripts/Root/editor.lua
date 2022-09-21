@@ -35,7 +35,6 @@ D("editor_data",{
                 transform = {},
                 layers = {},
                 object = {},
-                material = {},
                 emitter = {},
                 hairparticle = {},
                 light = {},
@@ -48,7 +47,10 @@ D("editor_data",{
                 },
                 sound = {},
                 collider = {},
-                instance = {}
+                instance = {},
+                stream = {},
+                mesh = {},
+                material = {},
             }
         },
         importwindow = {
@@ -61,6 +63,7 @@ D("editor_data",{
         },
         entityselector = {
             win_visible = false,
+            target_entity = 0,
             filter_type = 0,
             search_string = "",
             selected_entity = 0
@@ -121,6 +124,7 @@ local compio_transform = {
 }
 
 local compio_object = {
+    {"MeshID", "Mesh ID", "entity", { type = "object", setmode = 1 }},
     {"Color", "Color", "float4"},
     {"EmissiveColor", "EmissiveColor", "float4"},
     {"CascadeMask", "CascadeMask", "int"},
@@ -360,7 +364,7 @@ local object_creators = {
     {"\xef\x95\xb6 Add Material", {type = "material", name = "New Material"}}
 }
 
-local component_creators = { -- TODO
+local component_creators = {
     {"\xef\x86\xb2 Add Name", "name"},
     {"\xef\x86\xb2 Add Transform", "transform"},
     {"\xef\x86\xb2 Add Layer", "layer"},
@@ -373,6 +377,12 @@ local component_creators = { -- TODO
     {"\xef\x9b\x84 Add Weather", "weather"},
     {"\xef\x87\x80 Add Instance", "instance"},
     {"\xef\x87\x80 Add Stream", "stream"},
+}
+
+local entityselector_modestring = {
+    "Mesh",
+    "Material",
+    "Animation"
 }
 
 local component_set_generic = function(component, editdata)
@@ -1069,6 +1079,36 @@ local display_edit_parameters = function(component, parameter_list, edit_store)
             ret, edit_store[key] = imgui.Combo(label, edit_store[key], extradata.choices)
             if ret then changed = true end
         end
+
+        if (type == "entity") and (extradata ~= nil) then
+            local entity_name = edit_store[key] .. " - NO ENTITY"
+            if edit_store[key] > 0 then
+                local name_get = wiscene.Component_GetName(edit_store[key])
+                if name_get then entity_name = edit_store[key] .. " - " .. name_get.GetName() end
+            end
+            imgui.InputText(label, entity_name, 255, imgui.constant.InputTextFlags.ReadOnly)
+            imgui.SameLine()
+            if imgui.Button("Set " .. entityselector_modestring[extradata.setmode]) then
+                local selector = D.editor_data.elements.entityselector
+                
+                selector.target_entity = deepcopy(D.editor_data.elements.scenegraphview.selected_entity)
+                selector.filter_type = extradata.setmode
+                selector.win_visible = true
+
+                runProcess(function()
+                    waitSignal("Editor_EntitySelect_Finish")
+                    local editdata = {
+                        entity = selector.target_entity,
+                        type = extradata.type,
+                        pre = {},
+                        post = {}
+                    }
+                    editdata.pre[key] = edit_store[key]
+                    editdata.post[key] = selector.selected_entity
+                    edit_execcmd("mod_comp", editdata)
+                end)
+            end
+        end
     end
 
     return changed
@@ -1183,18 +1223,7 @@ local drawcompinspect = function()
 
                 local objectcomponent = wiscene.Component_GetObject(entity)
                 drawcomp("Object Component", "object", entity, objectcomponent, compio_object, compinspect.component.object, 
-                    function(mcomponent, meditor) 
-                        if meditor.MeshID == nil then meditor.MeshID = mcomponent.MeshID end
-                        local mesh_name = meditor.MeshID .. " - NO MESH"
-                        if meditor.MeshID > 0 then
-                            local mesh_namecomponent = wiscene.Component_GetName(meditor.MeshID)
-                            if mesh_namecomponent then mesh_name = meditor.MeshID .. " - " .. mesh_namecomponent.GetName() end
-                        end
-                        imgui.InputText("Mesh ID", mesh_name, 255, imgui.constant.InputTextFlags.ReadOnly)
-                    end, 
-                    function(mcomponent, mprestate) 
-                        mprestate.meshID = mcomponent.GetMeshID()
-                    end)
+                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
 
                 local emittercomponent = wiscene.Component_GetEmitter(entity)
                 drawcomp("Emitter Component", "emitter", entity, emittercomponent, compio_emitter, compinspect.component.emitter, 
@@ -1222,20 +1251,6 @@ local drawcompinspect = function()
                         return changed
                     end, 
                     function(mcomponent, mprestate) end)
-
-                local materialcomponent = wiscene.Component_GetMaterial(entity)
-                drawcomp("Material Component", "material", entity, materialcomponent, compio_material, compinspect.component.material, 
-                    function(mcomponent, meditor) 
-                        for index, label in ipairs(compio_material_texturenames) do
-                            -- backlog_post(index)
-                            local texname = mcomponent.GetTexture(index-1)
-                            local result = Editor_ImguiImageButton(texname, 100.0, 100.0)
-                            if result then backlog_post(texname) end
-                        end
-                    end, 
-                    function(mcomponent, mprestate) 
-
-                    end)
 
                 local rigidbodycomponent = wiscene.Component_GetRigidBodyPhysics(entity)
                 drawcomp("Rigid Body Component", "rigidbody", entity, rigidbodycomponent, compio_rigidbody, compinspect.component.rigidbody, 
@@ -1314,6 +1329,25 @@ local drawcompinspect = function()
                 drawcomp("Instance Component", "instance", entity, instancecomponent, compio_instance, compinspect.component.instance, 
                     function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
 
+
+                -- local meshcomponent = scene.Component_GetMesh(entity)
+                -- drawcomp("Mesh Component", "mesh", entity, meshcomponent, compio_mesh, compinspect.component.mesh, 
+                --     function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+
+                local materialcomponent = wiscene.Component_GetMaterial(entity)
+                drawcomp("Material Component", "material", entity, materialcomponent, compio_material, compinspect.component.material, 
+                    function(mcomponent, meditor) 
+                        for index, label in ipairs(compio_material_texturenames) do
+                            -- backlog_post(index)
+                            local texname = mcomponent.GetTexture(index-1)
+                            local result = Editor_ImguiImageButton(texname, 100.0, 100.0)
+                            if result then backlog_post(texname) end
+                        end
+                    end, 
+                    function(mcomponent, mprestate) 
+
+                    end)
+
                 if imgui.Button("\t\t\t\t\tAdd Component\t\t\t\t\t") then imgui.OpenPopup("CEAC") end -- TODO
             end
         end
@@ -1383,9 +1417,9 @@ local drawentityselector = function()
             if view_oblist then
                 if not scenegraphview.wait_update then
                     local entities_list = {}
-                    if entityselector.filter_type == 0 then entities_list = scenegraphview.list.meshes end
-                    if scenegraphview.filter_type == 1 then entities_list = scenegraphview.list.materials end
-                    if scenegraphview.filter_type == 2 then entities_list = scenegraphview.list.animations end
+                    if entityselector.filter_type == 1 then entities_list = scenegraphview.list.meshes end
+                    if scenegraphview.filter_type == 2 then entities_list = scenegraphview.list.materials end
+                    if scenegraphview.filter_type == 3 then entities_list = scenegraphview.list.animations end
                     if type(entities_list) ~= "nil" then
                         entityselector.selected_entity = Editor_DisplayEntityList(entities_list, entityselector.selected_entity, true)
                     end
