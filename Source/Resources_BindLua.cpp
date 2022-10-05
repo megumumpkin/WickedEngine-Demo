@@ -238,6 +238,7 @@ namespace Game::ScriptBindings::Resources{
         { NULL, NULL }
     };
     Luna<Scene_BindLua>::PropertyType Scene_BindLua::properties[] = {
+        lunaproperty(Scene_BindLua, StreamBoundary),
         { NULL, NULL }
     };
     Scene_BindLua::Scene_BindLua(lua_State *L)
@@ -477,6 +478,28 @@ namespace Game::ScriptBindings::Resources{
         }
         return 1;
     }
+    int Scene_BindLua::SetStreamBoundary(lua_State* L)
+    {
+        int argc = wi::lua::SGetArgCount(L);
+        if (argc > 0)
+        {
+            auto stream_zone = Luna<wi::lua::primitive::AABB_BindLua>::check(L, 1);
+            if(stream_zone)
+                scene->stream_boundary = stream_zone->aabb;
+            else
+                wi::lua::SError(L, "GameScene::SetStreamBoundary(AABB zone) argument must be AABB type!");
+        }
+        else
+        {
+            wi::lua::SError(L, "GameScene::SetStreamBoundary(AABB zone) not enough arguments!");
+        }
+        return 0;
+    }
+    int Scene_BindLua::GetStreamBoundary(lua_State* L)
+    {
+        Luna<wi::lua::primitive::AABB_BindLua>::push(L, new wi::lua::primitive::AABB_BindLua(scene->stream_boundary));
+        return 1;
+    };
     int Scene_BindLua::LoadScene(lua_State *L){
         int argc = wi::lua::SGetArgCount(L);
         if (argc > 0)

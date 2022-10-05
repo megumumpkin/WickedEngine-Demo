@@ -351,6 +351,7 @@ local compio_instance = {
 
 local compio_stream = {
     {"ExternalSubstitute", "External Substitute Model", "text"},
+    {"Zone", "Stream Zone", "aabb_center"}
 }
 
 local object_creators = {
@@ -427,6 +428,11 @@ local component_set_weather = function(component, editdata)
     end
 end
 
+local component_set_stream = function(component, editdata)
+    component.ExternalSubstitute = editdata.ExternalSubstitute
+    component.Zone = editdata.Zone
+end
+
 local edit_execcmd = function(command, extradata, holdout)
     if command == "add_obj" then
         if type(extradata) == "table" then
@@ -501,7 +507,12 @@ local edit_execcmd = function(command, extradata, holdout)
                 local instance = scene.Component_CreateInstance(extradata.entity)
                 instance.Lock = true
             end
-            -- if extradata.type == "stream" then scene.Component_CreateInstance(extradata.entity) end
+            if extradata.type == "stream" then 
+                local initial_bounds = AABB()
+                initial_bounds.Max = Vector(1,1,1)
+                initial_bounds.Min = Vector(-1,-1,-1)
+                scene.Entity_SetStreamable(extradata.entity, true, initial_bounds) 
+            end
         end
     end
 
@@ -573,6 +584,10 @@ local edit_execcmd = function(command, extradata, holdout)
                 local instancecomponent = scene.Component_GetInstance(extradata.entity)
                 if instancecomponent then component_set_generic(instancecomponent, extradata.post) end
             end
+            if extradata.type == "stream" then
+                local streamcomponent = scene.Component_GetStream(extradata.entity)
+                if streamcomponent then component_set_stream(streamcomponent, extradata.post) end
+            end
         end
     end
 
@@ -601,7 +616,7 @@ local edit_execcmd = function(command, extradata, holdout)
             if extradata.type == "hairparticle" then wiscene.Component_RemoveHairParticleSystem(extradata.entity) end
             if extradata.type == "weather" then wiscene.Component_RemoveWeather(extradata.entity) end
             if extradata.type == "instance" then scene.Component_RemoveInstance(extradata.entity) end
-            if extradata.type == "stream" then scene.Component_SetStreamable(false) end
+            if extradata.type == "stream" then scene.Entity_SetStreamable(extradata.entity, false) end
         end
     end
 
@@ -642,6 +657,22 @@ local edit_undocmd = function()
     if command == "add_obj" then
         wiscene.Entity_Remove(extradata.entity)
     end
+    if command == "add_comp" then
+        if type(extradata) == "table" then
+            if extradata.type == "name" then wiscene.Component_RemoveName(extradata.entity) end
+            if extradata.type == "transform" then wiscene.Component_RemoveTransform(extradata.entity) end
+            if extradata.type == "layer" then wiscene.Component_RemoveLayer(extradata.entity) end
+            if extradata.type == "object" then wiscene.Component_RemoveObject(extradata.entity) end
+            if extradata.type == "light" then wiscene.Component_RemoveLight(extradata.entity) end
+            if extradata.type == "sound" then wiscene.Component_RemoveSound(extradata.entity) end
+            if extradata.type == "material" then wiscene.Component_RemoveMaterial(extradata.entity) end
+            if extradata.type == "emitter" then wiscene.Component_RemoveEmitter(extradata.entity) end
+            if extradata.type == "hairparticle" then wiscene.Component_RemoveHairParticleSystem(extradata.entity) end
+            if extradata.type == "weather" then wiscene.Component_RemoveWeather(extradata.entity) end
+            if extradata.type == "instance" then scene.Component_RemoveInstance(extradata.entity) end
+            if extradata.type == "stream" then scene.Entity_SetStreamable(extradata.entity, false) end
+        end
+    end
     if command == "del_comp" then
         if type(extradata) == "table" then
             if extradata.type == "name" then wiscene.Component_CreateName(extradata.entity) end
@@ -662,7 +693,7 @@ local edit_undocmd = function()
                 local instance = scene.Component_CreateInstance(extradata.entity)
                 instance.Lock = true
             end
-            -- if extradata.type == "stream" then scene.Component_CreateInstance(extradata.entity) end
+            if extradata.type == "stream" then scene.Entity_SetStreamable(extradata.entity, true) end
         end
     end
     if (command == "mod_comp") or (command == "del_comp") then
@@ -727,6 +758,14 @@ local edit_undocmd = function()
         if extradata.type == "instance" then
             local instancecomponent = scene.Component_GetInstance(extradata.entity)
             if instancecomponent then component_set_generic(instancecomponent, extradata.pre) end
+        end
+        if extradata.type == "instance" then
+            local instancecomponent = scene.Component_GetInstance(extradata.entity)
+            if instancecomponent then component_set_generic(instancecomponent, extradata.pre) end
+        end
+        if extradata.type == "stream" then
+            local streamcomponent = scene.Component_GetStream(extradata.entity)
+            if streamcomponent then component_set_stream(streamcomponent, extradata.pre) end
         end
     end
     if command == "del_obj" then
@@ -1109,6 +1148,18 @@ local display_edit_parameters = function(component, parameter_list, edit_store)
                 end)
             end
         end
+
+        if (type == "aabb_center") then
+            local zonecenter = edit_store[key].GetCenter()
+            local zoneextent = edit_store[key].GetHalfExtents()
+            _, zonecenter.X, zonecenter.Y, zonecenter.Z = imgui.InputFloat3(label .. " : Center", zonecenter.X, zonecenter.Y, zonecenter.Z, "%.12f")
+            _, zoneextent.X, zoneextent.Y, zoneextent.Z = imgui.InputFloat3(label .. " : Extent", zoneextent.X, zoneextent.Y, zoneextent.Z, "%.12f")
+
+            edit_store[key].Max = Vector(zonecenter.X + zoneextent.X, zonecenter.Y + zoneextent.Y, zonecenter.Z + zoneextent.Z)
+            edit_store[key].Min = Vector(zonecenter.X - zoneextent.X, zonecenter.Y - zoneextent.Y, zonecenter.Z - zoneextent.Z)
+
+            DrawBox(edit_store[key].GetAsBoxMatrix(),Vector(0,0.2,1,1))
+        end
     end
 
     return changed
@@ -1329,6 +1380,10 @@ local drawcompinspect = function()
                 drawcomp("Instance Component", "instance", entity, instancecomponent, compio_instance, compinspect.component.instance, 
                     function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
 
+                local streamcomponent = scene.Component_GetStream(entity)
+                drawcomp("Stream Component", "stream", entity, streamcomponent, compio_stream, compinspect.component.stream, 
+                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+
 
                 -- local meshcomponent = scene.Component_GetMesh(entity)
                 -- drawcomp("Mesh Component", "mesh", entity, meshcomponent, compio_mesh, compinspect.component.mesh, 
@@ -1343,6 +1398,9 @@ local drawcompinspect = function()
                             local result = Editor_ImguiImageButton(texname, 100.0, 100.0)
                             if result then backlog_post(texname) end
                         end
+
+                        Editor_RenderObjectPreview("MatPrevImg",0,entity)
+                        Editor_ImguiImage("MatPrevImg",200.0, 200.0)
                     end, 
                     function(mcomponent, mprestate) 
 
@@ -1524,7 +1582,6 @@ local update_navigation = function()
     local navigation = D.editor_data.navigation
 
     if Editor_UIFocused() == false then
-
         local camera_pos_delta = Vector()
         local camera_rot_delta = Vector()
 
@@ -1567,7 +1624,6 @@ local update_navigation = function()
             local picked = Editor_PickEntity()
             D.editor_data.elements.scenegraphview.selected_entity = picked
         end
-
     end
 end
 
@@ -1584,6 +1640,15 @@ local update_editaction = function()
     end
 end
 
+local update_editmapstreamdata = function()
+    local stream_radius = 50
+    local navigation = D.editor_data.navigation
+    local streamboundary = scene.StreamBoundary
+    streamboundary.Max = Vector(navigation.camera_pos.X + stream_radius, navigation.camera_pos.Y + stream_radius, navigation.camera_pos.Z + stream_radius)
+    streamboundary.Min = Vector(navigation.camera_pos.X - stream_radius, navigation.camera_pos.Y - stream_radius, navigation.camera_pos.Z - stream_radius)
+    scene.StreamBoundary = streamboundary
+end
+
 runProcess(function()
     if not Script_Initialized(script_pid()) then
         if D.editor_data.actions.command_list == nil then
@@ -1598,6 +1663,7 @@ runProcess(function()
         update_sysmenu_actions()
         update_navigation()
         update_editaction()
+        update_editmapstreamdata()
         update()
     end
 end)

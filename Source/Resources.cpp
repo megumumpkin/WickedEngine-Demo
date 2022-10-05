@@ -156,6 +156,19 @@ void Library::Instance::Init(){
                 auto& lib_finish = job_data.scene->instances.Create(collection_entity);
                 lib_finish = lib_data;
             }
+
+            auto stream_data = scene->streams.GetComponent(job_data.instance_id);
+            if(stream_data != nullptr)
+            {
+                for(auto& entity : job_data.entities)
+                {
+                    auto objectComponent = scene->wiscene.objects.GetComponent(entity);
+                    if(objectComponent != nullptr)
+                    {
+                        stream_data->instance_original_transparency[entity] = objectComponent->color.w;
+                    }
+                }
+            }
         });
     }
 }
@@ -174,6 +187,7 @@ void Library::Instance::Unload()
     entities.clear();
 
     collection_id = wi::ecs::INVALID_ENTITY;
+    load_state = UNLOADED;
 }
 
 void Library::Instance::Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri)
@@ -383,46 +397,52 @@ void Scene::Library_Update(float dt)
         auto& stream = streams[i];
         auto stream_entity = streams.GetEntity(i);
 
+        bool transition_bound_hit = false;
+
         if(stream.stream_zone.intersects(stream_boundary))
         {
             if(instances.Contains(stream_entity)){
                 // Init instances first if the data is not loaded
                 auto instance = instances.GetComponent(stream_entity);
-                if((instance->load_state == Library::Instance::UNLOADED) && !instance->lock){
+                if((instance->load_state == Library::Instance::UNLOADED) && !instance->lock)
                     instance->Init();
-                    for(auto& entity : instance->entities)
-                    {
-                        auto objectComponent = wiscene.objects.GetComponent(entity);
-                        if(objectComponent != nullptr)
-                        {
-                            stream.instance_original_transparency[entity] = objectComponent->color.w;
-                        }
-                    }
-                }
 
                 // Once loading is done we then can transition this to the loaded data
-                if(instance->collection_id != wi::ecs::INVALID_ENTITY){
-                    stream.transition += dt*stream_transition_time;
-                    stream.transition = std::min(stream.transition,1.f);
+                if(instance->load_state == Library::Instance::LOADED){
+                    if(stream.transition >= 1.f)
+                    {
+                        stream.transition = 1.f;
+                        transition_bound_hit = true;
+                    }
+                    else
+                    {
+                        stream.transition += dt*stream_transition_time;
+                    }
 
                     if(stream.transition > 0.f) // Preload script after it is done!
-                    {
-                        
-                    }
+                    {}
                 }
             }
         }
         else
         {
-            stream.transition -= dt*stream_transition_time;
-            stream.transition = std::max(stream.transition,0.f);
+            if(stream.transition <= 0.f)
+            {
+                transition_bound_hit = true;
+                stream.transition = 0.f;
+            }
+            else
+            {
+                stream.transition -= dt*stream_transition_time;
+            }
 
             // Removes instance after transition finishes
-            if(stream.transition == 0.f){
+            if(stream.transition == 0.f)
+            {
                 if(instances.Contains(stream_entity))
                 {
                     auto instance = instances.GetComponent(stream_entity);
-                    if((instance->collection_id != wi::ecs::INVALID_ENTITY) && !instance->lock){
+                    if((instance->load_state == Library::Instance::LOADED) && !instance->lock){
                         instance->Unload();
                         instance->collection_id = wi::ecs::INVALID_ENTITY;
                         stream.instance_original_transparency.clear();
@@ -432,8 +452,9 @@ void Scene::Library_Update(float dt)
         }
 
         // If transition is ongoing, we're going to manipulate the transition of tracked objects!
-        if(stream.transition > 0.f && stream.transition < 1.f){
-            for(auto& object_it : stream.instance_original_transparency){
+        if((stream.transition > 0.f && stream.transition < 1.f) || transition_bound_hit){
+            for(auto& object_it : stream.instance_original_transparency)
+            {
                 if(wiscene.objects.Contains(object_it.first))
                 {
                     auto objectComponent = wiscene.objects.GetComponent(object_it.first);

@@ -90,7 +90,7 @@ namespace Game::Resources
         wi::unordered_map<uint32_t, wi::ecs::Entity> collections;
 
         wi::primitive::AABB stream_boundary;
-        float stream_transition_time = 0.5f;
+        float stream_transition_time = 4.f;
 
         // Scene jobsystem
         std::mutex mutex_scenestream;

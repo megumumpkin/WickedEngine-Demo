@@ -14,6 +14,7 @@ struct FSEvent{
 };
 
 wi::unordered_map<std::string, FSEvent> fsevents;
+wi::unordered_map<std::string, std::filesystem::file_time_type> fseventdiff;
 std::mutex event_sync;
 
 class FSUpdateListener : public efsw::FileWatchListener
@@ -45,11 +46,19 @@ class FSUpdateListener : public efsw::FileWatchListener
             break;
         }
         std::scoped_lock lock (event_sync);
-        fsevents[filename] = {
-            action_type,
-            wi::helper::toUpper(wi::helper::GetExtensionFromFileName(filename)),
-            dir+filename,
-        };
+        auto finddiff = fseventdiff.find(filename);
+        bool event_send = (finddiff != fseventdiff.end()) ? (finddiff->second < std::filesystem::last_write_time(filename)) : true;
+        bool file_valid = std::filesystem::exists(filename);
+
+        if(file_valid && event_send)
+        {
+            fseventdiff[filename] = std::filesystem::last_write_time(filename);
+            fsevents[filename] = {
+                action_type,
+                wi::helper::toUpper(wi::helper::GetExtensionFromFileName(filename)),
+                dir+filename,
+            };
+        }
     }
 };
 

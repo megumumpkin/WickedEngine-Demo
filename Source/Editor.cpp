@@ -714,7 +714,6 @@ int Editor_RenderScenePreview(lua_State* L)
         }
     
         auto distance = std::min(bounds.getRadius()*2.3f,10000000.f);
-        wi::backlog::post(std::to_string(distance));
 
         wi::scene::TransformComponent transform, transform_origin;
 
@@ -758,19 +757,81 @@ int Editor_RenderScenePreview(lua_State* L)
     return 0;
 }
 
-int Editor_RenderMaterialPreview(lua_State* L)
+int Editor_RenderObjectPreview(lua_State* L)
 {
     auto argc = wi::lua::SGetArgCount(L);
     if(argc >= 2)
     {
+        /* Preview Scene Data:
+            MaterialBallInner
+            MaterialBallOuter
+            MaterialBallObject <-- Used for both material and mesh by swapping
+            MaterialBallMesh
+            MeshPreviewData
+        */
+
         auto resourcename = wi::lua::SGetString(L, 1);
-        wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 2);
+        /* enum
+            0 - Material Preview
+            1 - Mesh Preview
+        */
+        auto preview_type = wi::lua::SGetInt(L, 2);
+        wi::ecs::Entity target_entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 3);
 
         auto& renderer = Editor::GetData()->preview_render;
         auto& camera = Editor::GetData()->preview_camera;
 
-        auto& gamescene = Editor::GetData()->preview_scene;
-        renderer.scene = &gamescene.wiscene;
+        auto& previewscene = Editor::GetData()->preview_scene;
+        auto& gamescene = Game::Resources::GetScene();
+        //Copy needed data here
+        switch (preview_type) {
+            case 0: //Material
+            {
+                auto material_render_entity = previewscene.wiscene.Entity_FindByName("MaterialBallOuter");
+                auto material_render = previewscene.wiscene.materials.GetComponent(material_render_entity);
+                
+                auto material_target = gamescene.wiscene.materials.GetComponent(target_entity);
+                if(material_target != nullptr)
+                {
+                    //Pass material data
+                    *material_render = *material_target;
+                }
+                break;
+            }
+            case 1: //Mesh
+            {
+                auto mesh_render_entity = previewscene.wiscene.Entity_FindByName("MeshPreviewData");
+                auto mesh_render = previewscene.wiscene.meshes.GetComponent(mesh_render_entity);
+                
+                auto mesh_target = gamescene.wiscene.meshes.GetComponent(target_entity);
+                if(mesh_target != nullptr)
+                {
+                    //Pass mesh and material data
+                    *mesh_render = *mesh_target;
+
+                    for(auto& subset : mesh_render->subsets)
+                    {
+                        wi::Archive copy_buf;
+                        wi::ecs::EntitySerializer seri;
+                        seri.allow_remap = false;
+
+                        copy_buf.SetReadModeAndResetPos(false);
+                        gamescene.wiscene.Entity_Serialize(copy_buf, seri, subset.materialID, wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES);
+
+                        copy_buf.SetReadModeAndResetPos(true);
+                        previewscene.wiscene.Entity_Serialize(copy_buf, seri, wi::ecs::INVALID_ENTITY, wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES);
+                    }
+                }
+
+                auto object_render_entity = previewscene.wiscene.Entity_FindByName("MaterialBallObject");
+                auto object_render = previewscene.wiscene.objects.GetComponent(object_render_entity);
+                object_render->meshID = mesh_render_entity;
+                break;
+            }
+            default:
+                break;
+        }
+        renderer.scene = &previewscene.wiscene;
 
         wi::primitive::AABB bounds;
         for(int i = 0; i<renderer.scene->layers.GetCount(); ++i)
@@ -788,11 +849,12 @@ int Editor_RenderMaterialPreview(lua_State* L)
             }
         }
     
-        auto distance = std::min(bounds.getRadius()*2.3f,10000000.f);
+        auto distance = std::min(bounds.getRadius()*1.4f,10000000.f);
         wi::backlog::post(std::to_string(distance));
 
         wi::scene::TransformComponent transform;
 
+        transform.Translate(bounds.getCenter());
         transform.Translate(XMFLOAT3(0,0,-distance));
         transform.UpdateTransform();
 
@@ -801,14 +863,46 @@ int Editor_RenderMaterialPreview(lua_State* L)
         
         for(int count = 0; count < 3; ++count)
         {
+            bool is_freeze_culling_enabled = wi::renderer::GetFreezeCullingCameraEnabled();
             bool is_cull_enabled = wi::renderer::GetOcclusionCullingEnabled();
             bool is_grid_set = wi::renderer::GetToDrawGridHelper();
+            wi::renderer::SetFreezeCullingCameraEnabled(true);
             wi::renderer::SetToDrawGridHelper(false);
             renderer.Update(0.16f);
             renderer.PostUpdate();
             renderer.Render();
             wi::renderer::SetToDrawGridHelper(is_grid_set);
             wi::renderer::SetOcclusionCullingEnabled(is_cull_enabled);
+            wi::renderer::SetFreezeCullingCameraEnabled(is_freeze_culling_enabled);
+        }
+
+        //Restore scene setup to default
+        switch (preview_type) {
+            case 0: //Material
+            {
+                auto material_render_entity = previewscene.wiscene.Entity_FindByName("MaterialBallOuter");
+                auto material_render = previewscene.wiscene.materials.GetComponent(material_render_entity);
+                *material_render = wi::scene::MaterialComponent();
+                break;
+            }
+            case 1: //Mesh
+            {
+                auto mesh_render_entity = previewscene.wiscene.Entity_FindByName("MeshPreviewData");
+                auto mesh_render = previewscene.wiscene.meshes.GetComponent(mesh_render_entity);
+
+                for(auto& subset : mesh_render->subsets)
+                {
+                    previewscene.wiscene.Entity_Remove(subset.materialID);
+                }
+
+                auto object_render_entity = previewscene.wiscene.Entity_FindByName("MaterialBallObject");
+                auto object_render = previewscene.wiscene.objects.GetComponent(object_render_entity);
+                auto material_mesh_entity = previewscene.wiscene.Entity_FindByName("MaterialBallMesh");
+                object_render->meshID = material_mesh_entity;
+                break;
+            }
+            default:
+                break;
         }
 
         Editor::GetData()->resourcemap[resourcename].SetTexture(*renderer.GetLastPostprocessRT());
@@ -959,7 +1053,7 @@ void Editor::Init()
 
     wi::lua::RegisterFunc("Editor_ListDirectory", Editor_ListDirectory);
     wi::lua::RegisterFunc("Editor_RenderScenePreview", Editor_RenderScenePreview);
-    wi::lua::RegisterFunc("Editor_RenderMaterialPreview", Editor_RenderMaterialPreview);
+    wi::lua::RegisterFunc("Editor_RenderObjectPreview", Editor_RenderObjectPreview);
     wi::lua::RegisterFunc("Editor_SaveImage", Editor_SaveImage);
 
     wi::lua::RegisterFunc("Editor_ExtractSubInstanceNames", Editor_ExtractSubInstanceNames);
@@ -972,8 +1066,18 @@ void Editor::Init()
 
     Editor::GetData()->preview_render.scene = &Editor::GetData()->preview_scene.wiscene;
     Editor::GetData()->preview_render.camera = &Editor::GetData()->preview_camera;
-    // Editor::GetData()->preview_render.setSceneUpdateEnabled(false);
     Editor::GetData()->preview_render.init(512,512);
+
+    //Set preview cubemap in here
+    //TODO
+    // Editor::GetData()->preview_scene.wiscene.weather.skyMapName = "Data/Editor/UI/ObjectPreviewEnv.jpg";
+
+    //Mesh and material preview data
+    wi::scene::LoadModel(Editor::GetData()->preview_scene.wiscene,"Data/Editor/UI/MaterialBall.bscn");
+    auto mesh_preview_entity = wi::ecs::CreateEntity();
+    auto mesh_preview_nameID = Editor::GetData()->preview_scene.wiscene.names.Create(mesh_preview_entity);
+    mesh_preview_nameID.name = "MeshPreviewData";
+    Editor::GetData()->preview_scene.wiscene.meshes.Create(mesh_preview_entity);
 }
 
 void Editor::Update(float dt, wi::RenderPath2D& viewport)
