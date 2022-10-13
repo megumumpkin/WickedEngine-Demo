@@ -6,7 +6,299 @@ Editor::Data* Editor::GetData(){
     return &data;
 }
 
-int Editor_SetGridHelper(lua_State* L){
+struct AssetMeta
+{
+    enum ASSET_TYPE : uint32_t
+    {
+        SCENE,
+        TEXTURE,
+        SOUND,
+    } asset_type;
+
+    // Scene extra info
+    wi::vector<std::string> scene_subinstances;
+};
+// Reads thumbnail only, skips metadata
+void ReadAssetThumbnail(wi::Archive& archive, std::string file)
+{
+    bool has_thumb;
+    size_t part_thumb;
+    archive >> has_thumb;
+    archive >> part_thumb;
+
+    if(has_thumb)
+    {
+        archive.Jump(part_thumb);
+        wi::vector<uint8_t> thumb_store;
+        archive >> thumb_store;
+        Editor::GetData()->resourcemap[file] = wi::resourcemanager::Load(
+            wi::helper::ReplaceExtension(file, "png"),
+            wi::resourcemanager::Flags::NONE,
+            thumb_store.data(),
+            thumb_store.size());
+    }
+}
+// Reads asset metadata only, skips thumbnail
+void ReadAssetMeta(AssetMeta& data, wi::Archive& archive)
+{
+    bool has_thumb;
+    size_t part_thumb;
+    archive >> has_thumb;
+    archive >> part_thumb;
+
+    uint8_t asset_type;
+    archive >> asset_type;
+    data.asset_type = (AssetMeta::ASSET_TYPE)asset_type;
+    switch(asset_type)
+    {
+        case AssetMeta::SCENE:
+            archive >> data.scene_subinstances;
+            break;
+        case AssetMeta::TEXTURE:
+            break;
+        case AssetMeta::SOUND:
+            break;
+    }
+}
+void WriteAssetMeta(AssetMeta& data, wi::Archive& archive, std::string thumbnail = "")
+{
+    auto has_thumb = thumbnail != "";
+    archive << has_thumb;
+    auto part_thumb = archive.WriteUnknownJumpPosition();
+
+    archive << (uint8_t)data.asset_type;
+    switch(data.asset_type)
+    {
+        case AssetMeta::SCENE:
+            archive << data.scene_subinstances;
+            break;
+        case AssetMeta::TEXTURE:
+            break;
+        case AssetMeta::SOUND:
+            break;
+    }
+
+    if(has_thumb)
+    {
+        archive.PatchUnknownJumpPosition(part_thumb);
+        auto find_image = Editor::GetData()->resourcemap.find(thumbnail);
+        if(find_image != Editor::GetData()->resourcemap.end())
+        {
+            auto& resource = find_image->second;
+            if(resource.IsValid() && resource.GetTexture().IsTexture())
+            {
+                auto& texture = resource.GetTexture();
+                wi::vector<uint8_t> thumb_store;
+                auto res = wi::helper::saveTextureToMemoryFile(texture,"png",thumb_store);
+                archive << thumb_store;
+            }
+        }
+    }
+}
+// Update assets and its asset types here
+void UpdateAsset(std::string file)
+{
+    // Check if asset metadata exists
+    auto assetmetafile = wi::helper::ReplaceExtension(file, "assetmeta");
+    bool hasmeta = false;
+    bool update = false;
+    AssetMeta metadata;
+    if(std::filesystem::exists(assetmetafile))
+    {
+        hasmeta = true;
+        auto read_meta = wi::Archive(assetmetafile);
+        ReadAssetMeta(metadata, read_meta);
+
+        if(std::filesystem::last_write_time(assetmetafile) < std::filesystem::last_write_time(file))
+            update = true;
+    }
+    else
+        update = true;
+
+    if(update)
+    {
+        std::string thumbnail = "";
+        // Create metadata first if it has no metadata
+        // Skip scene data metadata build, offloaded to scene's save system
+        if(!hasmeta)
+        {
+            auto ext = wi::helper::toLower(wi::helper::GetExtensionFromFileName(file));
+            if(ext == "png" || ext == "jpg" || ext == "jpeg")
+                metadata.asset_type = AssetMeta::TEXTURE;
+            if(ext == "wav" || ext == "ogg")
+                metadata.asset_type = AssetMeta::SOUND;
+        }
+
+        if(metadata.asset_type == AssetMeta::TEXTURE)
+        {
+            
+        }
+        
+        // Write asset metadata again after finishing the job
+        auto write_meta = wi::Archive(assetmetafile, false);
+        WriteAssetMeta(metadata, write_meta, thumbnail);
+    }
+}
+// Build current scene metadata
+void BuildSceneMeta(std::string file, wi::ecs::Entity instance_entity = wi::ecs::INVALID_ENTITY, std::string thumbnail = "")
+{
+    AssetMeta metadata;
+    metadata.asset_type = AssetMeta::SCENE;
+
+    auto& scene = Game::Resources::GetScene();
+    wi::unordered_set<std::string> names_ignore;
+    wi::unordered_set<std::string> names;
+
+    auto instanceComponent = scene.instances.GetComponent(instance_entity);
+    if(instanceComponent != nullptr)
+    {
+        for(auto& entity : instanceComponent->entities)
+        {
+            auto nameComponent = scene.wiscene.names.GetComponent(entity);
+            if(nameComponent != nullptr)
+                names.insert(nameComponent->name);
+        }
+    }
+    else
+    {
+        for(int i = 0; i < scene.wiscene.names.GetCount(); ++i)
+        {
+            names.insert(scene.wiscene.names[i].name); 
+        }
+    }
+    metadata.scene_subinstances.insert(metadata.scene_subinstances.begin(), names.begin(), names.end());
+
+    // metadata.scene_subinstances.insert(metadata.scene_subinstances.begin(), names.begin(), names.end());
+    auto write_meta = wi::Archive(file, false);
+    WriteAssetMeta(metadata, write_meta, thumbnail);
+}
+//Lua bindings
+class AssetMeta_BindLua
+{
+private:
+    std::unique_ptr<AssetMeta> owning;
+public:
+    AssetMeta* data = nullptr;
+
+    static const char className[];
+    static Luna<AssetMeta_BindLua>::FunctionType methods[];
+    static Luna<AssetMeta_BindLua>::PropertyType properties[];
+
+    inline void BuildBindings()
+    {
+        asset_type = wi::lua::IntProperty(reinterpret_cast<int*>(&data->asset_type));
+    }
+
+    AssetMeta_BindLua(AssetMeta* data) :data(data)
+    {
+        BuildBindings();
+    }
+    AssetMeta_BindLua(AssetMeta set_data)
+    {
+        owning = std::make_unique<AssetMeta>();
+        data = owning.get();
+        *data = set_data;
+        BuildBindings();
+    }
+    AssetMeta_BindLua(lua_State *L)
+    {
+        owning = std::make_unique<AssetMeta>();
+        data = owning.get();
+        BuildBindings();
+    }
+
+    wi::lua::IntProperty asset_type;
+    PropertyFunction(asset_type)
+};
+const char AssetMeta_BindLua::className[] = "Editor_AssetMeta";
+Luna<AssetMeta_BindLua>::FunctionType AssetMeta_BindLua::methods[] = {{ NULL, NULL }};
+Luna<AssetMeta_BindLua>::PropertyType AssetMeta_BindLua::properties[] = {
+    lunaproperty(AssetMeta_BindLua, asset_type),
+    { NULL, NULL }
+};
+
+int Editor_LoadAssetThumbnail(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        auto file = wi::lua::SGetString(L, 1);
+        auto read = wi::Archive(wi::helper::ReplaceExtension(file, "assetmeta"));
+        ReadAssetThumbnail(read, file);
+    }
+    else
+    {
+        wi::lua::SError(L, "Editor_LoadAssetThumbnail(string file) not enough arguments!");
+    }
+    return 0;
+}
+
+int Editor_LoadAssetMetadata(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        auto file = wi::lua::SGetString(L, 1);
+        auto read = wi::Archive(wi::helper::ReplaceExtension(file, "assetmeta"));
+        AssetMeta data;
+        ReadAssetMeta(data, read);
+        Luna<AssetMeta_BindLua>::push(L,new AssetMeta_BindLua(data));
+        return 1;
+    }
+    else
+    {
+        wi::lua::SError(L, "Editor_LoadAssetMetadata(string file) not enough arguments!");
+    }
+    return 0;
+}
+int Editor_BuildSceneMeta(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        auto file = wi::lua::SGetString(L, 1);
+        auto instance_entity = wi::ecs::INVALID_ENTITY;
+        std::string thumbnail = "";
+        if(argc >= 2)
+            instance_entity = wi::lua::SGetLongLong(L, 2);
+        if(argc >= 3)
+            thumbnail = wi::lua::SGetString(L, 3);
+        BuildSceneMeta(file, instance_entity, thumbnail);
+    }
+    else
+    {
+        wi::lua::SError(L, "Editor_BuildSceneMeta(string file) not enough arguments!");
+    }
+    return 0;
+}
+int Editor_FetchSubInstanceNames(lua_State* L)
+{
+    auto argc = wi::lua::SGetArgCount(L);
+    if(argc > 0)
+    {
+        auto metadata = Luna<AssetMeta_BindLua>::check(L, 1);
+        if(metadata != nullptr)
+        {
+            lua_newtable(L);
+            for(int i = 0; i < metadata->data->scene_subinstances.size(); ++i)
+            {
+                wi::lua::SSetString(L, metadata->data->scene_subinstances[i]);
+                lua_rawseti(L, -2, i);
+            }
+            return 1;
+        }
+    }
+    else
+    {
+        wi::lua::SError(L, "Editor_FetchSubInstanceNames(string filepath) not enough arguments!");
+    }
+    return 0;
+}
+
+
+
+int Editor_SetGridHelper(lua_State* L)
+{
     int argc = wi::lua::SGetArgCount(L);
     if(argc > 0)
     {
@@ -14,12 +306,13 @@ int Editor_SetGridHelper(lua_State* L){
         wi::renderer::SetToDrawGridHelper(set);
     }
     else {
-        wi::lua::SError(L, "editor_dev_griddraw(bool set) not enough arguments!");
+        wi::lua::SError(L, "Editor_SetGridHelper(bool set) not enough arguments!");
     }
     return 0;
 }
 
-int Editor_UIFocused(lua_State* L){
+int Editor_UIFocused(lua_State* L)
+{
     ImGuiIO& io = ::ImGui::GetIO();
     wi::lua::SSetBool(L,io.WantCaptureMouse);
     return 1;
@@ -614,37 +907,43 @@ int Editor_ImguiImageButton(lua_State* L)
     return 0;
 }
 
+static std::vector<std::string> ignore_exts = {
+    "assetmeta"
+};
+inline void _Internal_ListDirectory_ProcessFile(std::string path, wi::unordered_map<std::string, wi::vector<std::string>>& dir_files)
+{
+    auto file_ext = wi::helper::GetExtensionFromFileName(path);
+    bool file_ignore = false;
+    for(auto& ext : ignore_exts)
+    {
+        if(file_ext == ext)
+        {
+            file_ignore = true;
+            break;
+        }
+    }
+
+    if(!file_ignore)
+    {
+        wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
+        std::string file, dir;
+        wi::helper::SplitPath(path, dir, file);
+        dir_files[dir].push_back(file);
+    }
+}
 int Editor_ListDirectory(lua_State* L)
 {
     wi::unordered_map<std::string, wi::vector<std::string>> dir_files;
     
     auto scene_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Scene");
     for (auto& filenode : std::filesystem::recursive_directory_iterator(scene_root,std::filesystem::directory_options::follow_directory_symlink))
-    {
-        std::string path = filenode.path();
-        wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
-        std::string file, dir;
-        wi::helper::SplitPath(path, dir, file);
-        dir_files[dir].push_back(file);
-    }
+        _Internal_ListDirectory_ProcessFile(filenode.path(), dir_files);
     auto texture_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Texture");
     for (auto& filenode : std::filesystem::recursive_directory_iterator(texture_root,std::filesystem::directory_options::follow_directory_symlink))
-    {
-        std::string path = filenode.path();
-        wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
-        std::string file, dir;
-        wi::helper::SplitPath(path, dir, file);
-        dir_files[dir].push_back(file);
-    }
+        _Internal_ListDirectory_ProcessFile(filenode.path(), dir_files);
     auto sound_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Sound");
     for (auto& filenode : std::filesystem::recursive_directory_iterator(sound_root,std::filesystem::directory_options::follow_directory_symlink))
-    {
-        std::string path = filenode.path();
-        wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
-        std::string file, dir;
-        wi::helper::SplitPath(path, dir, file);
-        dir_files[dir].push_back(file);
-    }
+        _Internal_ListDirectory_ProcessFile(filenode.path(), dir_files);
 
     lua_newtable(L);
 
@@ -845,12 +1144,10 @@ int Editor_RenderObjectPreview(lua_State* L)
                         XMFLOAT3(object->center.x - object->radius, object->center.y - object->radius, object->center.z - object->radius),
                         XMFLOAT3(object->center.x + object->radius, object->center.y + object->radius, object->center.z + object->radius)
                     ));
-                bounds = wi::primitive::AABB::Merge(bounds, wi::primitive::AABB()); 
             }
         }
     
-        auto distance = std::min(bounds.getRadius()*1.4f,10000000.f);
-        wi::backlog::post(std::to_string(distance));
+        auto distance = std::min(bounds.getRadius()*1.0f,10000000.f);
 
         wi::scene::TransformComponent transform;
 
@@ -943,85 +1240,64 @@ int Editor_SaveImage(lua_State* L)
     return 0;
 }
 
-int Editor_ExtractSubInstanceNames(lua_State* L)
-{
-    auto argc = wi::lua::SGetArgCount(L);
-    if(argc > 0)
-    {
-        auto filepath = wi::lua::SGetString(L, 1);
+// int Editor_ExtractSubInstanceNames(lua_State* L)
+// {
+//     auto argc = wi::lua::SGetArgCount(L);
+//     if(argc > 0)
+//     {
+//         auto filepath = wi::lua::SGetString(L, 1);
 
-        wi::ecs::Entity instance_entity = wi::ecs::INVALID_ENTITY;
-        if(argc >= 2)
-        {
-            instance_entity = (wi::ecs::Entity)wi::lua::SGetInt(L, 2);
-        }
+//         wi::ecs::Entity instance_entity = wi::ecs::INVALID_ENTITY;
+//         if(argc >= 2)
+//         {
+//             instance_entity = (wi::ecs::Entity)wi::lua::SGetInt(L, 2);
+//         }
 
-        wi::unordered_set<std::string> names;
+//         wi::unordered_set<std::string> names;
 
-        auto& scene = Game::Resources::GetScene();
+//         auto& scene = Game::Resources::GetScene();
 
-        auto instanceComponent = scene.instances.GetComponent(instance_entity);
-        if(instanceComponent != nullptr)
-        {
-            for(auto& entity : instanceComponent->entities)
-            {
-                auto nameComponent = scene.wiscene.names.GetComponent(entity);
-                names.insert(nameComponent->name);
-            }
-        }
-        else
-        {
-            for(int i = 0; i < scene.wiscene.names.GetCount(); ++i)
-            {
-                names.insert(scene.wiscene.names[i].name);
-            }
-        }
+//         auto instanceComponent = scene.instances.GetComponent(instance_entity);
+//         if(instanceComponent != nullptr)
+//         {
+//             for(auto& entity : instanceComponent->entities)
+//             {
+//                 auto nameComponent = scene.wiscene.names.GetComponent(entity);
+//                 names.insert(nameComponent->name);
+//             }
+//         }
+//         else
+//         {
+//             for(int i = 0; i < scene.wiscene.names.GetCount(); ++i)
+//             {
+//                 names.insert(scene.wiscene.names[i].name);
+//             }
+//         }
 
-        wi::vector<std::string> names_export;
-        names_export.insert(names_export.begin(), names.begin(), names.end());
+//         wi::vector<std::string> names_export;
+//         names_export.insert(names_export.begin(), names.begin(), names.end());
 
-        auto save = wi::Archive(filepath, false);
-        save << names_export;
-    }
-    else
-    {
-        wi::lua::SError(L, "Editor_ExtractSubInstanceNames(string filepath) not enough arguments!");
-    }
+//         auto save = wi::Archive(filepath, false);
+//         save << names_export;
+//     }
+//     else
+//     {
+//         wi::lua::SError(L, "Editor_ExtractSubInstanceNames(string filepath) not enough arguments!");
+//     }
 
-    return 0;
-}
-
-int Editor_FetchSubInstanceNames(lua_State* L)
-{
-    auto argc = wi::lua::SGetArgCount(L);
-    if(argc > 0)
-    {
-        auto filepath = wi::lua::SGetString(L, 1);
-
-        wi::vector<std::string> names_import;
-        
-        auto load = wi::Archive(filepath, true);
-        load >> names_import;
-
-        lua_newtable(L);
-        for(int i = 0; i < names_import.size(); ++i)
-        {
-            wi::lua::SSetString(L, names_import[i]);
-            lua_rawseti(L, -2, i);
-        }
-
-        return 1;
-    }
-    else
-    {
-        wi::lua::SError(L, "Editor_FetchSubInstanceNames(string filepath) not enough arguments!");
-    }
-    return 0;
-}
+//     return 0;
+// }
 
 void Editor::Init()
 {
+    auto L = wi::lua::GetLuaState();
     wi::lua::RunText("EditorAPI = true");
+
+    Luna<AssetMeta_BindLua>::Register(L);
+    wi::lua::RegisterFunc("Editor_LoadAssetThumbnail", Editor_LoadAssetThumbnail);
+    wi::lua::RegisterFunc("Editor_LoadAssetMetadata", Editor_LoadAssetMetadata);
+    wi::lua::RegisterFunc("Editor_BuildSceneMeta", Editor_BuildSceneMeta);
+    wi::lua::RegisterFunc("Editor_FetchSubInstanceNames", Editor_FetchSubInstanceNames);
 
     wi::lua::RegisterFunc("Editor_SetGridHelper", Editor_SetGridHelper);
     wi::lua::RegisterFunc("Editor_UIFocused", Editor_UIFocused);
@@ -1056,8 +1332,7 @@ void Editor::Init()
     wi::lua::RegisterFunc("Editor_RenderObjectPreview", Editor_RenderObjectPreview);
     wi::lua::RegisterFunc("Editor_SaveImage", Editor_SaveImage);
 
-    wi::lua::RegisterFunc("Editor_ExtractSubInstanceNames", Editor_ExtractSubInstanceNames);
-    wi::lua::RegisterFunc("Editor_FetchSubInstanceNames", Editor_FetchSubInstanceNames);
+    // wi::lua::RegisterFunc("Editor_ExtractSubInstanceNames", Editor_ExtractSubInstanceNames);
 
     Editor::GetData()->transform_translator.SetEnabled(true);
     Editor::GetData()->transform_translator.scene = &Game::Resources::GetScene().wiscene;
@@ -1068,16 +1343,64 @@ void Editor::Init()
     Editor::GetData()->preview_render.camera = &Editor::GetData()->preview_camera;
     Editor::GetData()->preview_render.init(512,512);
 
-    //Set preview cubemap in here
-    //TODO
-    // Editor::GetData()->preview_scene.wiscene.weather.skyMapName = "Data/Editor/UI/ObjectPreviewEnv.jpg";
+    // Set preview cubemap in here
+    Editor::GetData()->preview_scene.wiscene.weather.skyMap = wi::resourcemanager::Load("Data/Editor/UI/ObjectPreviewEnv.dds", wi::resourcemanager::Flags::IMPORT_RETAIN_FILEDATA);
 
-    //Mesh and material preview data
+    // Mesh and material preview data
     wi::scene::LoadModel(Editor::GetData()->preview_scene.wiscene,"Data/Editor/UI/MaterialBall.bscn");
     auto mesh_preview_entity = wi::ecs::CreateEntity();
     auto mesh_preview_nameID = Editor::GetData()->preview_scene.wiscene.names.Create(mesh_preview_entity);
     mesh_preview_nameID.name = "MeshPreviewData";
     Editor::GetData()->preview_scene.wiscene.meshes.Create(mesh_preview_entity);
+
+    // // Scan assets and create metadata
+    // // Process Scene Data
+    // auto scene_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Scene");
+    // for (auto& filenode : std::filesystem::recursive_directory_iterator(scene_root,std::filesystem::directory_options::follow_directory_symlink))
+    // {
+    //     std::string path = filenode.path();
+    //     wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
+    //     std::string file, dir, ext;
+    //     wi::helper::SplitPath(path, dir, file);
+    //     ext = wi::helper::toLower(wi::helper::GetExtensionFromFileName(file));
+    //     if(ext == "exf") // Engine eXchange Format
+    //     {
+    //         //TODO
+    //     }
+    // }
+    // // Process Texture Data
+    // auto texture_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Texture");
+    // for (auto& filenode : std::filesystem::recursive_directory_iterator(texture_root,std::filesystem::directory_options::follow_directory_symlink))
+    // {
+    //     std::string path = filenode.path();
+    //     wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
+    //     std::string file, dir, ext;
+    //     wi::helper::SplitPath(path, dir, file);
+    //     ext = wi::helper::toLower(wi::helper::GetExtensionFromFileName(file));
+    //     if(ext == "png" || ext == "jpg" || ext == "jpeg")
+    //     {
+    //         // Check if asset metadata exists
+    //         auto assetmetafile = path + ".assetmeta";
+    //         bool update = false;
+    //         if (std::filesystem::exists(assetmetafile))
+    //         {
+    //             wi::Archive(assetmetafile);
+    //             AssetMeta meta_buf;
+    //         }
+    //         else update = true;
+    //         // Build multiple LOD textures
+    //     }
+    // }
+    // // Process Sound Data
+    // auto sound_root = std::filesystem::path(wi::helper::GetCurrentPath() + "/Data/Sound");
+    // for (auto& filenode : std::filesystem::recursive_directory_iterator(sound_root,std::filesystem::directory_options::follow_directory_symlink))
+    // {
+    //     std::string path = filenode.path();
+    //     wi::helper::MakePathRelative(wi::helper::GetCurrentPath() + "/Data", path);
+    //     std::string file, dir, ext;
+    //     wi::helper::SplitPath(path, dir, file);
+    //     ext = wi::helper::toLower(wi::helper::GetExtensionFromFileName(file));
+    // }
 }
 
 void Editor::Update(float dt, wi::RenderPath2D& viewport)

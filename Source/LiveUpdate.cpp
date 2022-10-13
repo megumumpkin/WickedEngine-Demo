@@ -13,9 +13,20 @@ struct FSEvent{
     std::string filepath;
 };
 
+wi::unordered_set<std::string> file_ignore_list; // To ignore some files to be updated
 wi::unordered_map<std::string, FSEvent> fsevents;
 wi::unordered_map<std::string, std::filesystem::file_time_type> fseventdiff;
 std::mutex event_sync;
+
+void Game::LiveUpdate::IgnoreFile(std::string &file)
+{
+    file_ignore_list.insert(file);
+}
+
+void Game::LiveUpdate::IgnoreFileRemove(std::string &file)
+{
+    file_ignore_list.erase(file);
+}
 
 class FSUpdateListener : public efsw::FileWatchListener
 {

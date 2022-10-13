@@ -3,6 +3,7 @@ D("editor_data",{
         resexp = {
             win_visible = false,
             updated = false,
+            type = 0, -- 0=scene 1=texture 2=sound
             input = "",
             selected_file = "",
             selected_resname = "",
@@ -10,7 +11,7 @@ D("editor_data",{
             directory_stack = {},
             directory_list = {},
             instance_popup = false,
-            subinstance_list = {}
+            subinstance_list = {},
         },
         scenegraphview = {
             win_visible = true,
@@ -51,7 +52,12 @@ D("editor_data",{
                 stream = {},
                 mesh = {},
                 material = {},
-            }
+            },
+            compmenu = {
+                material = {
+                    texture_id = 0,
+                },
+            },
         },
         importwindow = {
             win_visible = false,
@@ -787,6 +793,7 @@ local drawtopbar = function()
         imgui.PopStyleVar()
         if imgui.Button("\xef\x86\xb2 " .. D.editor_data.core_data.resname .. "   \xef\x83\x97") then
             D.editor_data.elements.resexp.win_visible = not D.editor_data.elements.resexp.win_visible
+            D.editor_data.elements.resexp.type = 0
         end
         imgui.SameLine()
         if imgui.Button("\xef\x85\x9b File") then
@@ -871,6 +878,7 @@ local drawmenubardialogs = function()
     end
 end
 
+local scenexp_type_strings = {"Scene", "Texture"}
 local drawsceneexp = function()
     local resexp = D.editor_data.elements.resexp
 
@@ -881,7 +889,7 @@ local drawsceneexp = function()
         end
 
         local sub_visible = false
-        sub_visible, resexp.win_visible = imgui.Begin("\xef\x86\xb2 Scene Explorer", resexp.win_visible)
+        sub_visible, resexp.win_visible = imgui.Begin("\xef\x86\xb2 Resource Explorer - " .. scenexp_type_strings[resexp.type+1], resexp.win_visible)
         if sub_visible then
             _, resexp.input = imgui.InputText("##resexp_sin", resexp.input, 255)
             imgui.SameLine() imgui.Button("\xef\x85\x8e Search")
@@ -893,41 +901,40 @@ local drawsceneexp = function()
 
             local containersize = imgui.GetContentRegionAvail()
             local max_sameline = math.floor(containersize.x / 100) 
-
             local item_counter = 1
             local sameline_count = 1
 
-            -- Display previews of scenes here!
-            -- if Editor_ImguiImageButton("Suzu", 100.0, 100.0) then end
             for path, filelist in pairs(resexp.directory_list) do
                 local dirstack = {}
                 for stack in string.gmatch(path, "([^,]+)/") do table.insert(dirstack,stack) end
                 for _, file in ipairs(filelist) do
-                    if(dirstack[1] == "Scene") then
-                        local thumb_path = "Data/Editor/Thumb"
-                        if #dirstack > 2 then
-                            for idx = 2, #dirstack, 1 do thumb_path = thumb_path .. "/" .. dirstack[idx] end
-                        end
-                        local thumbname_split = {}
-                        for nstack in string.gmatch(file, "([^,]+)%.") do table.insert(thumbname_split, nstack) end
-                        
-                        if (sameline_count <= max_sameline) and (item_counter > 1) then 
-                            imgui.SameLine()
-                        else
-                            sameline_count = 1
-                        end
-                        
-                        if Editor_ImguiImageButton(thumb_path .. "/" .. thumbname_split[1] .. ".png", 100, 100) then
-                            resexp.selected_resname = thumbname_split[1]
-                            resexp.selected_file = "Data/" .. path .. file
-                            imgui.OpenPopup("REIM")
-                        end
-                        if imgui.IsItemHovered() then
-                            imgui.SetTooltip(thumbname_split[1])
-                        end
-                        sameline_count = sameline_count + 1
-                        item_counter = item_counter + 1
+
+                    if (sameline_count <= max_sameline) and (item_counter > 1) then 
+                        imgui.SameLine()
+                    else
+                        sameline_count = 1
                     end
+
+                    local filename_split = {}
+                    for nstack in string.gmatch(file, "([^,]+)%.") do table.insert(filename_split, nstack) end
+
+                    if resexp.type == 0 then -- Scene
+                        if(dirstack[1] == "Scene") then
+                            Editor_LoadAssetThumbnail("Data/" .. path .. file)
+                            -- if Editor_ImguiImageButton("Data/Editor/UI/TexNone.png", 100, 100) then
+                            if Editor_ImguiImageButton("Data/" .. path .. file, 100, 100) then
+                                resexp.selected_resname = filename_split[1]
+                                resexp.selected_file = "Data/" .. path .. file
+                                imgui.OpenPopup("REIM")
+                            end
+                            if imgui.IsItemHovered() then
+                                imgui.SetTooltip(filename_split[1])
+                            end
+                        end
+                    end
+
+                    sameline_count = sameline_count + 1
+                    item_counter = item_counter + 1
                 end
             end
 
@@ -940,7 +947,10 @@ local drawsceneexp = function()
 
             if resexp.instance_popup then
                 imgui.OpenPopup("REINST")
-                resexp.subinstance_list = Editor_FetchSubInstanceNames("Data/Editor/Instances/" .. resexp.selected_resname .. ".instlist")
+                local metadata = Editor_LoadAssetMetadata("Data/Scene/" .. resexp.selected_resname .. ".bscn")
+                -- resexp.subinstance_list = Editor_FetchSubInstanceNames("Data/Editor/Instances/" .. resexp.selected_resname .. ".instlist")
+                resexp.subinstance_list = Editor_FetchSubInstanceNames(metadata)
+                backlog_post(type(resexp.subinstance_list) .. " " .. #resexp.subinstance_list)
                 resexp.instance_popup = false
             end
 
@@ -1172,17 +1182,21 @@ local build_edit_prestate = function(component, parameter_list, pre_storage)
     end
 end
 
-local drawcomp = function(tree_title, act_name, entity, component, compio, editor, custom_io, custom_def)
+local drawcomp = function(tree_title, act_name, entity, component, compio, editor, custom_top, custom_io, custom_def)
     if component then
         local ret_tree = imgui.TreeNode(tree_title)
         if ret_tree then
             local changed = false
 
+            if custom_top ~= nil then custom_top() end
+
             local changed_compio = display_edit_parameters(component, compio, editor)
             if changed_compio then changed = true end
 
-            local changed_custio = custom_io(component, editor)
-            if changed_custio then changed = true end
+            if custom_io ~= nil then
+                local changed_custio = custom_io(component, editor, changed)
+                if changed_custio then changed = true end
+            end
             
             if input.Press(KEYBOARD_BUTTON_ENTER) then changed = true end
 
@@ -1194,7 +1208,7 @@ local drawcomp = function(tree_title, act_name, entity, component, compio, edito
                     post = deepcopy(editor)
                 }
                 build_edit_prestate(component, compio, editdata.pre)
-                custom_def(component, editdata.pre)
+                if custom_def ~= nil then custom_def(component, editdata.pre) end
                 edit_execcmd("mod_comp", editdata)
             end
 
@@ -1205,7 +1219,7 @@ local drawcomp = function(tree_title, act_name, entity, component, compio, edito
                     pre = {}
                 }
                 build_edit_prestate(component, compio, editdata.pre)
-                custom_def(component, editdata.pre)
+                if custom_def ~= nil then custom_def(component, editdata.pre) end
                 edit_execcmd("del_comp", editdata)
             end
 
@@ -1213,7 +1227,7 @@ local drawcomp = function(tree_title, act_name, entity, component, compio, edito
         end
         if not imgui.IsItemFocused() then 
             build_edit_prestate(component, compio, editor) 
-            custom_def(component, editor)
+            if custom_def ~= nil then custom_def(component, editor) end
         end
     end
 end
@@ -1224,16 +1238,19 @@ local drawcompinspect = function()
         local sub_visible = false
         sub_visible, compinspect.win_visible = imgui.Begin("\xef\x82\x85 Component Inspector", compinspect.win_visible)
 
+        -- pipe actions
+        local pipe_act_c_tex_opt = false
+
         if sub_visible then
             local entity = D.editor_data.elements.scenegraphview.selected_entity
             if entity > 0 then
             
                 local namecomponent = wiscene.Component_GetName(entity)
                 drawcomp("Name Component", "name", entity, namecomponent, compio_name, compinspect.component.name, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                    function() end, function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
 
                 local layercomponent = wiscene.Component_GetLayer(entity)
-                drawcomp("Layer Component", "layer", entity, layercomponent, {}, {}, 
+                drawcomp("Layer Component", "layer", entity, layercomponent, {}, {}, nil,
                     function(mcomponent, meditor) 
                         local changed = false
                         local layers = layercomponent.LayerMask
@@ -1269,23 +1286,19 @@ local drawcompinspect = function()
                     end)
 
                 local transformcomponent = wiscene.Component_GetTransform(entity)
-                drawcomp("Transform Component", "transform", entity, transformcomponent, compio_transform, compinspect.component.transform, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Transform Component", "transform", entity, transformcomponent, compio_transform, compinspect.component.transform)
 
                 local objectcomponent = wiscene.Component_GetObject(entity)
-                drawcomp("Object Component", "object", entity, objectcomponent, compio_object, compinspect.component.object, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Object Component", "object", entity, objectcomponent, compio_object, compinspect.component.object)
 
                 local emittercomponent = wiscene.Component_GetEmitter(entity)
-                drawcomp("Emitter Component", "emitter", entity, emittercomponent, compio_emitter, compinspect.component.emitter, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Emitter Component", "emitter", entity, emittercomponent, compio_emitter, compinspect.component.emitter)
 
                 local hairparticlecomponent = wiscene.Component_GetHairParticleSystem(entity)
-                drawcomp("Hair Particle System", "hairparticle", entity, hairparticlecomponent, compio_hairparticle, compinspect.component.hairparticle, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Hair Particle System", "hairparticle", entity, hairparticlecomponent, compio_hairparticle, compinspect.component.hairparticle)
 
                 local lightcomponent = wiscene.Component_GetLight(entity)
-                drawcomp("Light Component", "light", entity, lightcomponent, compio_light, compinspect.component.light, 
+                drawcomp("Light Component", "light", entity, lightcomponent, compio_light, compinspect.component.light, nil,
                     function(mcomponent, meditor) 
                         local changed = false
 
@@ -1300,23 +1313,19 @@ local drawcompinspect = function()
                         if changed_set_volumetric then changed = true end
 
                         return changed
-                    end, 
-                    function(mcomponent, mprestate) end)
+                    end)
 
                 local rigidbodycomponent = wiscene.Component_GetRigidBodyPhysics(entity)
-                drawcomp("Rigid Body Component", "rigidbody", entity, rigidbodycomponent, compio_rigidbody, compinspect.component.rigidbody, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Rigid Body Component", "rigidbody", entity, rigidbodycomponent, compio_rigidbody, compinspect.component.rigidbody)
 
                 local softbodycomponent = wiscene.Component_GetSoftBodyPhysics(entity)
-                drawcomp("Soft Body Component", "softbody", entity, softbodycomponent, compio_softbody, compinspect.component.softbody, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Soft Body Component", "softbody", entity, softbodycomponent, compio_softbody, compinspect.component.softbody)
 
                 local forcecomponent = wiscene.Component_GetForceField(entity)
-                drawcomp("Force Field Component", "force", entity, forcecomponent, compio_force, compinspect.component.force, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Force Field Component", "force", entity, forcecomponent, compio_force, compinspect.component.force)
 
                 local weathercomponent = wiscene.Component_GetWeather(entity)
-                drawcomp("Weather Component", "weather", entity, weathercomponent, compio_weather, compinspect.component.weather, 
+                drawcomp("Weather Component", "weather", entity, weathercomponent, compio_weather, compinspect.component.weather, nil,
                     function(mcomponent, meditor) 
                         local ret_tree_atmos = imgui.TreeNode("Atmosphere Parameters")
                         if ret_tree_atmos then
@@ -1338,7 +1347,7 @@ local drawcompinspect = function()
                     end)
 
                 local soundcomponent = wiscene.Component_GetSound(entity)
-                drawcomp("Sound Component", "sound", entity, soundcomponent, compio_sound, compinspect.component.sound, 
+                drawcomp("Sound Component", "sound", entity, soundcomponent, compio_sound, compinspect.component.sound, nil,
                     function(mcomponent, meditor) 
                         local changed = false
 
@@ -1373,16 +1382,13 @@ local drawcompinspect = function()
                     end)
 
                 local collidercomponent = wiscene.Component_GetCollider(entity)
-                drawcomp("Collider Component", "collider", entity, collidercomponent, compio_collider, compinspect.component.collider, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Collider Component", "collider", entity, collidercomponent, compio_collider, compinspect.component.collider)
 
                 local instancecomponent = scene.Component_GetInstance(entity)
-                drawcomp("Instance Component", "instance", entity, instancecomponent, compio_instance, compinspect.component.instance, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Instance Component", "instance", entity, instancecomponent, compio_instance, compinspect.component.instance)
 
                 local streamcomponent = scene.Component_GetStream(entity)
-                drawcomp("Stream Component", "stream", entity, streamcomponent, compio_stream, compinspect.component.stream, 
-                    function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
+                drawcomp("Stream Component", "stream", entity, streamcomponent, compio_stream, compinspect.component.stream)
 
 
                 -- local meshcomponent = scene.Component_GetMesh(entity)
@@ -1391,25 +1397,70 @@ local drawcompinspect = function()
 
                 local materialcomponent = wiscene.Component_GetMaterial(entity)
                 drawcomp("Material Component", "material", entity, materialcomponent, compio_material, compinspect.component.material, 
-                    function(mcomponent, meditor) 
+                    function()
+                        Editor_ImguiImage("MatPrevImg",250.0, 250.0)
+                    end,
+                    function(mcomponent, meditor)
+                        local containersize = imgui.GetContentRegionAvail()
+                        local max_sameline = math.floor(containersize.x / 100) 
+                        local item_counter = 1
+                        local sameline_count = 1
+
                         for index, label in ipairs(compio_material_texturenames) do
                             -- backlog_post(index)
                             local texname = mcomponent.GetTexture(index-1)
-                            local result = Editor_ImguiImageButton(texname, 100.0, 100.0)
-                            if result then backlog_post(texname) end
+                            local hastexture = true
+                            if texname == "" then 
+                                hastexture = false
+                                texname = "Data/Editor/UI/TexNone.png"
+                            end
+
+                            if (sameline_count <= max_sameline) and (item_counter > 1) then 
+                                imgui.SameLine()
+                            else
+                                sameline_count = 1
+                            end
+                            
+                            imgui.PushID(label)
+                            if Editor_ImguiImageButton(texname, 100.0, 100.0) then
+                                compinspect.compmenu.material.texture_id = index-1
+                                backlog_post(compinspect.compmenu.material.texture_id)
+                                pipe_act_c_tex_opt = true
+                            end
+                            imgui.PopID()
+
+                            if imgui.IsItemHovered() then
+                                if hastexture then
+                                    imgui.SetTooltip(label .. " - " .. texname)
+                                else
+                                    imgui.SetTooltip(label .. " - NO TEXTURE")
+                                end
+                            end
+                            sameline_count = sameline_count + 1
+                            item_counter = item_counter + 1
                         end
-
                         Editor_RenderObjectPreview("MatPrevImg",0,entity)
-                        Editor_ImguiImage("MatPrevImg",200.0, 200.0)
                     end, 
-                    function(mcomponent, mprestate) 
-
-                    end)
+                    function(mcomponent, mprestate) end)
 
                 if imgui.Button("\t\t\t\t\tAdd Component\t\t\t\t\t") then imgui.OpenPopup("CEAC") end -- TODO
             end
+            if pipe_act_c_tex_opt then imgui.OpenPopup("C_TEX_OPT") end
         end
 
+        if imgui.BeginPopupContextWindow("C_TEX_OPT") then
+            local tex_remove = false
+            tex_remove = imgui.MenuItem("Remove Texture", nil, tex_remove)
+            if tex_remove then end
+
+            local tex_change = false
+            tex_change = imgui.MenuItem("Change Texture", nil, tex_change)
+            if tex_change then 
+                D.editor_data.elements.resexp.type = 1
+                D.editor_data.elements.resexp.win_visible = true
+            end
+            imgui.EndPopup()
+        end
         if imgui.BeginPopupContextWindow("CEAC") then
             local actions = D.editor_data.actions
             for _, creator in ipairs(component_creators) do
@@ -1529,9 +1580,12 @@ local update_sysmenu_actions = function()
     end
     if actions.resource_save then
         Editor_RenderScenePreview("SaveImg")
-        Editor_SaveImage("SaveImg","Data/Editor/Thumb/" .. D.editor_data.core_data.resname .. ".png")
+        -- Editor_SaveImage("SaveImg","Data/testthumb.png")
+        local savefile = SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA
         Editor_SaveScene(SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA)
-        Editor_ExtractSubInstanceNames("Data/Editor/Instances/" .. D.editor_data.core_data.resname .. ".instlist")
+        Editor_BuildSceneMeta(SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. ".assetmeta", 0, "SaveImg")
+
+        -- Editor_ExtractSubInstanceNames("Data/Editor/Instances/" .. D.editor_data.core_data.resname .. ".instlist")
         actions.resource_save = false
     end
     if actions.resource_open then
