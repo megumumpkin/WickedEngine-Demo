@@ -10,6 +10,7 @@ D("editor_data",{
             selected_subinstance = "",
             directory_stack = {},
             directory_list = {},
+            current_folder_list = {},
             instance_popup = false,
             subinstance_list = {},
         },
@@ -879,7 +880,7 @@ local drawmenubardialogs = function()
 end
 
 local scenexp_type_strings = {"Scene", "Texture"}
-local drawsceneexp = function()
+local drawresexp = function()
     local resexp = D.editor_data.elements.resexp
 
     if resexp.win_visible then
@@ -891,9 +892,29 @@ local drawsceneexp = function()
         local sub_visible = false
         sub_visible, resexp.win_visible = imgui.Begin("\xef\x86\xb2 Resource Explorer - " .. scenexp_type_strings[resexp.type+1], resexp.win_visible)
         if sub_visible then
+            -- Search Bar
             _, resexp.input = imgui.InputText("##resexp_sin", resexp.input, 255)
             imgui.SameLine() imgui.Button("\xef\x85\x8e Search")
 
+            -- Directory Bar
+            imgui.PushStyleVar(imgui.constant.StyleVar.ChildRounding, 5.0)
+            local childflags = 0 | imgui.constant.WindowFlags.NoTitleBar
+            local view_oblist = imgui.BeginChild("##dirbar", 0, 40.0, true, childflags)
+            imgui.PopStyleVar()
+            if imgui.Button("Root##Root") then resexp.directory_stack = {} end
+            for i, dir in ipairs(resexp.directory_stack) do
+                imgui.SameLine()
+                imgui.Text("/")
+                imgui.SameLine()
+                if imgui.Button(dir .. "##" .. i) then 
+                    while i < #resexp.directory_stack do
+                        resexp.directory_stack[#resexp.directory_stack] = nil
+                    end
+                end
+            end
+            imgui.EndChild()
+
+            -- File List
             imgui.PushStyleVar(imgui.constant.StyleVar.ChildRounding, 5.0)
             local childflags = 0 | imgui.constant.WindowFlags.NoTitleBar
             local view_oblist = imgui.BeginChild("##listview", 0, 0, true, childflags)
@@ -904,9 +925,51 @@ local drawsceneexp = function()
             local item_counter = 1
             local sameline_count = 1
 
+            local asset_type_string = scenexp_type_strings[resexp.type+1]
+
+            if #resexp.directory_stack > 0 then
+                if (sameline_count <= max_sameline) and (item_counter > 1) then 
+                    imgui.SameLine()
+                else
+                    sameline_count = 1
+                end
+
+                if Editor_ImguiImageButton("Data/Editor/UI/fa-folder-tree-solid.png", 100, 100) then
+                    resexp.directory_stack[#resexp.directory_stack] = nil
+                end
+                if imgui.IsItemHovered() then
+                    imgui.SetTooltip("Go to Upper Folder")
+                end
+
+                sameline_count = sameline_count + 1
+                item_counter = item_counter + 1
+            end
+
+            for _, folder in ipairs(resexp.current_folder_list) do
+                if (sameline_count <= max_sameline) and (item_counter > 1) then 
+                    imgui.SameLine()
+                else
+                    sameline_count = 1
+                end
+
+                imgui.PushID(folder)
+                if Editor_ImguiImageButton("Data/Editor/UI/fa-folder-solid.png", 100, 100) then
+                    table.insert(resexp.directory_stack,folder)
+                end
+                imgui.PopID()
+                if imgui.IsItemHovered() then
+                    imgui.SetTooltip(folder)
+                end
+
+                sameline_count = sameline_count + 1
+                item_counter = item_counter + 1
+            end
+
+            resexp.current_folder_list = {}
             for path, filelist in pairs(resexp.directory_list) do
                 local dirstack = {}
-                for stack in string.gmatch(path, "([^,]+)/") do table.insert(dirstack,stack) end
+                for stack in string.gmatch(path, "([^/]+)") do table.insert(dirstack,stack) end
+
                 for _, file in ipairs(filelist) do
 
                     if (sameline_count <= max_sameline) and (item_counter > 1) then 
@@ -916,20 +979,33 @@ local drawsceneexp = function()
                     end
 
                     local filename_split = {}
-                    for nstack in string.gmatch(file, "([^,]+)%.") do table.insert(filename_split, nstack) end
+                    for nstack in string.gmatch(file, "([^.]+)") do table.insert(filename_split,nstack) end
 
-                    if resexp.type == 0 then -- Scene
-                        if(dirstack[1] == "Scene") then
+                    local dir_valid = true
+                    if #dirstack-1 == #resexp.directory_stack then
+                        for i, dir in ipairs(resexp.directory_stack) do
+                            if dirstack[i+1] ~= dir then dir_valid = false end
+                        end
+                    else dir_valid = false end
+
+                    if (dirstack[1] == asset_type_string) and (dir_valid == true) then
+                        if #filename_split == 2 then
                             Editor_LoadAssetThumbnail("Data/" .. path .. file)
-                            -- if Editor_ImguiImageButton("Data/Editor/UI/TexNone.png", 100, 100) then
                             if Editor_ImguiImageButton("Data/" .. path .. file, 100, 100) then
-                                resexp.selected_resname = filename_split[1]
+                                local resname_build = ""
+                                for i, dir in ipairs(dirstack) do 
+                                    if i > 1 then resname_build = resname_build .. dir .. "/" end
+                                end
+                                resname_build = resname_build .. filename_split[1]
+                                resexp.selected_resname = resname_build
                                 resexp.selected_file = "Data/" .. path .. file
                                 imgui.OpenPopup("REIM")
                             end
                             if imgui.IsItemHovered() then
                                 imgui.SetTooltip(filename_split[1])
                             end
+                        else
+                            table.insert(resexp.current_folder_list,filename_split[1])
                         end
                     end
 
@@ -947,7 +1023,8 @@ local drawsceneexp = function()
 
             if resexp.instance_popup then
                 imgui.OpenPopup("REINST")
-                local metadata = Editor_LoadAssetMetadata("Data/Scene/" .. resexp.selected_resname .. ".bscn")
+                local path_build = "Data/Scene/" .. resexp.selected_resname .. ".bscn"
+                local metadata = Editor_LoadAssetMetadata(path_build)
                 -- resexp.subinstance_list = Editor_FetchSubInstanceNames("Data/Editor/Instances/" .. resexp.selected_resname .. ".instlist")
                 resexp.subinstance_list = Editor_FetchSubInstanceNames(metadata)
                 backlog_post(type(resexp.subinstance_list) .. " " .. #resexp.subinstance_list)
@@ -1568,6 +1645,7 @@ local update_sysmenu_actions = function()
             Editor_WipeDeletedEntityList()
         end
         scene.Clear()
+        Editor_ReinitSceneEnv()
         edit_execcmd("init")
 
         D.editor_data.core_data.resname = "Untitled Scene"
@@ -1580,8 +1658,7 @@ local update_sysmenu_actions = function()
     end
     if actions.resource_save then
         Editor_RenderScenePreview("SaveImg")
-        -- Editor_SaveImage("SaveImg","Data/testthumb.png")
-        local savefile = SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA
+        Editor_SaveImage("SaveImg","Data/testthumb.basis")
         Editor_SaveScene(SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA)
         Editor_BuildSceneMeta(SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. ".assetmeta", 0, "SaveImg")
 
@@ -1727,7 +1804,7 @@ runProcess(function()
         imgui_draw()
         drawtopbar()
         drawmenubardialogs()
-        drawsceneexp()
+        drawresexp()
         drawcompinspect()
         drawscenegraphview()
         drawimportwindow()

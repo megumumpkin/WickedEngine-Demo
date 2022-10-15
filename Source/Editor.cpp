@@ -769,14 +769,10 @@ int Editor_SaveScene(lua_State* L)
         auto filepath = wi::lua::SGetString(L, 1);
         auto& scene = Game::Resources::GetScene();
 
-        // Step 1: Check if there are unsaved instances and then save them!
-        for(auto& instance_entity : Editor::GetData()->unsaved_instances)
-        {
-            auto instance = scene.instances.GetComponent(instance_entity);
-            // TODO
-        }
-
         wi::vector<wi::ecs::Entity> instance_library_removelist;
+
+        // Step 1: Build new dir path if it does not exist
+        std::filesystem::create_directories(wi::helper::GetDirectoryFromPath(filepath));
 
         // Step 2: Unload all instances
         for(int i = 0; i < scene.instances.GetCount(); ++i)
@@ -795,11 +791,11 @@ int Editor_SaveScene(lua_State* L)
             scene.wiscene.Entity_Remove(entity);
         }
         
-        // Step 4: Save the scene
+        // Step 3: Save the scene
         auto archive = wi::Archive(filepath,false);
         scene.wiscene.Serialize(archive);
 
-        // Step 5: Restore the scene instances
+        // Step 4: Restore the scene instances
         for(int i = 0; i < scene.instances.GetCount(); ++i)
         {
             if(!scene.streams.Contains(scene.instances.GetEntity(i))) { scene.instances[i].Init(); }
@@ -1288,6 +1284,18 @@ int Editor_SaveImage(lua_State* L)
 //     return 0;
 // }
 
+int Editor_ReinitSceneEnv(lua_State* L)
+{
+    Game::Resources::GetScene().wiscene.weather = wi::scene::WeatherComponent();
+    Editor::GetData()->preview_scene.wiscene.weather = wi::scene::WeatherComponent();
+    Game::Resources::GetScene().wiscene.weather.skyMap = wi::resourcemanager::Load("Data/Editor/UI/ObjectPreviewEnv.dds", wi::resourcemanager::Flags::IMPORT_RETAIN_FILEDATA);
+    Editor::GetData()->preview_scene.wiscene.weather.skyMap = wi::resourcemanager::Load("Data/Editor/UI/ObjectPreviewEnv.dds", wi::resourcemanager::Flags::IMPORT_RETAIN_FILEDATA);
+
+    return 0;
+}
+
+
+
 void Editor::Init()
 {
     auto L = wi::lua::GetLuaState();
@@ -1334,6 +1342,8 @@ void Editor::Init()
 
     // wi::lua::RegisterFunc("Editor_ExtractSubInstanceNames", Editor_ExtractSubInstanceNames);
 
+    wi::lua::RegisterFunc("Editor_ReinitSceneEnv", Editor_ReinitSceneEnv);
+
     Editor::GetData()->transform_translator.SetEnabled(true);
     Editor::GetData()->transform_translator.scene = &Game::Resources::GetScene().wiscene;
 
@@ -1343,7 +1353,8 @@ void Editor::Init()
     Editor::GetData()->preview_render.camera = &Editor::GetData()->preview_camera;
     Editor::GetData()->preview_render.init(512,512);
 
-    // Set preview cubemap in here
+    // Set env cubemaps in here
+    Game::Resources::GetScene().wiscene.weather.skyMap = wi::resourcemanager::Load("Data/Editor/UI/ObjectPreviewEnv.dds", wi::resourcemanager::Flags::IMPORT_RETAIN_FILEDATA);
     Editor::GetData()->preview_scene.wiscene.weather.skyMap = wi::resourcemanager::Load("Data/Editor/UI/ObjectPreviewEnv.dds", wi::resourcemanager::Flags::IMPORT_RETAIN_FILEDATA);
 
     // Mesh and material preview data
