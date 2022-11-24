@@ -112,6 +112,7 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LIB_DXCOMPILER_LOCATION}" "${CMAKE_CURRENT_BINARY_DIR}"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Source/Shader/*.hlsl" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/"
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/ffx-fsr/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/ffx-fsr"
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/ffx-shadows-dnsr/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/ffx-shadows-dnsr"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/compressonator/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/compressonator/"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/ffx-fsr/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/ffx-fsr/"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/ffx-shadows-dnsr/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/ffx-shadows-dnsr/"
 )

@@ -112,15 +112,12 @@ namespace Game::ScriptBindings::Resources{
             auto L = wi::lua::GetLuaState();
 
             wi::lua::RunText(R"(
-                DATATYPE_SCENE_DATA = ".bscn"
+                DATATYPE_SCENE_DATA = ".scene"
                 DATATYPE_SCRIPT = ".lua"
 
                 SOURCEPATH_SHADER = "Data/Shader"
                 SOURCEPATH_INTERFACE = "Data/Interface"
-                SOURCEPATH_LOCALE = "Data/Locale"
-                SOURCEPATH_SCENE = "Data/Scene"
-                SOURCEPATH_TEXTURE = "Data/Texture"
-                SOURCEPATH_SOUND = "Data/Sound"
+                SOURCEPATH_CONTENT = "Data/Content"
 
                 INSTANCE_LOAD_DIRECT = 0
                 INSTANCE_LOAD_INSTANTIATE = 1

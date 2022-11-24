@@ -104,6 +104,8 @@ namespace Editor{
         wi::graphics::Texture rt_depthbuffer_editor;
         wi::graphics::Texture rt_selection_editor;
 
+        std::string current_loaded_scene;
+
         size_t entitylist_sizecache = 0;
         wi::vector<GizmoData> gizmo_data;
 

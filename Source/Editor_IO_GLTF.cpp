@@ -143,14 +143,15 @@ struct LoaderState
 	Game::Resources::Scene* scene;
 	wi::unordered_map<int, Entity> entityMap;  // node -> entity
 	Entity rootEntity = INVALID_ENTITY;
+
+	//Export states
+	wi::unordered_map<std::string, int> textureMap; // path -> textureid
+	wi::unordered_map<Entity, int> nodeMap;// entity -> node
+	wi::unordered_map<size_t, TransformComponent> transforms_original; // original transform states
 };
 
 namespace Editor::IO
 {
-
-	void Import_Extension_VRM(LoaderState& state);
-	void Import_Extension_VRMC(LoaderState& state);
-
 	// Recursively loads nodes and resolves hierarchy:
 	void LoadNode(int nodeIndex, Entity parent, LoaderState& state)
 	{
@@ -265,17 +266,177 @@ namespace Editor::IO
 		}
 	}
 
+	void FlipZAxis(LoaderState& state)
+	{
+		Scene& wiscene = state.scene->wiscene;
+
+		// Flip mesh data first
+		for(size_t i = 0; i < wiscene.meshes.GetCount(); ++i)
+		{
+			auto& mesh = wiscene.meshes[i];
+			for(auto& v_pos : mesh.vertex_positions)
+			{
+				v_pos.z *= -1.f;
+			}
+			for(auto& v_norm : mesh.vertex_normals)
+			{
+				v_norm.z *= -1.f;
+			}
+			for(auto& v_tan : mesh.vertex_tangents)
+			{
+				v_tan.z *= -1.f;
+			}
+			for(auto& v_morph : mesh.morph_targets)
+			{
+				for(auto& v_morph_norm : v_morph.vertex_normals)
+				{
+					v_morph_norm.z *= -1.f;
+				}
+				for(auto& v_morph_pos : v_morph.vertex_positions)
+				{
+					v_morph_pos.z *= -1.f;
+				}
+			}
+			mesh.FlipCulling();
+			mesh.CreateRenderData();
+		}
+
+		// Flip scene's transformComponents
+		bool state_restore = (state.transforms_original.size() > 0);
+		if(!state_restore)
+		{
+			wi::unordered_map<wi::ecs::Entity, wi::ecs::Entity> hierarchy_list;
+			wi::unordered_map<size_t, wi::scene::TransformComponent> correction_queue;
+
+			for(size_t i = 0; i < wiscene.transforms.GetCount(); ++i)
+			{
+				auto transformEntity = wiscene.transforms.GetEntity(i);
+				if(transformEntity == state.rootEntity)
+					continue;
+
+				correction_queue[i] = wiscene.transforms[i];
+
+				auto hierarchy = wiscene.hierarchy.GetComponent(transformEntity);
+				if(transformEntity != state.rootEntity && hierarchy != nullptr)
+				{
+					hierarchy_list[transformEntity] = hierarchy->parentID;
+					wiscene.Component_Detach(transformEntity);
+				}
+			}
+			state.transforms_original.insert(correction_queue.begin(), correction_queue.end());
+			for(auto& correction_pair : correction_queue)
+			{
+				auto& transform = wiscene.transforms[correction_pair.first];
+				auto& transform_original = correction_pair.second;
+
+				XMVECTOR V_S,V_R,V_T;
+				XMMatrixDecompose(&V_S, &V_R, &V_T, XMLoadFloat4x4(&transform_original.world));
+				XMFLOAT3 pos, scale;
+				XMFLOAT4 rot;
+				XMStoreFloat3(&scale, V_S);
+				XMStoreFloat3(&pos, V_T);
+				XMStoreFloat4(&rot, V_R);
+				pos.z *= -1.f;
+				rot.x *= -1.f;
+				rot.y *= -1.f;
+
+				auto build_m = 
+					XMMatrixScalingFromVector(XMLoadFloat3(&scale)) *
+					XMMatrixRotationQuaternion(XMLoadFloat4(&rot)) *
+					XMMatrixTranslationFromVector(XMLoadFloat3(&pos));
+
+				XMFLOAT4X4 build_m4;
+				XMStoreFloat4x4(&build_m4, build_m);
+
+				transform.world = build_m4;
+				transform.ApplyTransform();
+			}
+			for(auto& hierarchy_pair : hierarchy_list)
+			{
+				wiscene.Component_Attach(hierarchy_pair.first, hierarchy_pair.second);
+			}
+		}
+		else
+		{
+			for(size_t i = 0; i < wiscene.transforms.GetCount(); ++i)
+			{
+				auto transform_original_find = state.transforms_original.find(i);
+				if(transform_original_find != state.transforms_original.end())
+				{
+					auto& transform = wiscene.transforms[i];
+					transform = transform_original_find->second;
+				}
+			}
+			state.transforms_original.clear();
+		}
+
+		// Flip armature's bind pose
+		for(size_t i = 0; i < wiscene.armatures.GetCount(); ++i)
+		{
+			auto& armature = wiscene.armatures[i];
+			for(int i = 0; i < armature.inverseBindMatrices.size(); ++i)
+			{
+				auto& bind = armature.inverseBindMatrices[i];
+				
+				XMVECTOR V_S,V_R,V_T;
+				XMMatrixDecompose(&V_S, &V_R, &V_T, XMLoadFloat4x4(&bind));
+				XMFLOAT3 pos, scale;
+				XMFLOAT4 rot;
+				XMStoreFloat3(&scale, V_S);
+				XMStoreFloat3(&pos, V_T);
+				XMStoreFloat4(&rot, V_R);
+				pos.z *= -1.f;
+				rot.x *= -1.f;
+				rot.y *= -1.f;
+
+				auto build_m = 
+					XMMatrixScalingFromVector(XMLoadFloat3(&scale)) *
+					XMMatrixRotationQuaternion(XMLoadFloat4(&rot)) *
+					XMMatrixTranslationFromVector(XMLoadFloat3(&pos));
+				XMFLOAT4X4 build_m4;
+				XMStoreFloat4x4(&build_m4, build_m);
+
+				bind = build_m4;
+			}
+		}
+
+		// Flip animation data for translation and rotation
+		for(size_t i = 0; i < wiscene.animations.GetCount(); ++i)
+		{
+			auto& animation = wiscene.animations[i];
+			
+			for(auto& channel : animation.channels)
+			{
+				auto data = wiscene.animation_datas.GetComponent(animation.samplers[channel.samplerIndex].data);
+				
+				if(channel.path == wi::scene::AnimationComponent::AnimationChannel::Path::TRANSLATION)
+				{
+					for(size_t k = 0; k < data->keyframe_data.size()/3; ++k)
+					{
+						data->keyframe_data[k*3+2] *= -1.f;
+					}
+				}
+				if(channel.path == wi::scene::AnimationComponent::AnimationChannel::Path::ROTATION)
+				{
+					for(size_t k = 0; k < data->keyframe_data.size()/4; ++k)
+					{
+						data->keyframe_data[k*4] *= -1.f;
+						data->keyframe_data[k*4+1] *= -1.f;
+					}
+				}
+			}
+		}
+	}
+
 	void ImportModel_GLTF(const std::string& fileName, Game::Resources::Scene& scene)
 	{
 		std::string directory = wi::helper::GetDirectoryFromPath(fileName);
 		std::string name = wi::helper::GetFileNameFromPath(fileName);
 		std::string extension = wi::helper::toUpper(wi::helper::GetExtensionFromFileName(name));
 
-
 		tinygltf::TinyGLTF loader;
 		std::string err;
 		std::string warn;
-		bool ret;
 
 		tinygltf::FsCallbacks callbacks;
 		callbacks.ReadWholeFile = tinygltf::ReadWholeFile;
@@ -291,10 +452,10 @@ namespace Editor::IO
 		LoaderState state;
 		state.scene = &scene;
 
-		wi::vector<uint8_t> filedata;
-		ret = wi::helper::FileRead(fileName, filedata);
-
 		auto& wiscene = scene.wiscene;
+
+		wi::vector<uint8_t> filedata;
+		bool ret = wi::helper::FileRead(fileName, filedata);
 
 		if (ret)
 		{
@@ -302,15 +463,25 @@ namespace Editor::IO
 
 			if (!extension.compare("GLTF"))
 			{
-				ret = loader.LoadASCIIFromString(&state.gltfModel, &err, &warn, 
-					reinterpret_cast<const char*>(&filedata.at(0)),
-					static_cast<unsigned int>(filedata.size()), basedir);
+				ret = loader.LoadASCIIFromString(
+					&state.gltfModel,
+					&err,
+					&warn, 
+					reinterpret_cast<const char*>(filedata.data()),
+					static_cast<unsigned int>(filedata.size()),
+					basedir
+				);
 			}
 			else
 			{
-				ret = loader.LoadBinaryFromMemory(&state.gltfModel, &err, &warn,
+				ret = loader.LoadBinaryFromMemory(
+					&state.gltfModel,
+					&err,
+					&warn,
 					filedata.data(),
-					static_cast<unsigned int>(filedata.size()), basedir);
+					static_cast<unsigned int>(filedata.size()),
+					basedir
+				);
 			}
 		}
 		else
@@ -318,7 +489,8 @@ namespace Editor::IO
 			err = "Failed to read file: " + fileName;
 		}
 
-		if (!ret) {
+		if (!ret)
+		{
 			wi::helper::messageBox(err, "GLTF error!");
 		}
 
@@ -768,11 +940,6 @@ namespace Editor::IO
 
 		}
 
-		if (wiscene.materials.GetCount() == 0)
-		{
-			wiscene.Entity_CreateMaterial("gltfimport_defaultMaterial");
-		}
-
 		// Create meshes:
 		for (auto& x : state.gltfModel.meshes)
 		{
@@ -798,6 +965,11 @@ namespace Editor::IO
 				mesh.subsets.back().indexOffset = (uint32_t)indexOffset;
 				mesh.subsets.back().indexCount = (uint32_t)indexCount;
 
+				if (wiscene.materials.GetCount() == 0)
+				{
+					// Create a material last minute if there was none
+					wiscene.materials.Create(CreateEntity());
+				}
 				mesh.subsets.back().materialID = wiscene.materials.GetEntity(std::max(0, prim.material));
 				MaterialComponent* material = wiscene.materials.GetComponent(mesh.subsets.back().materialID);
 
@@ -806,18 +978,9 @@ namespace Editor::IO
 				const uint8_t* data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
 
 				int index_remap[3];
-				if (transform_to_LH)
-				{
-					index_remap[0] = 0;
-					index_remap[1] = 1;
-					index_remap[2] = 2;
-				}
-				else
-				{
-					index_remap[0] = 0;
-					index_remap[1] = 2;
-					index_remap[2] = 1;
-				}
+				index_remap[0] = 0;
+				index_remap[1] = 2;
+				index_remap[2] = 1;
 
 				if (stride == 1)
 				{
@@ -870,7 +1033,7 @@ namespace Editor::IO
 						mesh.vertex_positions.resize(vertexOffset + vertexCount);
 						for (size_t i = 0; i < vertexCount; ++i)
 						{
-							mesh.vertex_positions[vertexOffset + i] = ((XMFLOAT3*)data)[i];
+							mesh.vertex_positions[vertexOffset + i] = *(const XMFLOAT3*)(data + i * stride);
 						}
 
 						if (accessor.sparse.isSparse)
@@ -911,7 +1074,7 @@ namespace Editor::IO
 						mesh.vertex_normals.resize(vertexOffset + vertexCount);
 						for (size_t i = 0; i < vertexCount; ++i)
 						{
-							mesh.vertex_normals[vertexOffset + i] = ((XMFLOAT3*)data)[i];
+							mesh.vertex_normals[vertexOffset + i] = *(const XMFLOAT3*)(data + i * stride);
 						}
 
 						if (accessor.sparse.isSparse)
@@ -952,7 +1115,7 @@ namespace Editor::IO
 						mesh.vertex_tangents.resize(vertexOffset + vertexCount);
 						for (size_t i = 0; i < vertexCount; ++i)
 						{
-							mesh.vertex_tangents[vertexOffset + i] = ((XMFLOAT4*)data)[i];
+							mesh.vertex_tangents[vertexOffset + i] = *(const XMFLOAT4*)(data + i * stride);
 						}
 					}
 					else if (!attr_name.compare("TEXCOORD_0"))
@@ -962,7 +1125,7 @@ namespace Editor::IO
 						{
 							for (size_t i = 0; i < vertexCount; ++i)
 							{
-								const XMFLOAT2& tex = ((XMFLOAT2*)data)[i];
+								const XMFLOAT2& tex = *(const XMFLOAT2*)((size_t)data + i * stride);
 
 								mesh.vertex_uvset_0[vertexOffset + i].x = tex.x;
 								mesh.vertex_uvset_0[vertexOffset + i].y = tex.y;
@@ -998,7 +1161,7 @@ namespace Editor::IO
 						{
 							for (size_t i = 0; i < vertexCount; ++i)
 							{
-								const XMFLOAT2& tex = *(XMFLOAT2*)((size_t)data + i * stride);
+								const XMFLOAT2& tex = *(const XMFLOAT2*)((size_t)data + i * stride);
 
 								mesh.vertex_uvset_1[vertexOffset + i].x = tex.x;
 								mesh.vertex_uvset_1[vertexOffset + i].y = tex.y;
@@ -1039,7 +1202,7 @@ namespace Editor::IO
 
 							for (size_t i = 0; i < vertexCount; ++i)
 							{
-								const JointTmp& joint = ((JointTmp*)data)[i];
+								const JointTmp& joint = *(const JointTmp*)(data + i * stride);
 
 								mesh.vertex_boneindices[vertexOffset + i].x = joint.ind[0];
 								mesh.vertex_boneindices[vertexOffset + i].y = joint.ind[1];
@@ -1056,7 +1219,7 @@ namespace Editor::IO
 
 							for (size_t i = 0; i < vertexCount; ++i)
 							{
-								const JointTmp& joint = ((JointTmp*)data)[i];
+								const JointTmp& joint = *(const JointTmp*)(data + i * stride);
 
 								mesh.vertex_boneindices[vertexOffset + i].x = joint.ind[0];
 								mesh.vertex_boneindices[vertexOffset + i].y = joint.ind[1];
@@ -1073,7 +1236,7 @@ namespace Editor::IO
 
 							for (size_t i = 0; i < vertexCount; ++i)
 							{
-								const JointTmp& joint = ((JointTmp*)data)[i];
+								const JointTmp& joint = *(const JointTmp*)(data + i * stride);
 
 								mesh.vertex_boneindices[vertexOffset + i].x = joint.ind[0];
 								mesh.vertex_boneindices[vertexOffset + i].y = joint.ind[1];
@@ -1392,6 +1555,7 @@ namespace Editor::IO
 		int armatureIndex = 0;
 		for (auto& skin : state.gltfModel.skins)
 		{
+			Entity armatureEntity = wiscene.armatures.GetEntity(armatureIndex);
 			ArmatureComponent& armature = wiscene.armatures[armatureIndex++];
 
 			const size_t jointCount = skin.joints.size();
@@ -1590,641 +1754,1266 @@ namespace Editor::IO
 		int cameraIndex = 0;
 		for (auto& x : state.gltfModel.cameras)
 		{
+			if (!x.type.compare("orthographic"))
+				continue;
 			Entity entity = wiscene.cameras.GetEntity(cameraIndex);
 			CameraComponent& camera = wiscene.cameras[cameraIndex++];
-			TransformComponent& transform = *wiscene.transforms.GetComponent(entity);
-			transform.RotateRollPitchYaw(XMFLOAT3(XM_PI, 0, XM_PI));
+
+			if (x.perspective.aspectRatio > 0)
+			{
+				camera.width = float(x.perspective.aspectRatio);
+				camera.height = 1.f;
+			}
+			camera.fov = (float)x.perspective.yfov;
+			camera.zFarP = (float)x.perspective.zfar;
+			camera.zNearP = (float)x.perspective.znear;
 		}
 
-		if (transform_to_LH)
-		{
-			TransformComponent& transform = *wiscene.transforms.GetComponent(state.rootEntity);
-			transform.scale_local.z = -transform.scale_local.z;
-			transform.SetDirty();
-		}
-
-		Import_Extension_VRM(state);
-		Import_Extension_VRMC(state);
+		//Correct orientation after importing
+		wiscene.Update(0);
+		FlipZAxis(state);
 
 		// Update the scene, to have up to date values immediately after loading:
 		//	For example, snap to camera functionality relies on this
 		wiscene.Update(0);
 	}
 
-	void Import_Extension_VRM(LoaderState& state)
+	template<typename T>
+	inline void _ExportHelper_valuetobuf(const T& input, tinygltf::Buffer& buffer_builder, size_t& buf_i)
 	{
-		auto ext_vrm = state.gltfModel.extensions.find("VRM");
-		if (ext_vrm != state.gltfModel.extensions.end())
+		const size_t _right = buf_i + sizeof(input);
+		if (_right > buffer_builder.data.size())
 		{
-			// Rotate VRM humanoid character to face -Z:
-			TransformComponent& transform = *state.scene->wiscene.transforms.GetComponent(state.rootEntity);
-			transform.RotateRollPitchYaw(XMFLOAT3(0, XM_PI, 0));
+			buffer_builder.data.resize(_right);
+		}
+		*(T*)(buffer_builder.data.data() + buf_i) = input;
+		buf_i = _right;
+	}
 
-			if (ext_vrm->second.Has("blendShapeMaster"))
+	inline tinygltf::Value _ExportHelper_tovalue(float input)
+	{
+		return tinygltf::Value(input);
+	}
+
+	inline tinygltf::Value _ExportHelper_tovalue(XMFLOAT3 input)
+	{
+		auto value_builder = tinygltf::Value(tinygltf::Value::Array({
+			tinygltf::Value(input.x), tinygltf::Value(input.y), tinygltf::Value(input.z)
+		}));
+		return value_builder;
+	}
+
+	inline tinygltf::Value _ExportHelper_tovalue(XMFLOAT4 input)
+	{
+		auto value_builder = tinygltf::Value(tinygltf::Value::Array({
+			tinygltf::Value(input.x), tinygltf::Value(input.y), tinygltf::Value(input.z), tinygltf::Value(input.w)
+		}));
+		return value_builder;
+	}
+
+	wi::vector<std::string> original_texture_extension_iterator = 
+	{
+		"png",
+		"jpg",
+		"jpeg",
+	};
+
+	inline std::string _ExportHelper_GetOriginalTexture(std::string texture_file)
+	{
+		for(auto& ext : original_texture_extension_iterator)
+		{
+			std::string target_file = wi::helper::ReplaceExtension(texture_file, ext);
+			wi::backlog::post(target_file);
+			if (wi::helper::FileExists(target_file))
 			{
-				// https://github.com/vrm-c/vrm-specification/tree/master/specification/0.0#vrm-extension-morph-setting-jsonextensionsvrmblendshapemaster
-				Entity entity = CreateEntity();
-				ExpressionComponent& component = state.scene->wiscene.expressions.Create(entity);
-				state.scene->wiscene.Component_Attach(entity, state.rootEntity);
-				state.scene->wiscene.names.Create(entity) = state.name + "_blendShapeMaster";
-
-				const auto& blendShapeMaster = ext_vrm->second.Get("blendShapeMaster");
-				if (blendShapeMaster.Has("blendShapeGroups"))
-				{
-					const auto& blendShapeGroups = blendShapeMaster.Get("blendShapeGroups");
-					for (size_t blendShapeGroup_index = 0; blendShapeGroup_index < blendShapeGroups.ArrayLen(); ++blendShapeGroup_index)
-					{
-						const auto& blendShapeGroup = blendShapeGroups.Get(int(blendShapeGroup_index));
-						ExpressionComponent::Expression& expression = component.expressions.emplace_back();
-
-						if (blendShapeGroup.Has("name"))
-						{
-							const auto& value = blendShapeGroup.Get("name");
-							expression.name = value.Get<std::string>();
-						}
-						if (blendShapeGroup.Has("presetName"))
-						{
-							const auto& value = blendShapeGroup.Get("presetName");
-							std::string presetName = wi::helper::toUpper(value.Get<std::string>());
-
-							if (!presetName.compare("JOY"))
-							{
-								expression.preset = ExpressionComponent::Preset::Happy;
-							}
-							else if (!presetName.compare("ANGRY"))
-							{
-								expression.preset = ExpressionComponent::Preset::Angry;
-							}
-							else if (!presetName.compare("SORROW"))
-							{
-								expression.preset = ExpressionComponent::Preset::Sad;
-							}
-							else if (!presetName.compare("FUN"))
-							{
-								expression.preset = ExpressionComponent::Preset::Relaxed;
-							}
-							else if (!presetName.compare("A"))
-							{
-								expression.preset = ExpressionComponent::Preset::Aa;
-							}
-							else if (!presetName.compare("I"))
-							{
-								expression.preset = ExpressionComponent::Preset::Ih;
-							}
-							else if (!presetName.compare("U"))
-							{
-								expression.preset = ExpressionComponent::Preset::Ou;
-							}
-							else if (!presetName.compare("E"))
-							{
-								expression.preset = ExpressionComponent::Preset::Ee;
-							}
-							else if (!presetName.compare("O"))
-							{
-								expression.preset = ExpressionComponent::Preset::Oh;
-							}
-							else if (!presetName.compare("BLINK"))
-							{
-								expression.preset = ExpressionComponent::Preset::Blink;
-							}
-							else if (!presetName.compare("BLINK_L"))
-							{
-								expression.preset = ExpressionComponent::Preset::BlinkLeft;
-							}
-							else if (!presetName.compare("BLINK_R"))
-							{
-								expression.preset = ExpressionComponent::Preset::BlinkRight;
-							}
-							else if (!presetName.compare("LOOKUP"))
-							{
-								expression.preset = ExpressionComponent::Preset::LookUp;
-							}
-							else if (!presetName.compare("LOOKDOWN"))
-							{
-								expression.preset = ExpressionComponent::Preset::LookDown;
-							}
-							else if (!presetName.compare("LOOKLEFT"))
-							{
-								expression.preset = ExpressionComponent::Preset::LookLeft;
-							}
-							else if (!presetName.compare("LOOKRIGHT"))
-							{
-								expression.preset = ExpressionComponent::Preset::LookRight;
-							}
-							else if (!presetName.compare("NEUTRAL"))
-							{
-								expression.preset = ExpressionComponent::Preset::Neutral;
-							}
-
-							const size_t preset_index = (size_t)expression.preset;
-							if (preset_index < arraysize(component.presets))
-							{
-								component.presets[preset_index] = (int)component.expressions.size() - 1;
-							}
-						}
-						if (blendShapeGroup.Has("isBinary"))
-						{
-							const auto& value = blendShapeGroup.Get("isBinary");
-							expression.SetBinary(value.Get<bool>());
-						}
-						if (blendShapeGroup.Has("binds"))
-						{
-							const auto& binds = blendShapeGroup.Get("binds");
-							for (size_t bind_index = 0; bind_index < binds.ArrayLen(); ++bind_index)
-							{
-								const auto& bind = binds.Get(int(bind_index));
-								ExpressionComponent::Expression::MorphTargetBinding& morph_target_binding = expression.morph_target_bindings.emplace_back();
-
-								if (bind.Has("mesh"))
-								{
-									const auto& value = bind.Get("mesh");
-									morph_target_binding.meshID = state.scene->wiscene.meshes.GetEntity(value.GetNumberAsInt());
-								}
-								if (bind.Has("index"))
-								{
-									const auto& value = bind.Get("index");
-									morph_target_binding.index = value.GetNumberAsInt();
-								}
-								if (bind.Has("weight"))
-								{
-									const auto& value = bind.Get("weight");
-									morph_target_binding.weight = float(value.GetNumberAsInt()) / 100.0f;
-								}
-							}
-						}
-					}
-				}
-			}
-
-			if (ext_vrm->second.Has("secondaryAnimation"))
-			{
-				// https://github.com/vrm-c/vrm-specification/tree/master/specification/0.0#vrm-extension-spring-bone-settings-jsonextensionsvrmsecondaryanimation
-
-				const auto& secondaryAnimation = ext_vrm->second.Get("secondaryAnimation");
-				if (secondaryAnimation.Has("boneGroups"))
-				{
-					const auto& boneGroups = secondaryAnimation.Get("boneGroups");
-					for (size_t boneGroup_index = 0; boneGroup_index < boneGroups.ArrayLen(); ++boneGroup_index)
-					{
-						const auto& boneGroup = boneGroups.Get(int(boneGroup_index));
-						SpringComponent component;
-
-						if (boneGroup.Has("dragForce"))
-						{
-							auto& value = boneGroup.Get("dragForce");
-							component.dragForce = float(value.GetNumberAsDouble());
-						}
-						if (boneGroup.Has("gravityDir"))
-						{
-							auto& value = boneGroup.Get("gravityDir");
-							if (value.Has("x"))
-							{
-								component.gravityDir.x = float(value.Get("x").GetNumberAsDouble());
-							}
-							if (value.Has("y"))
-							{
-								component.gravityDir.y = float(value.Get("y").GetNumberAsDouble());
-							}
-							if (value.Has("z"))
-							{
-								component.gravityDir.z = float(value.Get("z").GetNumberAsDouble());
-							}
-						}
-						//if (boneGroup.Has("center"))
-						//{
-						//	auto& value = boneGroup.Get("center");
-						//	center = float(value.GetNumberAsDouble());
-						//}
-						if (boneGroup.Has("gravityPower"))
-						{
-							auto& value = boneGroup.Get("gravityPower");
-							component.gravityPower = float(value.GetNumberAsDouble());
-						}
-						if (boneGroup.Has("hitRadius"))
-						{
-							auto& value = boneGroup.Get("hitRadius");
-							component.hitRadius = float(value.GetNumberAsDouble());
-						}
-						if (boneGroup.Has("stiffiness")) // yes, not stiffness, but stiffiness
-						{
-							auto& value = boneGroup.Get("stiffiness");
-							component.stiffnessForce = float(value.GetNumberAsDouble());
-						}
-						if (boneGroup.Has("colliderGroups"))
-						{
-							const auto& colliderGroups = boneGroup.Get("colliderGroups");
-							for (size_t collider_group_index = 0; collider_group_index < colliderGroups.ArrayLen(); ++collider_group_index)
-							{
-								int colliderGroupIndex = colliderGroups.Get(int(collider_group_index)).GetNumberAsInt();
-								const auto& colliderGroup = secondaryAnimation.Get("colliderGroups").Get(colliderGroupIndex);
-
-								Entity transformID = INVALID_ENTITY;
-								if (colliderGroup.Has("node"))
-								{
-									auto& value = colliderGroup.Get("node");
-									int node = value.GetNumberAsInt();
-									transformID = state.entityMap[node];
-								}
-								if (colliderGroup.Has("colliders"))
-								{
-									const auto& colliders = colliderGroup.Get("colliders");
-									for (size_t collider_index = 0; collider_index < colliders.ArrayLen(); ++collider_index)
-									{
-										Entity colliderID = CreateEntity();
-										//component.colliders.push_back(colliderID); // for now, we will just use all colliders in the scene for every spring
-										ColliderComponent& collider_component = state.scene->wiscene.colliders.Create(colliderID);
-										state.scene->wiscene.transforms.Create(colliderID);
-										state.scene->wiscene.Component_Attach(colliderID, transformID, true);
-
-										const auto& collider = colliders.Get(int(collider_index));
-										if (collider.Has("offset"))
-										{
-											auto& value = collider.Get("offset");
-											if (value.Has("x"))
-											{
-												collider_component.offset.x = float(value.Get("x").GetNumberAsDouble());
-											}
-											if (value.Has("y"))
-											{
-												collider_component.offset.y = float(value.Get("y").GetNumberAsDouble());
-											}
-											if (value.Has("z"))
-											{
-												collider_component.offset.z = float(value.Get("z").GetNumberAsDouble());
-											}
-										}
-										if (collider.Has("radius"))
-										{
-											auto& value = collider.Get("radius");
-											collider_component.radius = float(value.GetNumberAsDouble());
-										}
-									}
-								}
-							}
-						}
-						if (boneGroup.Has("bones"))
-						{
-							auto& bones = boneGroup.Get("bones");
-							for (size_t bone_index = 0; bone_index < bones.ArrayLen(); ++bone_index)
-							{
-								const auto& bone = bones.Get(int(bone_index));
-								int node = bone.GetNumberAsInt();
-								Entity entity = state.entityMap[node];
-								state.scene->wiscene.springs.Create(entity) = component;
-
-								wi::vector<int> stack = state.gltfModel.nodes[node].children;
-								while (!stack.empty())
-								{
-									int child_node = stack.back();
-									stack.pop_back();
-									Entity child_entity = state.entityMap[child_node];
-									state.scene->wiscene.springs.Create(child_entity) = component;
-									stack.insert(stack.end(), state.gltfModel.nodes[child_node].children.begin(), state.gltfModel.nodes[child_node].children.end());
-								}
-							}
-						}
-					}
-				}
+				return target_file;
 			}
 		}
 
+		return texture_file;
 	}
 
-	void Import_Extension_VRMC(LoaderState& state)
+	inline tinygltf::TextureInfo _ExportHelper_StoreMaterialTexture(LoaderState& state, std::string gltf_dir, std::string texture_file, uint32_t texcoord_id, bool embed = false)
 	{
-		auto ext_vrm = state.gltfModel.extensions.find("VRMC_vrm");
-		if (ext_vrm != state.gltfModel.extensions.end())
-		{
-			if (ext_vrm->second.Has("expressions"))
-			{
-				// https://github.com/vrm-c/vrm-specification/blob/master/specification/VRMC_vrm-1.0-beta/expressions.md#vrmc_vrmexpressions
-				Entity entity = CreateEntity();
-				ExpressionComponent& component = state.scene->wiscene.expressions.Create(entity);
-				state.scene->wiscene.Component_Attach(entity, state.rootEntity);
-				state.scene->wiscene.names.Create(entity) = state.name + "_expressions";
+		embed = false;
 
-				const auto& expressions = ext_vrm->second.Get("expressions");
-				static const char* expression_types[] = {
-					"preset",
-					"custom",
+		tinygltf::TextureInfo textureinfo_builder;
+		int texture_index = -1;
+		auto find_texture_id = state.textureMap.find(texture_file);
+
+		if(find_texture_id == state.textureMap.end())
+		{
+			int image_bufferView_index = 0;
+			if(embed)
+			{
+				tinygltf::Buffer buffer_builder;
+				int buffer_index = (int)state.gltfModel.buffers.size();
+				auto resource = wi::resourcemanager::Load(texture_file);
+				wi::vector<uint8_t> texturedata;
+				size_t buffer_size = 0;
+				if(wi::helper::saveTextureToMemory(resource.GetTexture(), texturedata))
+				{
+					wi::vector<uint8_t> filedata;
+					if(wi::helper::saveTextureToMemoryFile(texturedata, resource.GetTexture().GetDesc(), "png", filedata))
+					{
+						buffer_size = filedata.size();
+						buffer_builder.data = std::move(filedata);
+					}
+				}
+				state.gltfModel.buffers.push_back(buffer_builder);
+				
+				tinygltf::BufferView bufferView_builder;
+				image_bufferView_index = (int)state.gltfModel.bufferViews.size();
+				bufferView_builder.buffer = buffer_index;
+				bufferView_builder.byteLength = buffer_size;
+				state.gltfModel.bufferViews.push_back(bufferView_builder);
+			}
+
+			tinygltf::Image image_builder;
+			int image_index = (int)state.gltfModel.images.size();
+			wi::helper::MakePathRelative(gltf_dir, texture_file);
+			if(embed)
+			{
+				image_builder.bufferView = image_bufferView_index;
+				image_builder.mimeType = "image/png";
+			}
+			else
+			{
+				image_builder.uri = texture_file;
+			}
+			state.gltfModel.images.push_back(image_builder);
+
+			tinygltf::Texture texture_builder;
+			texture_index = (int)state.gltfModel.textures.size();
+			texture_builder.source = image_index;
+			state.gltfModel.textures.push_back(texture_builder);
+
+			state.textureMap[texture_file] = texture_index;
+		}
+		else
+		{
+			texture_index = find_texture_id->second;
+		}
+
+		textureinfo_builder.index = texture_index;
+		textureinfo_builder.texCoord = texcoord_id;
+
+		return textureinfo_builder;
+	}
+
+	void ExportModel_GLTF(const std::string& filename, Game::Resources::Scene& scene)
+	{
+		tinygltf::TinyGLTF writer;
+
+		tinygltf::FsCallbacks callbacks;
+		callbacks.ReadWholeFile = tinygltf::ReadWholeFile;
+		callbacks.WriteWholeFile = tinygltf::WriteWholeFile;
+		callbacks.FileExists = tinygltf::FileExists;
+		callbacks.ExpandFilePath = tinygltf::ExpandFilePath;
+		writer.SetFsCallbacks(callbacks);
+
+		LoaderState state;
+		state.scene = &scene;
+		auto& wiscene = state.scene->wiscene;
+
+		// Prerequisite: flip world Z coordinate
+		FlipZAxis(state);
+		wiscene.Update(0.f);
+
+		// Add extension prerequisite
+		state.gltfModel.extensionsUsed = {
+			// "KHR_texture_basisu",
+			"KHR_materials_unlit",
+			"KHR_materials_transmission",
+			"KHR_materials_pbrSpecularGlossiness",
+			"KHR_materials_sheen",
+			"KHR_materials_clearcoat",
+			"KHR_materials_ior",
+			"KHR_materials_specular",
+			"KHR_lights_punctual"
+		};
+
+		// Create a dummy material
+		state.gltfModel.materials.emplace_back();
+		int def_material_index = 0;
+
+		// Write Materials
+		for(size_t mt_id = 0; mt_id < wiscene.materials.GetCount(); ++mt_id)
+		{
+			auto& material = wiscene.materials[mt_id];
+			auto materialEntity = wiscene.materials.GetEntity(mt_id);
+			auto nameComponent = wiscene.names.GetComponent(materialEntity);
+
+			tinygltf::Material material_builder;
+
+			if(nameComponent != nullptr)
+			{
+				material_builder.name = nameComponent->name;
+			}
+
+			// Dielectric-Metallic Workflow (Base PBR)
+			// Textures
+			if(material.textures[wi::scene::MaterialComponent::BASECOLORMAP].resource.IsValid())
+			{
+				material_builder.pbrMetallicRoughness.baseColorTexture = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::BASECOLORMAP].name),
+					material.textures[wi::scene::MaterialComponent::BASECOLORMAP].uvset);
+			}
+			if(material.textures[wi::scene::MaterialComponent::NORMALMAP].resource.IsValid())
+			{
+				auto normalTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::NORMALMAP].name),
+					material.textures[wi::scene::MaterialComponent::NORMALMAP].uvset);
+				material_builder.normalTexture.index = normalTexInfo_pre.index;
+				material_builder.normalTexture.texCoord = normalTexInfo_pre.texCoord;
+			}
+			if(material.textures[wi::scene::MaterialComponent::OCCLUSIONMAP].resource.IsValid())
+			{
+				auto occlTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::OCCLUSIONMAP].name),
+					material.textures[wi::scene::MaterialComponent::OCCLUSIONMAP].uvset);
+				material_builder.occlusionTexture.index = occlTexInfo_pre.index;
+				material_builder.occlusionTexture.texCoord = occlTexInfo_pre.texCoord;
+			}
+			if(material.textures[wi::scene::MaterialComponent::EMISSIVEMAP].resource.IsValid())
+			{
+				auto emsTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::EMISSIVEMAP].name),
+					material.textures[wi::scene::MaterialComponent::EMISSIVEMAP].uvset);
+				material_builder.emissiveTexture.index = emsTexInfo_pre.index;
+				material_builder.emissiveTexture.texCoord = emsTexInfo_pre.texCoord;
+			}
+			if(material.textures[wi::scene::MaterialComponent::SURFACEMAP].resource.IsValid())
+			{
+				material_builder.pbrMetallicRoughness.metallicRoughnessTexture = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::SURFACEMAP].name),
+					material.textures[wi::scene::MaterialComponent::SURFACEMAP].uvset);				
+			}
+			// Values
+			material_builder.pbrMetallicRoughness.baseColorFactor = {
+				material.baseColor.x,
+				material.baseColor.y,
+				material.baseColor.z,
+				material.baseColor.w
+			};
+			material_builder.pbrMetallicRoughness.roughnessFactor = { material.roughness };
+			material_builder.pbrMetallicRoughness.metallicFactor = { material.metalness };
+			material_builder.emissiveFactor = { 
+				material.emissiveColor.x * material.emissiveColor.w,
+				material.emissiveColor.y * material.emissiveColor.w,
+				material.emissiveColor.z * material.emissiveColor.w,
+			};
+			switch(material.userBlendMode)
+			{
+				case wi::enums::BLENDMODE_ALPHA:
+				{
+					material_builder.alphaMode = "BLEND";
+					if(material.alphaRef < 1.f)
+					{
+						material_builder.alphaMode = "MASK";
+						material_builder.alphaCutoff = 1.f - material.alphaRef;
+					}
+					break;
+				}
+				default:
+					break;
+			}
+			material_builder.doubleSided = material.IsDoubleSided();
+
+			// Unlit extension (KHR_materials_unlit)
+			// Values
+			if(material.shaderType == wi::scene::MaterialComponent::SHADERTYPE_UNLIT)
+				material_builder.extensions["KHR_materials_unlit"] = tinygltf::Value();
+
+			// Transmission extension (KHR_materials_transmission)
+			// Values
+			tinygltf::Value::Object KHR_materials_transmission_builder = {
+				{"transmissionFactor", tinygltf::Value(double(material.transmission))}
+			};
+			// Textures
+			if(material.textures[wi::scene::MaterialComponent::TRANSMISSIONMAP].resource.IsValid())
+			{
+				auto transmissionTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::TRANSMISSIONMAP].name),
+					material.textures[wi::scene::MaterialComponent::TRANSMISSIONMAP].uvset);
+				KHR_materials_transmission_builder["transmissionTexture"] = tinygltf::Value({
+						{"index",tinygltf::Value(transmissionTexInfo_pre.index)},
+						{"texCoord",tinygltf::Value(transmissionTexInfo_pre.texCoord)}
+					});
+			}
+			material_builder.extensions["KHR_materials_transmission"] = tinygltf::Value(KHR_materials_transmission_builder);
+
+			// Specular-glosiness extension (KHR_materials_pbrSpecularGlossiness)
+			if(material.IsUsingSpecularGlossinessWorkflow())
+			{
+				// Values
+				tinygltf::Value::Object KHR_materials_pbrSpecularGlossiness_builder = {
+					{"diffuseFactor", tinygltf::Value({
+						tinygltf::Value(double(material.baseColor.x)),
+						tinygltf::Value(double(material.baseColor.y)),
+						tinygltf::Value(double(material.baseColor.z)),
+						tinygltf::Value(double(material.baseColor.w))
+					})},
+					{"specularFactor", tinygltf::Value({
+						tinygltf::Value(double(material.specularColor.x)),
+						tinygltf::Value(double(material.specularColor.y)),
+						tinygltf::Value(double(material.specularColor.z))
+					})},
+					{"glossinessFactor", tinygltf::Value(double(material.roughness))}
 				};
-
-				for (auto& expression_type : expression_types)
+				// Textures
+				if(material.textures[MaterialComponent::BASECOLORMAP].resource.IsValid())
 				{
-					if (expressions.Has(expression_type))
-					{
-						const auto& names = expressions.Get(expression_type);
-						for (auto& name : names.Keys())
-						{
-							const auto& vrm_expression = names.Get(name);
-							ExpressionComponent::Expression& expression = component.expressions.emplace_back();
-
-							if (!strcmp(expression_type, "preset"))
-							{
-								std::string presetName = wi::helper::toUpper(name);
-								if (!presetName.compare("HAPPY"))
-								{
-									expression.preset = ExpressionComponent::Preset::Happy;
-								}
-								else if (!presetName.compare("ANGRY"))
-								{
-									expression.preset = ExpressionComponent::Preset::Angry;
-								}
-								else if (!presetName.compare("SAD"))
-								{
-									expression.preset = ExpressionComponent::Preset::Sad;
-								}
-								else if (!presetName.compare("RELAXED"))
-								{
-									expression.preset = ExpressionComponent::Preset::Relaxed;
-								}
-								else if (!presetName.compare("SURPRISED"))
-								{
-									expression.preset = ExpressionComponent::Preset::Surprised;
-								}
-								else if (!presetName.compare("AA"))
-								{
-									expression.preset = ExpressionComponent::Preset::Aa;
-								}
-								else if (!presetName.compare("IH"))
-								{
-									expression.preset = ExpressionComponent::Preset::Ih;
-								}
-								else if (!presetName.compare("OU"))
-								{
-									expression.preset = ExpressionComponent::Preset::Ou;
-								}
-								else if (!presetName.compare("EE"))
-								{
-									expression.preset = ExpressionComponent::Preset::Ee;
-								}
-								else if (!presetName.compare("OH"))
-								{
-									expression.preset = ExpressionComponent::Preset::Oh;
-								}
-								else if (!presetName.compare("BLINK"))
-								{
-									expression.preset = ExpressionComponent::Preset::Blink;
-								}
-								else if (!presetName.compare("BLINKLEFT"))
-								{
-									expression.preset = ExpressionComponent::Preset::BlinkLeft;
-								}
-								else if (!presetName.compare("BLINKRIGHT"))
-								{
-									expression.preset = ExpressionComponent::Preset::BlinkRight;
-								}
-								else if (!presetName.compare("LOOKUP"))
-								{
-									expression.preset = ExpressionComponent::Preset::LookUp;
-								}
-								else if (!presetName.compare("LOOKDOWN"))
-								{
-									expression.preset = ExpressionComponent::Preset::LookDown;
-								}
-								else if (!presetName.compare("LOOKLEFT"))
-								{
-									expression.preset = ExpressionComponent::Preset::LookLeft;
-								}
-								else if (!presetName.compare("LOOKRIGHT"))
-								{
-									expression.preset = ExpressionComponent::Preset::LookRight;
-								}
-								else if (!presetName.compare("NEUTRAL"))
-								{
-									expression.preset = ExpressionComponent::Preset::Neutral;
-								}
-
-								const size_t preset_index = (size_t)expression.preset;
-								if (preset_index < arraysize(component.presets))
-								{
-									component.presets[preset_index] = (int)component.expressions.size() - 1;
-								}
-							}
-							expression.name = name;
-
-							if (vrm_expression.Has("isBinary"))
-							{
-								const auto& value = vrm_expression.Get("isBinary");
-								expression.SetBinary(value.Get<bool>());
-							}
-							if (vrm_expression.Has("overrideMouth"))
-							{
-								const auto& value = vrm_expression.Get("overrideMouth");
-								const std::string& override_enum = value.Get<std::string>();
-								if (!override_enum.compare("block"))
-								{
-									expression.override_mouth = ExpressionComponent::Override::Block;
-								}
-								if (!override_enum.compare("blend"))
-								{
-									expression.override_mouth = ExpressionComponent::Override::Blend;
-								}
-							}
-							if (vrm_expression.Has("morphTargetBinds"))
-							{
-								const auto& morpTargetBinds = vrm_expression.Get("morphTargetBinds");
-								for (size_t morphTargetBind_index = 0; morphTargetBind_index < morpTargetBinds.ArrayLen(); ++morphTargetBind_index)
-								{
-									const auto& morphTargetBind = morpTargetBinds.Get(int(morphTargetBind_index));
-									ExpressionComponent::Expression::MorphTargetBinding& morph_target_binding = expression.morph_target_bindings.emplace_back();
-
-									if (morphTargetBind.Has("node"))
-									{
-										const auto& value = morphTargetBind.Get("node");
-										morph_target_binding.meshID = state.scene->wiscene.meshes.GetEntity(state.gltfModel.nodes[value.GetNumberAsInt()].mesh);
-									}
-									if (morphTargetBind.Has("index"))
-									{
-										const auto& value = morphTargetBind.Get("index");
-										morph_target_binding.index = value.GetNumberAsInt();
-									}
-									if (morphTargetBind.Has("weight"))
-									{
-										const auto& value = morphTargetBind.Get("weight");
-										morph_target_binding.weight = float(value.GetNumberAsDouble());
-									}
-								}
-							}
-							//if (vrm_expression.Has("materialColorBinds"))
-							//{
-							//	const auto& materialColorBinds = vrm_expression.Get("materialColorBinds");
-							//	// TODO: find example model and implement
-							//}
-							//if (vrm_expression.Has("textureTransformBinds "))
-							//{
-							//	const auto& textureTransformBinds = vrm_expression.Get("textureTransformBinds");
-							//	// TODO: find example model and implement
-							//}
-
-						}
-					}
+					auto diffuseTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+						state, 
+						wi::helper::GetDirectoryFromPath(filename), 
+						_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::BASECOLORMAP].name),
+						material.textures[MaterialComponent::BASECOLORMAP].uvset);
+					KHR_materials_pbrSpecularGlossiness_builder["diffuseTexture"] = tinygltf::Value({
+							{"index",tinygltf::Value(diffuseTexInfo_pre.index)},
+							{"texCoord",tinygltf::Value(diffuseTexInfo_pre.texCoord)}
+						});
+				}
+				if(material.textures[MaterialComponent::SURFACEMAP].resource.IsValid())
+				{
+					auto specglossTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+						state, 
+						wi::helper::GetDirectoryFromPath(filename), 
+						_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::SURFACEMAP].name),
+						material.textures[MaterialComponent::SURFACEMAP].uvset);
+					KHR_materials_pbrSpecularGlossiness_builder["specularGlossinessTexture"] = tinygltf::Value({
+							{"index",tinygltf::Value(specglossTexInfo_pre.index)},
+							{"texCoord",tinygltf::Value(specglossTexInfo_pre.texCoord)}
+						});
 				}
 			}
+
+			// Sheen extension (KHR_materials_sheen)
+			if(material.shaderType == wi::scene::MaterialComponent::SHADERTYPE_PBR_CLOTH || 
+				material.shaderType == wi::scene::MaterialComponent::SHADERTYPE_PBR_CLOTH_CLEARCOAT)
+			{
+				// Values
+				tinygltf::Value::Object KHR_materials_sheen_builder = {
+					{"sheenColorFactor", tinygltf::Value({
+						tinygltf::Value(double(material.sheenColor.x)),
+						tinygltf::Value(double(material.sheenColor.y)),
+						tinygltf::Value(double(material.sheenColor.z))
+					})},
+					{"sheenRoughnessFactor", tinygltf::Value(double(material.sheenRoughness))}
+				};
+				// Textures
+				if(material.textures[wi::scene::MaterialComponent::SHEENCOLORMAP].resource.IsValid())
+				{
+					auto sheencolorTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+						state, 
+						wi::helper::GetDirectoryFromPath(filename), 
+						_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::SHEENCOLORMAP].name),
+						material.textures[wi::scene::MaterialComponent::SHEENCOLORMAP].uvset);
+					KHR_materials_sheen_builder["sheenColorTexture"] = tinygltf::Value({
+							{"index",tinygltf::Value(sheencolorTexInfo_pre.index)},
+							{"texCoord",tinygltf::Value(sheencolorTexInfo_pre.texCoord)}
+						});
+				}
+				if(material.textures[wi::scene::MaterialComponent::SHEENROUGHNESSMAP].resource.IsValid())
+				{
+					auto sheenRoughTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+						state, 
+						wi::helper::GetDirectoryFromPath(filename), 
+						_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::SHEENROUGHNESSMAP].name),
+						material.textures[wi::scene::MaterialComponent::SHEENROUGHNESSMAP].uvset);
+					KHR_materials_sheen_builder["sheenRoughnessTexture"] = tinygltf::Value({
+							{"index",tinygltf::Value(sheenRoughTexInfo_pre.index)},
+							{"texCoord",tinygltf::Value(sheenRoughTexInfo_pre.texCoord)}
+						});
+				}
+				material_builder.extensions["KHR_materials_sheen"] = tinygltf::Value(KHR_materials_sheen_builder);
+			}
+
+			// Clearcoat extension (KHR_materials_clearcoat)
+			// Values
+			tinygltf::Value::Object KHR_materials_clearcoat_builder = {
+				{"clearcoatFactor", tinygltf::Value(double(material.clearcoat))},
+				{"clearcoatRoughnessFactor", tinygltf::Value(double(material.clearcoatRoughness))}
+			};
+			// Textures
+			if(material.textures[wi::scene::MaterialComponent::CLEARCOATMAP].resource.IsValid())
+			{
+				auto clearcoatTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::CLEARCOATMAP].name),
+					material.textures[wi::scene::MaterialComponent::CLEARCOATMAP].uvset);
+				KHR_materials_clearcoat_builder["clearcoatTexture"] = tinygltf::Value({
+						{"index",tinygltf::Value(clearcoatTexInfo_pre.index)},
+						{"texCoord",tinygltf::Value(clearcoatTexInfo_pre.texCoord)}
+					});
+			}
+			if(material.textures[wi::scene::MaterialComponent::CLEARCOATNORMALMAP].resource.IsValid())
+			{
+				auto clearcoatNormTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::CLEARCOATNORMALMAP].name),
+					material.textures[wi::scene::MaterialComponent::CLEARCOATNORMALMAP].uvset);
+				KHR_materials_clearcoat_builder["clearcoatNormalTexture"] = tinygltf::Value({
+						{"index",tinygltf::Value(clearcoatNormTexInfo_pre.index)},
+						{"texCoord",tinygltf::Value(clearcoatNormTexInfo_pre.texCoord)}
+					});
+			}
+			if(material.textures[wi::scene::MaterialComponent::CLEARCOATROUGHNESSMAP].resource.IsValid())
+			{
+				auto clearcoatRoughTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::CLEARCOATROUGHNESSMAP].name),
+					material.textures[wi::scene::MaterialComponent::CLEARCOATROUGHNESSMAP].uvset);
+				KHR_materials_clearcoat_builder["clearcoatRoughnessTexture"] = tinygltf::Value({
+						{"index",tinygltf::Value(clearcoatRoughTexInfo_pre.index)},
+						{"texCoord",tinygltf::Value(clearcoatRoughTexInfo_pre.texCoord)}
+					});
+			}
+			material_builder.extensions["KHR_materials_clearcoat"] = tinygltf::Value(KHR_materials_clearcoat_builder);
+
+			// IOR Extension (KHR_materials_ior)
+			float ior_retrieve_phase1 = std::sqrt(material.reflectance);
+			float ior_retrieve_phase2 = -(1+ior_retrieve_phase1)/(ior_retrieve_phase1-1);
+			tinygltf::Value::Object KHR_materials_ior_builder = {
+				{"ior",tinygltf::Value(double(ior_retrieve_phase2))}
+			};
+			material_builder.extensions["KHR_materials_ior"] = tinygltf::Value(KHR_materials_ior_builder);
+
+			// Specular Extension (KHR_materials_specular)
+			tinygltf::Value::Object KHR_materials_specular_builder = {
+				{"specularFactor", tinygltf::Value(material.specularColor.w)},
+				{"specularColorFactor",tinygltf::Value({
+					tinygltf::Value(double(material.specularColor.x)),
+					tinygltf::Value(double(material.specularColor.y)),
+					tinygltf::Value(double(material.specularColor.z))
+				})}
+			};
+			if(material.textures[wi::scene::MaterialComponent::SPECULARMAP].resource.IsValid())
+			{
+				auto specularTexInfo_pre = _ExportHelper_StoreMaterialTexture(
+					state, 
+					wi::helper::GetDirectoryFromPath(filename), 
+					_ExportHelper_GetOriginalTexture(material.textures[wi::scene::MaterialComponent::CLEARCOATMAP].name),
+					material.textures[wi::scene::MaterialComponent::CLEARCOATMAP].uvset);
+				KHR_materials_specular_builder["specularTexture"] = tinygltf::Value({
+						{"index",tinygltf::Value(specularTexInfo_pre.index)},
+						{"texCoord",tinygltf::Value(specularTexInfo_pre.texCoord)}
+					});
+				KHR_materials_specular_builder["specularColorTexture"] = tinygltf::Value({
+						{"index",tinygltf::Value(specularTexInfo_pre.index)},
+						{"texCoord",tinygltf::Value(specularTexInfo_pre.texCoord)}
+					});
+			}
+			material_builder.extensions["KHR_materials_specular"] = tinygltf::Value(KHR_materials_specular_builder);
+
+			state.gltfModel.materials.push_back(material_builder);
 		}
 
-		auto ext_vrmc_springbone = state.gltfModel.extensions.find("VRMC_springBone");
-		if (ext_vrmc_springbone != state.gltfModel.extensions.end())
+		// Write Meshes
+		for(size_t m_id = 0; m_id < wiscene.meshes.GetCount(); ++m_id)
 		{
-			// https://github.com/vrm-c/vrm-specification/tree/master/specification/VRMC_springBone-1.0-beta
+			auto& mesh = wiscene.meshes[m_id];
+			auto meshEntity = wiscene.meshes.GetEntity(m_id);
+			auto nameComponent = wiscene.names.GetComponent(meshEntity);
 
-			// Colliders:
-			if (ext_vrmc_springbone->second.Has("colliders"))
+			tinygltf::Mesh mesh_builder;
+			mesh_builder.name = nameComponent->name;
+
+			tinygltf::Buffer buffer_builder;
+			int buffer_index = (int)state.gltfModel.buffers.size();
+
+			size_t buf_idc_size = 0;
+			size_t buf_d_vpos_size = 0;
+			size_t buf_d_vnorm_size = 0;
+			size_t buf_d_vtan_size = 0;
+			size_t buf_d_uv0_size = 0;
+			size_t buf_d_uv1_size = 0;
+			size_t buf_d_joint_size = 0;
+			size_t buf_d_weights_size = 0;
+			size_t buf_d_col_size = 0;
+			size_t buf_d_vpos_offset = 0;
+			size_t buf_d_vnorm_offset = 0;
+			size_t buf_d_vtan_offset = 0;
+			size_t buf_d_uv0_offset = 0;
+			size_t buf_d_uv1_offset = 0;
+			size_t buf_d_joint_offset = 0;
+			size_t buf_d_weights_offset = 0;
+			size_t buf_d_col_offset = 0;
+
+			// Write mesh data to buffer first and then figure things out...
+			size_t buf_i = 0;
+
+			// We reverse the indices' windings so that the face isn't flipped
+			for(int m_index = 0 ; m_index < mesh.indices.size(); m_index = m_index + 3)
 			{
-				const auto& colliders = ext_vrmc_springbone->second.Get("colliders");
-				for (size_t collider_index = 0; collider_index < colliders.ArrayLen(); ++collider_index)
+				_ExportHelper_valuetobuf(mesh.indices[m_index], buffer_builder, buf_i);
+				_ExportHelper_valuetobuf(mesh.indices[m_index+2], buffer_builder, buf_i);
+				_ExportHelper_valuetobuf(mesh.indices[m_index+1], buffer_builder, buf_i);
+			}
+			buf_idc_size = buf_i;
+
+			// Write positions next
+			buf_d_vpos_offset = buf_i;
+			for(auto& m_position : mesh.vertex_positions)
+			{
+				_ExportHelper_valuetobuf(m_position, buffer_builder, buf_i);
+			}
+			buf_d_vpos_size = buf_i - buf_d_vpos_offset;
+
+			// Write normals next
+			buf_d_vnorm_offset = buf_i;
+			for(auto& m_normal : mesh.vertex_normals)
+			{
+				_ExportHelper_valuetobuf(m_normal, buffer_builder, buf_i);
+			}
+			buf_d_vnorm_size = buf_i - buf_d_vnorm_offset;
+
+			// Write tangents next
+			buf_d_vtan_offset = buf_i;
+			for(auto& m_tangent : mesh.vertex_tangents)
+			{
+				_ExportHelper_valuetobuf(m_tangent, buffer_builder, buf_i);
+			}
+			buf_d_vtan_size = buf_i - buf_d_vtan_offset;
+
+			// Write uvset 0 next
+			buf_d_uv0_offset = buf_i;
+			for(auto& m_uv0 : mesh.vertex_uvset_0)
+			{
+				_ExportHelper_valuetobuf(m_uv0, buffer_builder, buf_i);
+			}
+			buf_d_uv0_size = buf_i - buf_d_uv0_offset;
+
+			// Write uvset 1 next
+			buf_d_uv1_offset = buf_i;
+			for(auto& m_uv1 : mesh.vertex_uvset_1)
+			{
+				_ExportHelper_valuetobuf(m_uv1, buffer_builder, buf_i);
+			}
+			buf_d_uv1_size = buf_i - buf_d_uv1_offset;
+
+			// Write animation data - armature bone id
+			buf_d_joint_offset = buf_i;
+			for(auto& m_joint : mesh.vertex_boneindices)
+			{
+				auto m_joint_v = XMLoadUInt4(&m_joint);
+				XMSHORT4 m_joint_s;
+				XMStoreShort4(&m_joint_s, m_joint_v);
+				_ExportHelper_valuetobuf(m_joint_s, buffer_builder, buf_i);
+			}
+			buf_d_joint_size = buf_i - buf_d_joint_offset;
+
+			// Write animation data - armature weights id
+			buf_d_weights_offset = buf_i;
+			for(auto& m_bone_weights : mesh.vertex_boneweights)
+			{
+				_ExportHelper_valuetobuf(m_bone_weights, buffer_builder, buf_i);
+			}
+			buf_d_weights_size = buf_i - buf_d_weights_offset;
+
+			// Write vertex colors
+			buf_d_col_offset = buf_i;
+			for(auto& m_col : mesh.vertex_colors)
+			{
+				_ExportHelper_valuetobuf(m_col, buffer_builder, buf_i);
+			}
+			buf_d_col_size = buf_i - buf_d_col_offset;
+
+			// Mesh data
+			tinygltf::BufferView vpos_bufferView_builder;
+			int vpos_bufferView_index = (int)state.gltfModel.bufferViews.size();
+			vpos_bufferView_builder.buffer = buffer_index;
+			vpos_bufferView_builder.byteOffset = buf_d_vpos_offset;
+			vpos_bufferView_builder.byteLength = buf_d_vpos_size;
+			vpos_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+			state.gltfModel.bufferViews.push_back(vpos_bufferView_builder);
+
+			tinygltf::Accessor vpos_accessor_builder;
+			int vpos_accessor_index = (int)state.gltfModel.accessors.size();
+			vpos_accessor_builder.bufferView = vpos_bufferView_index;
+			vpos_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+			vpos_accessor_builder.count = mesh.vertex_positions.size();
+			vpos_accessor_builder.type = TINYGLTF_TYPE_VEC3;
+			auto bound = wi::primitive::AABB(mesh.vertex_positions[0], mesh.vertex_positions[0]);
+			for(auto& vpos : mesh.vertex_positions)
+			{
+				bound = wi::primitive::AABB::Merge(bound, wi::primitive::AABB(vpos, vpos));
+			}
+			auto bound_max = bound.getMax();
+			auto bound_min = bound.getMin();
+			vpos_accessor_builder.maxValues = {bound_max.x, bound_max.y, bound_max.z};
+			vpos_accessor_builder.minValues = {bound_min.x, bound_min.y, bound_min.z};
+			state.gltfModel.accessors.push_back(vpos_accessor_builder);
+
+			tinygltf::BufferView vnorm_bufferView_builder;
+			int vnorm_bufferView_index = (int)state.gltfModel.bufferViews.size();
+			vnorm_bufferView_builder.buffer = buffer_index;
+			vnorm_bufferView_builder.byteOffset = buf_d_vnorm_offset;
+			vnorm_bufferView_builder.byteLength = buf_d_vnorm_size;
+			vnorm_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+			state.gltfModel.bufferViews.push_back(vnorm_bufferView_builder);
+
+			tinygltf::Accessor vnorm_accessor_builder;
+			int vnorm_accessor_index = (int)state.gltfModel.accessors.size();
+			vnorm_accessor_builder.bufferView = vnorm_bufferView_index;
+			vnorm_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+			vnorm_accessor_builder.count = mesh.vertex_normals.size();
+			vnorm_accessor_builder.type = TINYGLTF_TYPE_VEC3;
+			state.gltfModel.accessors.push_back(vnorm_accessor_builder);
+
+			tinygltf::BufferView vtan_bufferView_builder;
+			int vtan_bufferView_index = (int)state.gltfModel.bufferViews.size();
+			vtan_bufferView_builder.buffer = buffer_index;
+			vtan_bufferView_builder.byteOffset = buf_d_vtan_offset;
+			vtan_bufferView_builder.byteLength = buf_d_vtan_size;
+			vtan_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+			state.gltfModel.bufferViews.push_back(vtan_bufferView_builder);
+
+			tinygltf::Accessor vtan_accessor_builder;
+			int vtan_accessor_index = (int)state.gltfModel.accessors.size();
+			vtan_accessor_builder.bufferView = vtan_bufferView_index;
+			vtan_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+			vtan_accessor_builder.count = mesh.vertex_tangents.size();
+			vtan_accessor_builder.type = TINYGLTF_TYPE_VEC4;
+			state.gltfModel.accessors.push_back(vtan_accessor_builder);
+
+			int uv0_accessor_index = -1;
+			if(buf_d_uv0_size > 0)
+			{
+				tinygltf::BufferView uv0_bufferView_builder;
+				int uv0_bufferView_index = (int)state.gltfModel.bufferViews.size();
+				uv0_bufferView_builder.buffer = buffer_index;
+				uv0_bufferView_builder.byteOffset = buf_d_uv0_offset;
+				uv0_bufferView_builder.byteLength = buf_d_uv0_size;
+				uv0_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+				state.gltfModel.bufferViews.push_back(uv0_bufferView_builder);
+
+				tinygltf::Accessor uv0_accessor_builder;
+				uv0_accessor_index = (int)state.gltfModel.accessors.size();
+				uv0_accessor_builder.bufferView = uv0_bufferView_index;
+				uv0_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+				uv0_accessor_builder.count = mesh.vertex_uvset_0.size();
+				uv0_accessor_builder.type = TINYGLTF_TYPE_VEC2;
+				state.gltfModel.accessors.push_back(uv0_accessor_builder);
+			}
+
+			int uv1_accessor_index = -1;
+			if(buf_d_uv1_size > 0)
+			{
+				tinygltf::BufferView uv1_bufferView_builder;
+				int uv1_bufferView_index = (int)state.gltfModel.bufferViews.size();
+				uv1_bufferView_builder.buffer = buffer_index;
+				uv1_bufferView_builder.byteOffset = buf_d_uv1_offset;
+				uv1_bufferView_builder.byteLength = buf_d_uv1_size;
+				uv1_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+				state.gltfModel.bufferViews.push_back(uv1_bufferView_builder);
+
+				tinygltf::Accessor uv1_accessor_builder;
+				uv1_accessor_index = (int)state.gltfModel.accessors.size();
+				uv1_accessor_builder.bufferView = uv1_bufferView_index;
+				uv1_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+				uv1_accessor_builder.count = mesh.vertex_uvset_1.size();
+				uv1_accessor_builder.type = TINYGLTF_TYPE_VEC2;
+				state.gltfModel.accessors.push_back(uv1_accessor_builder);
+			}
+
+			int joint_accessor_index = -1;
+			if(buf_d_joint_size > 0)
+			{
+				tinygltf::BufferView joint_bufferView_builder;
+				int joint_bufferView_index = (int)state.gltfModel.bufferViews.size();
+				joint_bufferView_builder.buffer = buffer_index;
+				joint_bufferView_builder.byteOffset = buf_d_joint_offset;
+				joint_bufferView_builder.byteLength = buf_d_joint_size;
+				joint_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+				state.gltfModel.bufferViews.push_back(joint_bufferView_builder);
+
+				tinygltf::Accessor joint_accessor_builder;
+				joint_accessor_index = (int)state.gltfModel.accessors.size();
+				joint_accessor_builder.bufferView = joint_bufferView_index;
+				joint_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
+				joint_accessor_builder.count = mesh.vertex_boneindices.size();
+				joint_accessor_builder.type = TINYGLTF_TYPE_VEC4;
+				state.gltfModel.accessors.push_back(joint_accessor_builder);
+			}
+
+			int weight_accessor_index = -1;
+			if(buf_d_weights_size > 0)
+			{
+				tinygltf::BufferView weight_bufferView_builder;
+				int weight_bufferView_index = (int)state.gltfModel.bufferViews.size();
+				weight_bufferView_builder.buffer = buffer_index;
+				weight_bufferView_builder.byteOffset = buf_d_weights_offset;
+				weight_bufferView_builder.byteLength = buf_d_weights_size;
+				weight_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+				state.gltfModel.bufferViews.push_back(weight_bufferView_builder);
+
+				tinygltf::Accessor weight_accessor_builder;
+				weight_accessor_index = (int)state.gltfModel.accessors.size();
+				weight_accessor_builder.bufferView = weight_bufferView_index;
+				weight_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+				weight_accessor_builder.count = mesh.vertex_boneweights.size();
+				weight_accessor_builder.type = TINYGLTF_TYPE_VEC4;
+				state.gltfModel.accessors.push_back(weight_accessor_builder);
+			}
+
+			int color_accessor_index = -1;
+			if(buf_d_col_size > 0)
+			{
+				tinygltf::BufferView color_bufferView_builder;
+				int color_bufferView_index = (int)state.gltfModel.bufferViews.size();
+				color_bufferView_builder.buffer = buffer_index;
+				color_bufferView_builder.byteOffset = buf_d_col_offset;
+				color_bufferView_builder.byteLength = buf_d_col_size;
+				color_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+				state.gltfModel.bufferViews.push_back(color_bufferView_builder);
+
+				tinygltf::Accessor color_accessor_builder;
+				color_accessor_index = (int)state.gltfModel.accessors.size();
+				color_accessor_builder.bufferView = color_bufferView_index;
+				color_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+				color_accessor_builder.count = mesh.vertex_colors.size();
+				color_accessor_builder.type = TINYGLTF_TYPE_VEC4;
+				state.gltfModel.accessors.push_back(color_accessor_builder);
+			}
+
+			// Morph targets
+
+			// Prep up a zero value defaults for sparse morph target
+			size_t buf_d_morph_def_offset, buf_d_morph_def_size;
+			buf_d_morph_def_offset = buf_i;
+			for(auto& m_position : mesh.vertex_positions)
+			{
+				_ExportHelper_valuetobuf(XMFLOAT3(), buffer_builder, buf_i);
+			}
+			buf_d_morph_def_size = buf_i - buf_d_morph_def_offset;
+
+			tinygltf::BufferView morph_def_bufferView_builder;
+			int morph_def_bufferView_index = (int)state.gltfModel.bufferViews.size();
+			morph_def_bufferView_builder.buffer = buffer_index;
+			morph_def_bufferView_builder.byteOffset = buf_d_morph_def_offset;
+			morph_def_bufferView_builder.byteLength = buf_d_morph_def_size;
+			morph_def_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+			state.gltfModel.bufferViews.push_back(morph_def_bufferView_builder);
+
+			wi::vector<std::pair<size_t,bool>> morphs_pos_accessors;
+			wi::vector<std::pair<size_t,bool>> morphs_norm_accessors;
+			for(auto& m_morph : mesh.morph_targets)
+			{
+				size_t buf_d_morph_idc_offset, buf_d_morph_idc_size, 
+					buf_d_morph_pos_size, buf_d_morph_pos_offset,
+					buf_d_morph_norm_size, buf_d_morph_norm_offset;
+
+				buf_d_morph_idc_offset = buf_i;
+				for(auto& m_morph_idc : m_morph.sparse_indices)
 				{
-					const auto& collider = colliders.Get(int(collider_index));
-					ColliderComponent component;
+					_ExportHelper_valuetobuf(m_morph_idc, buffer_builder, buf_i);
+				}
+				buf_d_morph_idc_size = buf_i - buf_d_morph_idc_offset;	
+				
+				buf_d_morph_pos_offset = buf_i;
+				for(auto& m_morph_pos : m_morph.vertex_positions)
+				{
+					_ExportHelper_valuetobuf(m_morph_pos, buffer_builder, buf_i);
+				}
+				buf_d_morph_pos_size = buf_i - buf_d_morph_pos_offset;
 
-					if (collider.Has("shape"))
+				buf_d_morph_norm_offset = buf_i;
+				for(auto& m_morph_norm : m_morph.vertex_normals)
+				{
+					_ExportHelper_valuetobuf(m_morph_norm, buffer_builder, buf_i);
+				}
+				buf_d_morph_norm_size = buf_i - buf_d_morph_norm_offset;
+
+				// Build accessors
+
+				// Sparse accessor indices
+				auto is_sparse = (m_morph.sparse_indices.size() > 0);
+				int morph_sparse_bufferView_index = 0;
+				if(is_sparse)
+				{
+					tinygltf::BufferView morph_sparse_bufferView_builder;
+					morph_sparse_bufferView_index = (int)state.gltfModel.bufferViews.size();
+					morph_sparse_bufferView_builder.buffer = buffer_index;
+					morph_sparse_bufferView_builder.byteOffset = buf_d_morph_idc_offset;
+					morph_sparse_bufferView_builder.byteLength = buf_d_morph_idc_size;
+					morph_sparse_bufferView_builder.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
+					state.gltfModel.bufferViews.push_back(morph_sparse_bufferView_builder);
+				}
+
+				size_t morph_pos_accessor_index;
+				if(buf_d_morph_pos_size > 0)
+				{
+					tinygltf::BufferView morph_pos_bufferView_builder;
+					int morph_pos_bufferView_index = (int)state.gltfModel.bufferViews.size();
+					morph_pos_bufferView_builder.buffer = buffer_index;
+					morph_pos_bufferView_builder.byteOffset = buf_d_morph_pos_offset;
+					morph_pos_bufferView_builder.byteLength = buf_d_morph_pos_size;
+					morph_pos_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+					state.gltfModel.bufferViews.push_back(morph_pos_bufferView_builder);
+
+					tinygltf::Accessor morph_pos_accessor_builder;
+					morph_pos_accessor_index = state.gltfModel.accessors.size();
+					morph_pos_accessor_builder.bufferView = (is_sparse) ? morph_def_bufferView_index : morph_pos_bufferView_index;
+					morph_pos_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+					morph_pos_accessor_builder.count = (is_sparse) ? mesh.vertex_positions.size() : m_morph.vertex_positions.size();
+					morph_pos_accessor_builder.type = TINYGLTF_TYPE_VEC3;
+					if(is_sparse)
 					{
-						const auto& shape = collider.Get("shape");
-						if (shape.Has("capsule"))
-						{
-							auto& capsule = shape.Get("capsule");
-							component.shape = ColliderComponent::Shape::Capsule;
-
-							if (capsule.Has("offset"))
-							{
-								auto& value = capsule.Get("offset");
-								component.offset.x = float(value.Get(0).GetNumberAsDouble());
-								component.offset.y = float(value.Get(1).GetNumberAsDouble());
-								component.offset.z = float(value.Get(2).GetNumberAsDouble());
-							}
-							if (capsule.Has("radius"))
-							{
-								auto& value = capsule.Get("radius");
-								component.radius = float(value.GetNumberAsDouble());
-							}
-							if (capsule.Has("tail"))
-							{
-								auto& value = capsule.Get("tail");
-								component.tail.x = float(value.Get(0).GetNumberAsDouble());
-								component.tail.y = float(value.Get(1).GetNumberAsDouble());
-								component.tail.z = float(value.Get(2).GetNumberAsDouble());
-							}
-						}
-						if (shape.Has("sphere"))
-						{
-							auto& sphere = shape.Get("sphere");
-							component.shape = ColliderComponent::Shape::Sphere;
-
-							if (sphere.Has("offset"))
-							{
-								auto& value = sphere.Get("offset");
-								component.offset.x = float(value.Get(0).GetNumberAsDouble());
-								component.offset.y = float(value.Get(1).GetNumberAsDouble());
-								component.offset.z = float(value.Get(2).GetNumberAsDouble());
-							}
-							if (sphere.Has("radius"))
-							{
-								auto& value = sphere.Get("radius");
-								component.radius = float(value.GetNumberAsDouble());
-							}
-						}
+						auto& sparse = morph_pos_accessor_builder.sparse;
+						sparse.isSparse = true;
+						sparse.count = (int)m_morph.sparse_indices.size();
+						
+						sparse.indices.bufferView = morph_sparse_bufferView_index;
+						sparse.indices.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+						
+						sparse.values.bufferView = morph_pos_bufferView_index;
 					}
-					if (collider.Has("node"))
+					state.gltfModel.accessors.push_back(morph_pos_accessor_builder);
+				}
+
+				size_t morph_norm_accessor_index;
+				if(buf_d_morph_norm_size > 0)
+				{
+					tinygltf::BufferView morph_norm_bufferView_builder;
+					int morph_norm_bufferView_index = (int)state.gltfModel.bufferViews.size();
+					morph_norm_bufferView_builder.buffer = buffer_index;
+					morph_norm_bufferView_builder.byteOffset = buf_d_morph_norm_offset;
+					morph_norm_bufferView_builder.byteLength = buf_d_morph_norm_size;
+					morph_norm_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+					state.gltfModel.bufferViews.push_back(morph_norm_bufferView_builder);
+
+					tinygltf::Accessor morph_norm_accessor_builder;
+					morph_norm_accessor_index = state.gltfModel.accessors.size();
+					// morph_norm_accessor_builder.bufferView = (is_sparse) ? vnorm_bufferView_index : morph_norm_bufferView_index;
+					morph_norm_accessor_builder.bufferView = (is_sparse) ? morph_def_bufferView_index : morph_norm_bufferView_index;
+					morph_norm_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+					// morph_norm_accessor_builder.count = (is_sparse) ? mesh.vertex_normals.size() : m_morph.vertex_normals.size();
+					morph_norm_accessor_builder.count = (is_sparse) ? mesh.vertex_positions.size() : m_morph.vertex_normals.size();
+					morph_norm_accessor_builder.type = TINYGLTF_TYPE_VEC3;
+					if(is_sparse)
 					{
-						const auto& node = collider.Get("node");
-						int node_index = node.GetNumberAsInt();
-						Entity entity = state.entityMap[node_index];
-						Entity colliderID = CreateEntity();
-						state.scene->wiscene.colliders.Create(colliderID) = component;
-						state.scene->wiscene.transforms.Create(colliderID);
-						state.scene->wiscene.Component_Attach(colliderID, entity, true);
+						auto& sparse = morph_norm_accessor_builder.sparse;
+						sparse.isSparse = true;
+						sparse.count = (int)m_morph.sparse_indices.size();
+						
+						sparse.indices.bufferView = morph_sparse_bufferView_index;
+						sparse.indices.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+						
+						sparse.values.bufferView = morph_norm_bufferView_index;
+					}
+					state.gltfModel.accessors.push_back(morph_norm_accessor_builder);
+				}
+
+				morphs_pos_accessors.push_back({morph_pos_accessor_index, buf_d_morph_pos_size > 0});
+				morphs_norm_accessors.push_back({morph_norm_accessor_index, buf_d_morph_norm_size > 0});
+			}
+
+			// Store mesh indices by subset, which mapped to primitives
+			for(int msub_id = 0; msub_id < mesh.subsets.size(); ++msub_id)
+			{
+				auto& subset = mesh.subsets[msub_id];
+
+				// One primitive has one bufferview and accessor?
+				tinygltf::BufferView indices_bufferView_builder;
+				int indices_bufferView_index = (int)state.gltfModel.bufferViews.size();
+				indices_bufferView_builder.buffer = buffer_index;
+				indices_bufferView_builder.byteOffset = subset.indexOffset*sizeof(uint32_t);
+				indices_bufferView_builder.byteLength = subset.indexCount*sizeof(uint32_t);
+				indices_bufferView_builder.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
+				state.gltfModel.bufferViews.push_back(indices_bufferView_builder);
+
+				tinygltf::Accessor indices_accessor_builder;
+				int indices_accessor_index = (int)state.gltfModel.accessors.size();
+				indices_accessor_builder.bufferView = indices_bufferView_index;
+				indices_accessor_builder.byteOffset = 0;
+				indices_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+				indices_accessor_builder.count = subset.indexCount;
+				indices_accessor_builder.type = TINYGLTF_TYPE_SCALAR;
+				state.gltfModel.accessors.push_back(indices_accessor_builder);
+		
+				tinygltf::Primitive primitive_builder;
+				primitive_builder.indices = indices_accessor_index;
+				primitive_builder.attributes["POSITION"] = vpos_accessor_index;
+				primitive_builder.attributes["NORMAL"] = vnorm_accessor_index;
+				primitive_builder.attributes["TANGENT"] = vtan_accessor_index;
+				if(buf_d_uv0_size > 0)
+					primitive_builder.attributes["TEXCOORD_0"] = uv0_accessor_index;
+				if(buf_d_uv1_size > 0)
+					primitive_builder.attributes["TEXCOORD_1"] = uv1_accessor_index;
+				if(buf_d_joint_size > 0)
+					primitive_builder.attributes["JOINTS_0"] = joint_accessor_index;
+				if(buf_d_weights_size > 0)
+					primitive_builder.attributes["WEIGHTS_0"] = weight_accessor_index;
+				if(buf_d_col_size > 0)
+					primitive_builder.attributes["COLOR_0"] = color_accessor_index;
+				primitive_builder.material = (subset.materialID != wi::ecs::INVALID_ENTITY) ? int(wiscene.materials.GetIndex(subset.materialID) + 1) : def_material_index; // subset.materialID; // TODO remap
+				primitive_builder.mode = TINYGLTF_MODE_TRIANGLES;
+
+				for(size_t msub_morph_id = 0; msub_morph_id < morphs_pos_accessors.size(); ++msub_morph_id)
+				{
+					std::map<std::string, int> morph_info;
+					if(morphs_pos_accessors[msub_morph_id].second)
+						morph_info["POSITION"] = (int)morphs_pos_accessors[msub_morph_id].first;
+					if(morphs_norm_accessors[msub_morph_id].second)
+						morph_info["NORMAL"] = (int)morphs_norm_accessors[msub_morph_id].first;
+					primitive_builder.targets.push_back(morph_info);
+				}
+
+				mesh_builder.primitives.push_back(primitive_builder);
+			}
+
+			state.gltfModel.buffers.push_back(buffer_builder);
+			state.gltfModel.meshes.push_back(mesh_builder);
+		}
+
+		// Write Lights
+		for(size_t l_id = 0; l_id < wiscene.lights.GetCount(); ++l_id)
+		{
+			auto& light = wiscene.lights[l_id];
+			auto lightEntity = wiscene.lights.GetEntity(l_id);
+
+			auto nameComponent = wiscene.names.GetComponent(lightEntity);
+
+			tinygltf::Light light_builder;
+
+			if(nameComponent != nullptr)
+				light_builder.name = nameComponent->name;
+
+			light_builder.type = 
+				(light.type == LightComponent::LightType::DIRECTIONAL) ? "directional" : 
+				(light.type == LightComponent::LightType::SPOT) ? "spot" : "point";
+			light_builder.color = {double(light.color.x), double(light.color.y), double(light.color.z)};
+			light_builder.intensity = double(light.intensity);
+			light_builder.range = double(light.range);
+			light_builder.spot.outerConeAngle = double(light.outerConeAngle);
+			light_builder.spot.innerConeAngle = double(light.innerConeAngle);
+
+			state.gltfModel.lights.push_back(light_builder);
+		}
+
+		// Write Cameras
+		for(size_t cam_id = 0; cam_id < wiscene.cameras.GetCount(); ++cam_id)
+		{
+			auto& camera = wiscene.cameras[cam_id];
+			auto cameraEntity = wiscene.cameras.GetEntity(cam_id);
+
+			auto nameComponent = wiscene.names.GetComponent(cameraEntity);
+			
+			tinygltf::Camera camera_builder;
+
+			if(nameComponent != nullptr)
+				camera_builder.name = nameComponent->name;
+
+			camera_builder.type = "perspective";
+			camera_builder.perspective.aspectRatio = camera.width/camera.height;
+			camera_builder.perspective.yfov = camera.fov;
+			camera_builder.perspective.zfar = camera.zFarP;
+			camera_builder.perspective.znear = camera.zNearP;
+
+			state.gltfModel.cameras.push_back(camera_builder);
+		}
+
+		tinygltf::Scene scene_builder;
+
+		// Compose Node
+		for(size_t t_id = 0; t_id < wiscene.transforms.GetCount(); ++t_id)
+		{
+			auto& transformComponent = wiscene.transforms[t_id];
+			auto transformEntity = wiscene.transforms.GetEntity(t_id);
+			auto nameComponent = wiscene.names.GetComponent(transformEntity);
+
+			auto light_forward_flip = wiscene.lights.Contains(transformEntity);
+			if(light_forward_flip)
+				transformComponent.RotateRollPitchYaw(XMFLOAT3(-XM_PIDIV2,0,0));
+
+			auto objectComponent = wiscene.objects.GetComponent(transformEntity);
+
+			tinygltf::Node node_builder;
+			int node_index = (int)t_id;
+			
+			if(nameComponent != nullptr)
+				node_builder.name = nameComponent->name;
+
+			node_builder.scale.push_back(transformComponent.scale_local.x);
+			node_builder.scale.push_back(transformComponent.scale_local.y);
+			node_builder.scale.push_back(transformComponent.scale_local.z);
+
+			node_builder.rotation.push_back(transformComponent.rotation_local.x);
+			node_builder.rotation.push_back(transformComponent.rotation_local.y);
+			node_builder.rotation.push_back(transformComponent.rotation_local.z);
+			node_builder.rotation.push_back(transformComponent.rotation_local.w);
+
+			node_builder.translation.push_back(transformComponent.translation_local.x);
+			node_builder.translation.push_back(transformComponent.translation_local.y);
+			node_builder.translation.push_back(transformComponent.translation_local.z);
+
+			if(light_forward_flip)
+				transformComponent.RotateRollPitchYaw(XMFLOAT3(XM_PIDIV2,0,0));
+			
+			if(objectComponent != nullptr)
+			{
+				if(objectComponent->meshID != wi::ecs::INVALID_ENTITY)
+				{
+					node_builder.mesh = (int)wiscene.meshes.GetIndex(objectComponent->meshID);
+					if(wiscene.meshes[node_builder.mesh].armatureID != wi::ecs::INVALID_ENTITY)
+					{
+						node_builder.skin = (int)wiscene.armatures.GetIndex(wiscene.meshes[node_builder.mesh].armatureID);
 					}
 				}
 			}
 
-			// Springs:
-			if (ext_vrmc_springbone->second.Has("springs"))
+			if(wiscene.lights.Contains(transformEntity))
 			{
-				const auto& springs = ext_vrmc_springbone->second.Get("springs");
-				for (size_t spring_index = 0; spring_index < springs.ArrayLen(); ++spring_index)
-				{
-					const auto& spring = springs.Get(int(spring_index));
-					//if (spring.Has("center"))
-					//{
-					//	const auto& center = spring.Get("center");
-					//}
-					//wi::vector<Entity> colliderIDs;
-					//if (spring.Has("colliderGroups"))
-					//{
-					//	// collider group references:
-					//	const auto& colliderGroups = spring.Get("colliderGroups");
-					//	for (size_t collider_group_index = 0; collider_group_index < colliderGroups.ArrayLen(); ++collider_group_index)
-					//	{
-					//		const auto& colliderGroup = ext_vrmc_springbone->second.Get("colliderGroups").Get(int(collider_group_index));
-					//		if (colliderGroup.Has("colliders"))
-					//		{
-					//			const auto& colliders = colliderGroup.Get("colliders");
-					//			for (size_t collider_index = 0; collider_index < colliders.ArrayLen(); ++collider_index)
-					//			{
-					//				int collider = colliders.Get(int(collider_index)).GetNumberAsInt();
-					//				colliderIDs.push_back(state.scene->wiscene.colliders.GetEntity(collider));
-					//			}
-					//		}
-					//	}
-					//}
-					if (spring.Has("joints"))
-					{
-						const auto& joints = spring.Get("joints");
-						for (size_t joint_index = 0; joint_index < joints.ArrayLen(); ++joint_index)
-						{
-							const auto& joint = joints.Get(int(joint_index));
-							SpringComponent component;
-							//component.colliders = colliderIDs; // for now, we will just use all colliders in the scene for every spring
+				tinygltf::Value::Object node_light_extension_builder;
+				node_light_extension_builder["light"] = tinygltf::Value(int(wiscene.lights.GetIndex(transformEntity)));
+				node_builder.extensions["KHR_lights_punctual"] = tinygltf::Value(node_light_extension_builder);
+			}
 
-							if (joint.Has("dragForce"))
-							{
-								auto& value = joint.Get("dragForce");
-								component.dragForce = float(value.GetNumberAsDouble());
-							}
-							if (joint.Has("gravityDir"))
-							{
-								auto& value = joint.Get("gravityDir");
-								component.gravityDir.x = float(value.Get(0).GetNumberAsDouble());
-								component.gravityDir.y = float(value.Get(1).GetNumberAsDouble());
-								component.gravityDir.z = float(value.Get(2).GetNumberAsDouble());
-							}
-							if (joint.Has("gravityPower"))
-							{
-								auto& value = joint.Get("gravityPower");
-								component.gravityPower = float(value.GetNumberAsDouble());
-							}
-							if (joint.Has("hitRadius"))
-							{
-								auto& value = joint.Get("hitRadius");
-								component.hitRadius = float(value.GetNumberAsDouble());
-							}
-							if (joint.Has("stiffness"))
-							{
-								auto& value = joint.Get("stiffness");
-								component.stiffnessForce = float(value.GetNumberAsDouble());
-							}
-							if (joint.Has("node"))
-							{
-								auto& value = joint.Get("node");
-								int node = value.GetNumberAsInt();
-								Entity entity = state.entityMap[node];
-								state.scene->wiscene.springs.Create(entity) = component;
-							}
-						}
-					}
-					if (spring.Has("name"))
-					{
-						const auto& name = spring.Get("name");
-					}
+			if(wiscene.cameras.Contains(transformEntity))
+			{
+				node_builder.camera = (int)wiscene.cameras.GetIndex(transformEntity);
+			}
+			
+			state.nodeMap[transformEntity] = node_index;
+			state.gltfModel.nodes.push_back(node_builder);
+			scene_builder.nodes.push_back(node_index);
+		}
+
+		// Write Armature
+		for(size_t arm_id = 0; arm_id < wiscene.armatures.GetCount(); ++arm_id)
+		{
+			auto& armatureComponent = wiscene.armatures[arm_id];
+			auto armatureEntity = wiscene.armatures.GetEntity(arm_id);
+
+			auto nameComponent = wiscene.names.GetComponent(armatureEntity);
+
+			tinygltf::Skin skin_builder;
+			
+			if(nameComponent != nullptr)
+				skin_builder.name = nameComponent->name;
+
+			tinygltf::Buffer buffer_builder;
+			int buffer_index = (int)state.gltfModel.buffers.size();
+
+			size_t buf_i = 0;
+
+			// Write Inverse Bind Matrices to buffer
+			for(auto& arm_invBindMatrix : armatureComponent.inverseBindMatrices)
+			{
+				_ExportHelper_valuetobuf(arm_invBindMatrix, buffer_builder, buf_i);
+			}
+			state.gltfModel.buffers.push_back(buffer_builder);
+
+			//// Inverse Bind Matrices data access
+			//// Analysis prep
+			//wi::jobsystem::context analysis_ctx;
+			//std::mutex analysis_lock_sync;
+			//uint32_t analysis_readCount = 16384;
+
+			tinygltf::BufferView aibm_bufferView_builder;
+			int aibm_bufferView_index = (int)state.gltfModel.bufferViews.size();
+			aibm_bufferView_builder.buffer = buffer_index;
+			// aibm_bufferView_builder.byteOffset = 0;
+			aibm_bufferView_builder.byteLength = buf_i;
+			// aibm_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+			state.gltfModel.bufferViews.push_back(aibm_bufferView_builder);
+
+			tinygltf::Accessor aibm_accessor_builder;
+			int aibm_accessor_index = (int)state.gltfModel.accessors.size();
+			aibm_accessor_builder.bufferView = aibm_bufferView_index;
+			aibm_accessor_builder.byteOffset = 0;
+			aibm_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+			aibm_accessor_builder.count = armatureComponent.inverseBindMatrices.size();
+			aibm_accessor_builder.type = TINYGLTF_TYPE_MAT4;
+			// _ExportHelper_AccessorAnalysis(
+			// 	aibm_accessor_builder, armatureComponent.inverseBindMatrices,
+			// 	0, armatureComponent.inverseBindMatrices.size(),
+			// 	analysis_readCount);
+			state.gltfModel.accessors.push_back(aibm_accessor_builder);
+
+			skin_builder.inverseBindMatrices = aibm_accessor_index;
+
+			for(auto& arm_bone_id : armatureComponent.boneCollection)
+			{
+				skin_builder.joints.push_back(state.nodeMap[arm_bone_id]);
+			}
+			
+			state.gltfModel.skins.push_back(skin_builder);
+		}
+
+		// Write Animations
+		wi::unordered_map<Entity, std::vector<size_t>> animation_datasets;
+		if(wiscene.animations.GetCount() > 0)
+		{
+			// Find accessor types first!
+			wi::unordered_map<Entity, size_t> animdata_vectype; 
+			for(size_t anim_id = 0; anim_id < wiscene.animations.GetCount(); ++anim_id)
+			{
+				auto& animation = wiscene.animations[anim_id];
+				for(auto& channel : animation.channels)
+				{
+					if(animdata_vectype.find(animation.samplers[channel.samplerIndex].data) == animdata_vectype.end())
+						animdata_vectype[animation.samplers[channel.samplerIndex].data] = 
+							(channel.path == AnimationComponent::AnimationChannel::Path::SCALE) ? TINYGLTF_TYPE_VEC3 :
+							(channel.path == AnimationComponent::AnimationChannel::Path::ROTATION) ? TINYGLTF_TYPE_VEC4 :
+							(channel.path == AnimationComponent::AnimationChannel::Path::TRANSLATION) ? TINYGLTF_TYPE_VEC3 :
+							(channel.path == AnimationComponent::AnimationChannel::Path::WEIGHTS) ? TINYGLTF_TYPE_SCALAR : TINYGLTF_TYPE_SCALAR;
+				}
+			}
+
+			// Store animations into a single buffer
+			size_t buf_i = 0;
+			tinygltf::Buffer buffer_builder;
+			int buffer_index = (int)state.gltfModel.buffers.size();
+			for(size_t animdata_id = 0; animdata_id < wiscene.animation_datas.GetCount(); ++animdata_id)
+			{
+				auto& animdata = wiscene.animation_datas[animdata_id];
+				auto animdataEntity = wiscene.animation_datas.GetEntity(animdata_id);
+
+				size_t buf_d_ftime_offset, buf_d_ftime_size, 
+					buf_d_fdata_offset, buf_d_fdata_size;
+				buf_d_ftime_offset = buf_i;
+				for(auto& animdata_ftime : animdata.keyframe_times)
+				{
+					_ExportHelper_valuetobuf(animdata_ftime, buffer_builder, buf_i);
+				}
+				buf_d_ftime_size = buf_i - buf_d_ftime_offset;
+
+				buf_d_fdata_offset = buf_i;
+				for(auto& animdata_fdata : animdata.keyframe_data)
+				{
+					_ExportHelper_valuetobuf(animdata_fdata, buffer_builder, buf_i);
+				}
+				buf_d_fdata_size = buf_i - buf_d_fdata_offset;
+
+				tinygltf::BufferView ftime_bufferView_builder;
+				int ftime_bufferView_index = (int)state.gltfModel.bufferViews.size();
+				ftime_bufferView_builder.buffer = buffer_index;
+				ftime_bufferView_builder.byteOffset = buf_d_ftime_offset;
+				ftime_bufferView_builder.byteLength = buf_d_ftime_size;
+				// ftime_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+				state.gltfModel.bufferViews.push_back(ftime_bufferView_builder);
+
+				tinygltf::Accessor ftime_accessor_builder;
+				int ftime_accessor_index = (int)state.gltfModel.accessors.size();
+				ftime_accessor_builder.bufferView = ftime_bufferView_index;
+				ftime_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+				ftime_accessor_builder.count = animdata.keyframe_times.size();
+				ftime_accessor_builder.type = TINYGLTF_TYPE_SCALAR;
+				state.gltfModel.accessors.push_back(ftime_accessor_builder);
+
+				tinygltf::BufferView fdata_bufferView_builder;
+				int fdata_bufferView_index = (int)state.gltfModel.bufferViews.size();
+				fdata_bufferView_builder.buffer = buffer_index;
+				fdata_bufferView_builder.byteOffset = buf_d_fdata_offset;
+				fdata_bufferView_builder.byteLength = buf_d_fdata_size;
+				// fdata_bufferView_builder.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+				state.gltfModel.bufferViews.push_back(fdata_bufferView_builder);
+
+				int anim_vectype = TINYGLTF_TYPE_SCALAR;
+				size_t anim_sizedivider = 1;
+				auto find_animdata_vectype = animdata_vectype.find(animdataEntity);
+				if(find_animdata_vectype != animdata_vectype.end())
+				{
+					anim_vectype = (int)find_animdata_vectype->second;
+					anim_sizedivider = (find_animdata_vectype->second == TINYGLTF_TYPE_SCALAR) ? 1 : find_animdata_vectype->second;
 				}
 
-				if (ext_vrmc_springbone->second.Has("colliders"))
-				{
-					const auto& colliders = ext_vrmc_springbone->second.Get("colliders");
-				}
+				tinygltf::Accessor fdata_accessor_builder;
+				int fdata_accessor_index = (int)state.gltfModel.accessors.size();
+				fdata_accessor_builder.bufferView = fdata_bufferView_index;
+				fdata_accessor_builder.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+				fdata_accessor_builder.count = animdata.keyframe_data.size() / anim_sizedivider;
+				fdata_accessor_builder.type = anim_vectype;
+				state.gltfModel.accessors.push_back(fdata_accessor_builder);
 
+				animation_datasets[animdataEntity] = {
+					(size_t)ftime_bufferView_index,
+					(size_t)ftime_accessor_index,
+					(size_t)fdata_bufferView_index,
+					(size_t)fdata_accessor_index
+				};
+			}
+			state.gltfModel.buffers.push_back(buffer_builder);
+		}
+		for(size_t anim_id = 0; anim_id < wiscene.animations.GetCount(); ++anim_id)
+		{
+			auto& animation = wiscene.animations[anim_id];
+			
+			tinygltf::Animation animation_builder;
+
+			for(auto& sampler : animation.samplers)
+			{
+				tinygltf::AnimationSampler sampler_builder;
+				sampler_builder.input = (int)animation_datasets[sampler.data][1];
+				sampler_builder.output = (int)animation_datasets[sampler.data][3];
+				sampler_builder.interpolation = 
+					(sampler.mode == AnimationComponent::AnimationSampler::Mode::CUBICSPLINE) ? "CUBICSPLINE" :
+					(sampler.mode == AnimationComponent::AnimationSampler::Mode::STEP) ? "STEP" : "LINEAR";
+
+				animation_builder.samplers.push_back(sampler_builder);
+			}
+			for(auto& channel : animation.channels)
+			{
+				tinygltf::AnimationChannel channel_builder;
+				channel_builder.target_node = state.nodeMap[channel.target];
+				channel_builder.sampler = (int)channel.samplerIndex;
+				channel_builder.target_path = 
+					(channel.path == AnimationComponent::AnimationChannel::Path::SCALE) ? "scale" :
+					(channel.path == AnimationComponent::AnimationChannel::Path::ROTATION) ? "rotation" :
+					(channel.path == AnimationComponent::AnimationChannel::Path::TRANSLATION) ? "translation" : "weights";
+				
+				animation_builder.channels.push_back(channel_builder);
+			}
+			state.gltfModel.animations.push_back(animation_builder);
+		}
+
+		// Compose hierarchy
+		for(size_t h_id = 0; h_id < wiscene.hierarchy.GetCount(); ++h_id)
+		{
+			auto& hierarchyComponent = wiscene.hierarchy[h_id];
+			auto hierarchyEntity = wiscene.hierarchy.GetEntity(h_id);
+			if(wiscene.transforms.Contains(hierarchyComponent.parentID) && wiscene.transforms.Contains(hierarchyEntity))
+			{
+				int node_index = (int)wiscene.transforms.GetIndex(hierarchyEntity);
+				size_t parent_node_index = wiscene.transforms.GetIndex(hierarchyComponent.parentID);
+				state.gltfModel.nodes[parent_node_index].children.push_back(node_index);
 			}
 		}
-	}
 
+		state.gltfModel.defaultScene = (int)state.gltfModel.scenes.size();
+		state.gltfModel.scenes.push_back(scene_builder);
+		state.gltfModel.asset.version = "2.0";
+		state.gltfModel.asset.generator = "WickedEngine";
+
+		auto file_extension = wi::helper::toUpper(wi::helper::GetExtensionFromFileName(filename));
+		if(file_extension == "GLB")
+		{
+			writer.WriteGltfSceneToFile(&state.gltfModel, filename, false, true, true, true);
+		}
+		else
+		{
+			writer.WriteGltfSceneToFile(&state.gltfModel, filename, false, false, true, false);
+		}
+
+		// Restore scene world orientation
+		FlipZAxis(state);
+		wiscene.Update(0.f);
+	}
 }

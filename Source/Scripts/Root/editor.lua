@@ -56,6 +56,7 @@ D("editor_data",{
             },
             compmenu = {
                 material = {
+                    material_id = 0,
                     texture_id = 0,
                 },
             },
@@ -65,7 +66,9 @@ D("editor_data",{
             file = "",
             type = "",
             opt_wiscene = {
-                import_as_instance = false
+                import_as_instance = false,
+                import_resources = false,
+                import_resource_path = "",
             }
         },
         entityselector = {
@@ -90,11 +93,13 @@ D("editor_data",{
         -- Command header
         command_head = 0,
         -- Resource menu actions
-        resource_new = false,
-        resource_rename = false,
-        resource_save = false,
-        resource_open = false,
-        resource_instance = false,
+        resource_scene_new = false,
+        resource_scene_rename = false,
+        resource_scene_save = false,
+        resource_scene_open = false,
+        resource_scene_instance = false,
+        resource_texture_set = false,
+        resource_sound_set = false,
         -- Add menu actions
         link_dcc = false,
         import_wiscene = false,
@@ -822,9 +827,9 @@ local drawtopbar = function()
 
         if imgui.BeginPopupContextWindow("MBFM") then
             local actions = D.editor_data.actions
-            actions.resource_new = imgui.MenuItem("\xee\x93\xae New Resource", nil, actions.resource_new)
-            actions.resource_rename = imgui.MenuItem("\xef\x81\x84 Rename Resource", nil, actions.resource_rename)
-            actions.resource_save = imgui.MenuItem("\xef\x83\x87 Save Resource", nil, actions.resource_save)
+            actions.resource_scene_new = imgui.MenuItem("\xee\x93\xae New Resource", nil, actions.resource_scene_new)
+            actions.resource_scene_rename = imgui.MenuItem("\xef\x81\x84 Rename Resource", nil, actions.resource_scene_rename)
+            actions.resource_scene_save = imgui.MenuItem("\xef\x83\x87 Save Resource", nil, actions.resource_scene_save)
             imgui.EndPopup()
         end
 
@@ -880,6 +885,13 @@ local drawmenubardialogs = function()
 end
 
 local scenexp_type_strings = {"Scene", "Texture"}
+local scenexp_allowed_types = {
+    scene = 0, 
+    ktx2 = 1,
+    ogg = 2,
+    wav = 2
+}
+
 local drawresexp = function()
     local resexp = D.editor_data.elements.resexp
 
@@ -925,8 +937,6 @@ local drawresexp = function()
             local item_counter = 1
             local sameline_count = 1
 
-            local asset_type_string = scenexp_type_strings[resexp.type+1]
-
             if #resexp.directory_stack > 0 then
                 if (sameline_count <= max_sameline) and (item_counter > 1) then 
                     imgui.SameLine()
@@ -971,13 +981,6 @@ local drawresexp = function()
                 for stack in string.gmatch(path, "([^/]+)") do table.insert(dirstack,stack) end
 
                 for _, file in ipairs(filelist) do
-
-                    if (sameline_count <= max_sameline) and (item_counter > 1) then 
-                        imgui.SameLine()
-                    else
-                        sameline_count = 1
-                    end
-
                     local filename_split = {}
                     for nstack in string.gmatch(file, "([^.]+)") do table.insert(filename_split,nstack) end
 
@@ -988,36 +991,52 @@ local drawresexp = function()
                         end
                     else dir_valid = false end
 
-                    if (dirstack[1] == asset_type_string) and (dir_valid == true) then
-                        if #filename_split == 2 then
-                            Editor_LoadAssetThumbnail("Data/" .. path .. file)
-                            if Editor_ImguiImageButton("Data/" .. path .. file, 100, 100) then
-                                local resname_build = ""
-                                for i, dir in ipairs(dirstack) do 
-                                    if i > 1 then resname_build = resname_build .. dir .. "/" end
+                    if dir_valid == true then
+                        if (#filename_split == 2) then
+                            if scenexp_allowed_types[filename_split[2]] ~= nil then
+                                if scenexp_allowed_types[filename_split[2]] == resexp.type then
+                                    if (sameline_count <= max_sameline) and (item_counter > 1) then 
+                                        imgui.SameLine()
+                                    else
+                                        sameline_count = 1
+                                    end
+
+                                    Editor_LoadAssetThumbnail("Data/" .. path .. file)
+                                    if Editor_ImguiImageButton("Data/" .. path .. file, 100, 100) then
+                                    -- if Editor_ImguiImageButton("Data/Editor/UI/TexNone.png",100,100) then
+                                        local resname_build = ""
+                                        for i, dir in ipairs(dirstack) do 
+                                            if i > 1 then resname_build = resname_build .. dir .. "/" end
+                                        end
+                                        resname_build = resname_build .. filename_split[1]
+                                        resexp.selected_resname = resname_build
+                                        resexp.selected_file = Editor_GetProgramRoot() .. "/Data/" .. path .. file
+                                        imgui.OpenPopup("REIM")
+                                    end
+                                    if imgui.IsItemHovered() then
+                                        imgui.SetTooltip(filename_split[1])
+                                    end
+
+                                    sameline_count = sameline_count + 1
+                                    item_counter = item_counter + 1
                                 end
-                                resname_build = resname_build .. filename_split[1]
-                                resexp.selected_resname = resname_build
-                                resexp.selected_file = "Data/" .. path .. file
-                                imgui.OpenPopup("REIM")
-                            end
-                            if imgui.IsItemHovered() then
-                                imgui.SetTooltip(filename_split[1])
                             end
                         else
                             table.insert(resexp.current_folder_list,filename_split[1])
                         end
                     end
-
-                    sameline_count = sameline_count + 1
-                    item_counter = item_counter + 1
                 end
             end
 
             if imgui.BeginPopupContextWindow("REIM") then
                 local actions = D.editor_data.actions
-                actions.resource_open = imgui.MenuItem("Open", nil, actions.resource_open)
-                resexp.instance_popup = imgui.MenuItem("Create Instance", nil, resexp.instance_popup)
+                if resexp.type == 0 then
+                    actions.resource_scene_open = imgui.MenuItem("Open", nil, actions.resource_scene_open)
+                    resexp.instance_popup = imgui.MenuItem("Create Instance", nil, resexp.instance_popup)
+                end
+                if resexp.type == 1 then
+                    actions.resource_texture_set = imgui.MenuItem("Set", nil, actions.resource_texture_set)
+                end
                 imgui.EndPopup()
             end
 
@@ -1037,14 +1056,14 @@ local drawresexp = function()
                 act_inst_scene = imgui.MenuItem("Full Scene", nil, act_inst_scene)
                 if act_inst_scene then
                     resexp.selected_subinstance = ""
-                    actions.resource_instance = true
+                    actions.resource_scene_instance = true
                 end
                 for _, entityname in ipairs(resexp.subinstance_list) do
                     local act_inst_entt = false
                     act_inst_entt = imgui.MenuItem("Entity - " .. entityname, nil, act_inst_entt)
                     if act_inst_entt then
                         resexp.selected_subinstance = entityname
-                        actions.resource_instance = true
+                        actions.resource_scene_instance = true
                     end
                 end
                 imgui.EndPopup()
@@ -1500,6 +1519,7 @@ local drawcompinspect = function()
                             
                             imgui.PushID(label)
                             if Editor_ImguiImageButton(texname, 100.0, 100.0) then
+                                compinspect.compmenu.material.material_id = deepcopy(entity)
                                 compinspect.compmenu.material.texture_id = index-1
                                 backlog_post(compinspect.compmenu.material.texture_id)
                                 pipe_act_c_tex_opt = true
@@ -1528,13 +1548,21 @@ local drawcompinspect = function()
         if imgui.BeginPopupContextWindow("C_TEX_OPT") then
             local tex_remove = false
             tex_remove = imgui.MenuItem("Remove Texture", nil, tex_remove)
-            if tex_remove then end
+            if tex_remove then 
+                local materialcomponent_todo = wiscene.Component_GetMaterial(D.editor_data.elements.compinspect.compmenu.material.material_id)
+                materialcomponent_todo.SetTexture(D.editor_data.elements.compinspect.compmenu.material.texture_id, "")
+            end
 
             local tex_change = false
             tex_change = imgui.MenuItem("Change Texture", nil, tex_change)
             if tex_change then 
                 D.editor_data.elements.resexp.type = 1
                 D.editor_data.elements.resexp.win_visible = true
+                runProcess(function()
+                    waitSignal("Editor_ResourceSelect_Texture_Finish")
+                    local materialcomponent_todo = wiscene.Component_GetMaterial(D.editor_data.elements.compinspect.compmenu.material.material_id)
+                    materialcomponent_todo.SetTexture(D.editor_data.elements.compinspect.compmenu.material.texture_id, D.editor_data.elements.resexp.selected_file)
+                end)
             end
             imgui.EndPopup()
         end
@@ -1563,15 +1591,17 @@ local drawimportwindow = function()
         sub_visible, importwindow.win_visible = imgui.Begin("\xef\x82\x85 Import", importwindow.win_visible)
         if sub_visible then
             imgui.InputText("File##file", importwindow.file, 255, imgui.constant.InputTextFlags.ReadOnly)
-            if importwindow.type == "WISCENE" then
-                _, importwindow.opt_wiscene.import_as_instance = imgui.Checkbox("Import As Instance##wiscene_inst", importwindow.opt_wiscene.import_as_instance)
+            _, importwindow.opt_wiscene.import_as_instance = imgui.Checkbox("Import As Instance##scene_inst", importwindow.opt_wiscene.import_as_instance)
+            _, importwindow.opt_wiscene.import_resources = imgui.Checkbox("Import Resources##scene_bres", importwindow.opt_wiscene.import_resources)
+            if importwindow.opt_wiscene.import_resources then
+                _, importwindow.opt_wiscene.import_resource_path = imgui.InputText("Import Resource Path##scene_pres", importwindow.opt_wiscene.import_resource_path, 255)
             end
             if imgui.Button("Import##proceed") then
                 if importwindow.type == "WISCENE" then
-                    Editor_LoadWiScene(importwindow.file, importwindow.opt_wiscene.import_as_instance)
+                    Editor_LoadWiScene(importwindow.file, importwindow.opt_wiscene.import_as_instance, importwindow.opt_wiscene.import_resources, importwindow.opt_wiscene.import_resource_path)
                 end
                 if (importwindow.type == "GLTF") or (importwindow.type == "GLB") then
-                    Editor_ImportGLTF(importwindow.file)
+                    Editor_ImportGLTF(importwindow.file, importwindow.opt_wiscene.import_as_instance, importwindow.opt_wiscene.import_resources, importwindow.opt_wiscene.import_resource_path)
                 end
                 importwindow.win_visible = false
             end
@@ -1637,7 +1667,7 @@ end
 local update_sysmenu_actions = function()
     local actions = D.editor_data.actions
     -- File menu actions
-    if actions.resource_new then
+    if actions.resource_scene_new then
         -- Delete scene data and history
         if type(actions.command_list) == "table" then
             actions.command_head = 0
@@ -1650,28 +1680,30 @@ local update_sysmenu_actions = function()
 
         D.editor_data.core_data.resname = "Untitled Scene"
 
-        actions.resource_new = false
+        actions.resource_scene_new = false
     end
-    if actions.resource_rename then
+    if actions.resource_scene_rename then
         D.editor_data.elements.fmenu_rnres.win_visible = true
-        actions.resource_rename = false
+        actions.resource_scene_rename = false
     end
-    if actions.resource_save then
-        Editor_RenderScenePreview("SaveImg")
-        Editor_SaveImage("SaveImg","Data/testthumb.basis")
-        Editor_SaveScene(SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA)
-        Editor_BuildSceneMeta(SOURCEPATH_SCENE .. "/" .. D.editor_data.core_data.resname .. ".assetmeta", 0, "SaveImg")
+    if actions.resource_scene_save then
+        local filename = Editor_GetProgramRoot() .. "/" .. SOURCEPATH_CONTENT .. "/" .. D.editor_data.core_data.resname .. DATATYPE_SCENE_DATA
+        Editor_RenderScenePreview(filename)
+        -- Editor_SaveImage("SaveImg","testthumb.png")
+        Editor_SaveScene(filename)
+        Editor_BuildSceneMeta(SOURCEPATH_CONTENT .. "/" .. D.editor_data.core_data.resname .. ".assetmeta", 0, filename)
 
         -- Editor_ExtractSubInstanceNames("Data/Editor/Instances/" .. D.editor_data.core_data.resname .. ".instlist")
-        actions.resource_save = false
+        actions.resource_scene_save = false
     end
-    if actions.resource_open then
+    if actions.resource_scene_open then
+        Editor_ReinitSceneEnv()
         Editor_LoadScene(D.editor_data.elements.resexp.selected_file)
         D.editor_data.core_data.resname = D.editor_data.elements.resexp.selected_resname
         D.editor_data.elements.scenegraphview.force_refresh = true
-        actions.resource_open = false
+        actions.resource_scene_open = false
     end
-    if actions.resource_instance then
+    if actions.resource_scene_instance then
         local editdata = {
             entity = CreateEntity(),
             type = "instance",
@@ -1683,7 +1715,17 @@ local update_sysmenu_actions = function()
         instance.Lock = false
         instance.File = D.editor_data.elements.resexp.selected_file
         instance.EntityName = D.editor_data.elements.resexp.selected_subinstance
-        actions.resource_instance = false
+        actions.resource_scene_instance = false
+    end
+    if actions.resource_texture_set then
+        signal("Editor_ResourceSelect_Texture_Finish")
+        D.editor_data.elements.resexp.win_visible = false
+        actions.resource_texture_set = false
+    end
+    if actions.resource_sound_set then
+        signal("Editor_ResourceSelect_Sound_Finish")
+        D.editor_data.elements.resexp.win_visible = false
+        actions.resource_sound_set = false
     end
     --
     
