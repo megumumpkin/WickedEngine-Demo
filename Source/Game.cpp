@@ -33,10 +33,10 @@ bool ImGui_Impl_CreateDeviceObjects()
 	// Build texture atlas
 	ImGuiIO& io = ImGui::GetIO();
 
-	std::string fontDir = wi::helper::GetCurrentPath()+"/"+Resources::SourcePath::CONTENT+"/UI/cantarell.ttf";
+	std::string fontDir = wi::helper::GetCurrentPath()+"/Data/Editor/UI/Cantarell-Regular.ttf";
 	io.Fonts->AddFontFromFileTTF(fontDir.c_str(), 18.0f);
 
-	std::string iconDir = wi::helper::GetCurrentPath()+"/"+Resources::SourcePath::CONTENT+"/UI/fa-solid-900.ttf";
+	std::string iconDir = wi::helper::GetCurrentPath()+"/Data/Editor/UI/fa-solid-900.ttf";
 	static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_16_FA, 0 };
 	ImFontConfig icons_config; icons_config.MergeMode = true; icons_config.PixelSnapH = true;
 	io.Fonts->AddFontFromFileTTF(iconDir.c_str(), 18.0f, &icons_config, icons_ranges);

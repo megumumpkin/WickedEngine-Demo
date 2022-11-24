@@ -378,17 +378,17 @@ local object_creators = {
 }
 
 local component_creators = {
-    {"\xef\x86\xb2 Add Name", "name"},
-    {"\xef\x86\xb2 Add Transform", "transform"},
-    {"\xef\x86\xb2 Add Layer", "layer"},
-    {"\xef\x86\xb2 Add Object", "object"},
+    {"\xef\x92\xad Add Name", "name"},
+    {"\xef\x81\x87 Add Transform", "transform"},
+    {"\xef\x97\xbd Add Layer", "layer"},
+    {"\xef\x86\xb3 Add Object", "object"},
     {"\xef\x83\xab Add Light", "light"},
     {"\xef\x80\xa8 Add Sound", "sound"},
     {"\xef\x95\xb6 Add Material", "material"},
     {"\xef\x81\xad Add Emitter", "emitter"},
     {"\xef\x93\x98 Add HairParticle", "hairparticle"},
     {"\xef\x9b\x84 Add Weather", "weather"},
-    {"\xef\x87\x80 Add Instance", "instance"},
+    {"\xef\x86\xb3 Add Instance", "instance"},
     {"\xef\x87\x80 Add Stream", "stream"},
 }
 
@@ -871,13 +871,14 @@ local drawmenubardialogs = function()
         end
 
         local sub_visible = false
-        sub_visible, fmenu_rnres.win_visible = imgui.Begin("\xef\x81\x84 Rename Scene", fmenu_rnres.win_visible)
+        sub_visible, fmenu_rnres.win_visible = imgui.Begin("\xef\x81\x84 Rename Scene", fmenu_rnres.win_visible, imgui.constant.WindowFlags.NoTitleBar)
         if sub_visible then
             ret, fmenu_rnres.input = imgui.InputText("##fmenu_rnres_input", fmenu_rnres.input, 255)
             imgui.SameLine()
-            if imgui.Button("\xef\x81\x84 ") then
+            if imgui.Button("\xef\x81\x84") then
                 D.editor_data.core_data.resname = fmenu_rnres.input
                 fmenu_rnres.input = ""
+                fmenu_rnres.win_visible = false
             end
             imgui.End()
         end
@@ -1342,11 +1343,11 @@ local drawcompinspect = function()
             if entity > 0 then
             
                 local namecomponent = wiscene.Component_GetName(entity)
-                drawcomp("Name Component", "name", entity, namecomponent, compio_name, compinspect.component.name, 
+                drawcomp("\xef\x92\xad Name", "name", entity, namecomponent, compio_name, compinspect.component.name, 
                     function() end, function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
 
                 local layercomponent = wiscene.Component_GetLayer(entity)
-                drawcomp("Layer Component", "layer", entity, layercomponent, {}, {}, nil,
+                drawcomp("\xef\x97\xbd Layer", "layer", entity, layercomponent, {}, {}, nil,
                     function(mcomponent, meditor) 
                         local changed = false
                         local layers = layercomponent.LayerMask
@@ -1382,19 +1383,19 @@ local drawcompinspect = function()
                     end)
 
                 local transformcomponent = wiscene.Component_GetTransform(entity)
-                drawcomp("Transform Component", "transform", entity, transformcomponent, compio_transform, compinspect.component.transform)
+                drawcomp("\xef\x81\x87 Transform", "transform", entity, transformcomponent, compio_transform, compinspect.component.transform)
 
                 local objectcomponent = wiscene.Component_GetObject(entity)
-                drawcomp("Object Component", "object", entity, objectcomponent, compio_object, compinspect.component.object)
+                drawcomp("\xef\x86\xb3 Object", "object", entity, objectcomponent, compio_object, compinspect.component.object)
 
                 local emittercomponent = wiscene.Component_GetEmitter(entity)
-                drawcomp("Emitter Component", "emitter", entity, emittercomponent, compio_emitter, compinspect.component.emitter)
+                drawcomp("\xef\x81\xad Emitter", "emitter", entity, emittercomponent, compio_emitter, compinspect.component.emitter)
 
                 local hairparticlecomponent = wiscene.Component_GetHairParticleSystem(entity)
-                drawcomp("Hair Particle System", "hairparticle", entity, hairparticlecomponent, compio_hairparticle, compinspect.component.hairparticle)
+                drawcomp("\xef\x93\x98 Hair Particle System", "hairparticle", entity, hairparticlecomponent, compio_hairparticle, compinspect.component.hairparticle)
 
                 local lightcomponent = wiscene.Component_GetLight(entity)
-                drawcomp("Light Component", "light", entity, lightcomponent, compio_light, compinspect.component.light, nil,
+                drawcomp("\xef\x83\xab Light", "light", entity, lightcomponent, compio_light, compinspect.component.light, nil,
                     function(mcomponent, meditor) 
                         local changed = false
 
@@ -1412,16 +1413,16 @@ local drawcompinspect = function()
                     end)
 
                 local rigidbodycomponent = wiscene.Component_GetRigidBodyPhysics(entity)
-                drawcomp("Rigid Body Component", "rigidbody", entity, rigidbodycomponent, compio_rigidbody, compinspect.component.rigidbody)
+                drawcomp("\xee\x93\xa6 Rigid Body", "rigidbody", entity, rigidbodycomponent, compio_rigidbody, compinspect.component.rigidbody)
 
                 local softbodycomponent = wiscene.Component_GetSoftBodyPhysics(entity)
-                drawcomp("Soft Body Component", "softbody", entity, softbodycomponent, compio_softbody, compinspect.component.softbody)
+                drawcomp("\xef\x80\xa4 Soft Body", "softbody", entity, softbodycomponent, compio_softbody, compinspect.component.softbody)
 
                 local forcecomponent = wiscene.Component_GetForceField(entity)
-                drawcomp("Force Field Component", "force", entity, forcecomponent, compio_force, compinspect.component.force)
+                drawcomp("\xef\x9c\xae Force Field", "force", entity, forcecomponent, compio_force, compinspect.component.force)
 
                 local weathercomponent = wiscene.Component_GetWeather(entity)
-                drawcomp("Weather Component", "weather", entity, weathercomponent, compio_weather, compinspect.component.weather, nil,
+                drawcomp("\xef\x83\x82 Weather", "weather", entity, weathercomponent, compio_weather, compinspect.component.weather, nil,
                     function(mcomponent, meditor) 
                         local ret_tree_atmos = imgui.TreeNode("Atmosphere Parameters")
                         if ret_tree_atmos then
@@ -1443,7 +1444,7 @@ local drawcompinspect = function()
                     end)
 
                 local soundcomponent = wiscene.Component_GetSound(entity)
-                drawcomp("Sound Component", "sound", entity, soundcomponent, compio_sound, compinspect.component.sound, nil,
+                drawcomp("\xef\x80\xa8 Sound", "sound", entity, soundcomponent, compio_sound, compinspect.component.sound, nil,
                     function(mcomponent, meditor) 
                         local changed = false
 
@@ -1478,13 +1479,13 @@ local drawcompinspect = function()
                     end)
 
                 local collidercomponent = wiscene.Component_GetCollider(entity)
-                drawcomp("Collider Component", "collider", entity, collidercomponent, compio_collider, compinspect.component.collider)
+                drawcomp("\xef\x86\xb3 Collider", "collider", entity, collidercomponent, compio_collider, compinspect.component.collider)
 
                 local instancecomponent = scene.Component_GetInstance(entity)
-                drawcomp("Instance Component", "instance", entity, instancecomponent, compio_instance, compinspect.component.instance)
+                drawcomp("\xef\x86\xb3 Instance", "instance", entity, instancecomponent, compio_instance, compinspect.component.instance)
 
                 local streamcomponent = scene.Component_GetStream(entity)
-                drawcomp("Stream Component", "stream", entity, streamcomponent, compio_stream, compinspect.component.stream)
+                drawcomp("\xef\x87\x80 Stream", "stream", entity, streamcomponent, compio_stream, compinspect.component.stream)
 
 
                 -- local meshcomponent = scene.Component_GetMesh(entity)
@@ -1492,7 +1493,7 @@ local drawcompinspect = function()
                 --     function(mcomponent, meditor) end, function(mcomponent, mprestate) end)
 
                 local materialcomponent = wiscene.Component_GetMaterial(entity)
-                drawcomp("Material Component", "material", entity, materialcomponent, compio_material, compinspect.component.material, 
+                drawcomp("\xef\x95\xb6 Material", "material", entity, materialcomponent, compio_material, compinspect.component.material, 
                     function()
                         Editor_ImguiImage("MatPrevImg",250.0, 250.0)
                     end,
