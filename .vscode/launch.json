@@ -13,13 +13,5 @@
             "cwd": "${workspaceRoot}/build",
             "valuesFormatting": "parseText"
         },
-        {
-            "name": "Debug DevTool",
-            "type": "gdb",
-            "request": "launch",
-            "target": "./Dev",
-            "cwd": "${workspaceRoot}/build",
-            "valuesFormatting": "parseText"
-        }
     ]
 }

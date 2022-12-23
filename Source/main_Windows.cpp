@@ -1,6 +1,8 @@
-#include "main_Windows.h"
-#include "Game.h"
+// TemplateWindows.cpp : Defines the entry point for the application.
+//
+
 #include "stdafx.h"
+#include "main.h"
 
 #define MAX_LOADSTRING 100
 
@@ -8,7 +10,7 @@
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-Game::Application app;
+wi::Application application;					// Wicked Engine Application
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -24,15 +26,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+    // TODO: Place code here.
+
     BOOL dpi_success = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     assert(dpi_success);
 
-    // Command line arguments should be parsed here
-	wiStartupArguments::Parse(lpCmdLine); 
+	wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_WICKEDENGINETESTS, szWindowClass, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDC_TEMPLATEWINDOWS, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
     // Perform application initialization:
@@ -41,20 +44,24 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WICKEDENGINETESTS));
+    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_TEMPLATEWINDOWS));
 
+	// just show some basic info:
+	application.infoDisplay.active = true;
+	application.infoDisplay.watermark = true;
+	application.infoDisplay.resolution = true;
+	application.infoDisplay.fpsinfo = true;
 
 	MSG msg = { 0 };
 	while (msg.message != WM_QUIT)
 	{
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) 
-        {
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 		else {
 
-			app.Run();
+			application.Run(); // run the update - render loop (mandatory)
 
 		}
 	}
@@ -80,10 +87,10 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbClsExtra     = 0;
     wcex.cbWndExtra     = 0;
     wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_WICKEDENGINETESTS));
+    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_TEMPLATEWINDOWS));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_WICKEDENGINETESTS);
+    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_TEMPLATEWINDOWS);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
@@ -112,10 +119,12 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
-   app.SetWindow(hWnd);
-
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
+
+
+   application.SetWindow(hWnd); // assign window handle (mandatory)
+
 
    return TRUE;
 }
@@ -134,76 +143,67 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
-        case WM_COMMAND:
+    case WM_COMMAND:
+        {
+            int wmId = LOWORD(wParam);
+            // Parse the menu selections:
+            switch (wmId)
             {
-                int wmId = LOWORD(wParam);
-                // Parse the menu selections:
-                switch (wmId)
-                {
-                case IDM_ABOUT:
-                    DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                    break;
-                case IDM_EXIT:
-                    DestroyWindow(hWnd);
-                    break;
-                default:
-                    return DefWindowProc(hWnd, message, wParam, lParam);
-                }
-            }
-            break;
-        case WM_SIZE:
-        case WM_DPICHANGED:
-            if (app.is_window_active)
-                app.SetWindow(hWnd);
-            break;
-        case WM_CHAR:
-            switch (wParam)
-            {
-            case VK_BACK:
-                if (wiBackLog::isActive())
-                    wiBackLog::deletefromInput();
-                wiTextInputField::DeleteFromInput();
+            case IDM_ABOUT:
+                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
                 break;
-            case VK_RETURN:
+            case IDM_EXIT:
+                DestroyWindow(hWnd);
                 break;
             default:
-            {
-                const char c = (const char)(TCHAR)wParam;
-                if (wiBackLog::isActive())
-                {
-                    wiBackLog::input(c);
-                }
-                wiTextInputField::AddInput(c);
+                return DefWindowProc(hWnd, message, wParam, lParam);
             }
-            break;
-            }
-            break;
-        case WM_INPUT:
-            wiRawInput::ParseMessage((void*)lParam);
-            break;
-        /* Nay
-        case WM_KILLFOCUS:
-            app.is_window_active = false;
-            break;
-        case WM_SETFOCUS:
-            app.is_window_active = true;
-            break;
-        */
-        case WM_PAINT:
-            {
-                PAINTSTRUCT ps;
-                HDC hdc = BeginPaint(hWnd, &ps);
-                // TODO: Add any drawing code that uses hdc here...
-                EndPaint(hWnd, &ps);
-            }
-            break;
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            break;
-        default:
-            return DefWindowProc(hWnd, message, wParam, lParam);
+        }
+        break;
+    case WM_SIZE:
+    case WM_DPICHANGED:
+		if (application.is_window_active)
+			application.SetWindow(hWnd);
+        break;
+	case WM_CHAR:
+		switch (wParam)
+		{
+		case VK_BACK:
+			wi::gui::TextInputField::DeleteFromInput();
+			break;
+		case VK_RETURN:
+			break;
+		default:
+		{
+			const wchar_t c = (const wchar_t)wParam;
+			wi::gui::TextInputField::AddInput(c);
+		}
+		break;
+		}
+		break;
+	case WM_INPUT:
+		wi::input::rawinput::ParseMessage((void*)lParam);
+		break;
+	case WM_KILLFOCUS:
+		application.is_window_active = false;
+		break;
+	case WM_SETFOCUS:
+		application.is_window_active = true;
+		break;
+    case WM_PAINT:
+        {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            // TODO: Add any drawing code that uses hdc here...
+            EndPaint(hWnd, &ps);
+        }
+        break;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
     }
-
     return 0;
 }
 
@@ -213,17 +213,16 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     UNREFERENCED_PARAMETER(lParam);
     switch (message)
     {
-        case WM_INITDIALOG:
-            return (INT_PTR)TRUE;
+    case WM_INITDIALOG:
+        return (INT_PTR)TRUE;
 
-        case WM_COMMAND:
-            if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-            {
-                EndDialog(hDlg, LOWORD(wParam));
-                return (INT_PTR)TRUE;
-            }
-            break;
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
     }
-    
     return (INT_PTR)FALSE;
 }
