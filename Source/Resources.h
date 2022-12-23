@@ -75,6 +75,13 @@ namespace Game::Resources
 
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
         };
+
+        // AssetSmith metadata, for direct import and export of data
+        struct AssetSmith{
+            std::string file;
+
+            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
+        }
     }
     struct Scene
     {
@@ -82,6 +89,7 @@ namespace Game::Resources
         wi::ecs::ComponentManager<Library::Instance>& instances = wiscene.componentLibrary.Register<Library::Instance>("game::component::instances");
         wi::ecs::ComponentManager<Library::Disabled>& disabled = wiscene.componentLibrary.Register<Library::Disabled>("game::component::disabled");
         wi::ecs::ComponentManager<Library::Stream>& streams = wiscene.componentLibrary.Register<Library::Stream>("game::component::streams");
+        wi::ecs::ComponentManager<Library::AssetSmith>& assetmsith = wiscene.componentLibrary.Register<Library::AssetSmith>("game::component::assetsmith");
 
         // Library system data
         wi::unordered_map<uint32_t, wi::ecs::Entity> collections;

@@ -228,6 +228,17 @@ void Library::Stream::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer 
 }
 
 
+void Library::AssetSmith::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri){
+    if(archive.IsReadMode())
+    {
+        archive >> file;
+    }
+    else 
+    {
+        archive << file;
+    }
+}
+
 
 wi::ecs::Entity Scene::CreateInstance(std::string name)
 {
@@ -271,7 +282,6 @@ static std::vector<std::string> disable_list = {
     "wi::scene::Scene::forces",
     "wi::scene::Scene::decals",
     "wi::scene::Scene::animations",
-    "wi::scene::Scene::animation_datas",
     "wi::scene::Scene::emitters",
     "wi::scene::Scene::hairs",
     "wi::scene::Scene::weathers",
@@ -282,7 +292,6 @@ static std::vector<std::string> disable_list = {
     "wi::scene::Scene::scripts",
     "wi::scene::Scene::expressions",
     "wi::scene::Scene::terrains",
-    "game::component::streams"
 };
 
 void Scene::Entity_Disable(wi::ecs::Entity entity)
