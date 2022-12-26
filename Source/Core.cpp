@@ -1,12 +1,14 @@
 #include "Core.h"
+#include "Filesystem.h"
 
 namespace Game{
     void App::Initialize()
     {
-        
+        Filesystem::Register_FS("content/", "Data/Content/", false);
+        Filesystem::Register_FS("shader/", "Data/Shader/", false);
 
-        wi::renderer::SetShaderSourcePath("Data/Shader/");
-        wi::renderer::SetShaderPath("Data/Shader/");
+        wi::renderer::SetShaderSourcePath(Filesystem::GetActualPath("shader/"));
+        wi::renderer::SetShaderPath(Filesystem::GetActualPath("shader/"));
 
         wi::Application::Initialize();
 
