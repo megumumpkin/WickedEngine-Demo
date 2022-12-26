@@ -1,8 +1,5 @@
-#include "stdafx.h"
-
-namespace Game{
-    struct Dev
-    {
-        void Init(); // Parse commands, cli style
-    };
-}
+// Development ecosystem for integration with Blender
+class Dev
+{
+    // Contains: Development CLI, Development Preview Windows
+};

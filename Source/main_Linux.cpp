@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include <SDL2/SDL.h>
 
+#include "Config.h"
+#include "Core.h"
+
 int sdl_loop(wi::Application &application)
 {
     SDL_Event event;
@@ -42,6 +45,8 @@ int sdl_loop(wi::Application &application)
 
 int main(int argc, char *argv[])
 {
+    AppSettings settings = AppSettings_Load();
+
     Game::App application;
 
     // application.infoDisplay.active = true;
@@ -51,10 +56,10 @@ int main(int argc, char *argv[])
 
     sdl2::sdlsystem_ptr_t system = sdl2::make_sdlsystem(SDL_INIT_EVERYTHING | SDL_INIT_EVENTS);
     sdl2::window_ptr_t window = sdl2::make_window(
-            "Template",
+            softinfo_title,
             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-            2560, 1440,
-            SDL_WINDOW_SHOWN | SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI);
+            settings.video_width, settings.video_height,
+            SDL_WINDOW_SHOWN | SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI | ((settings.video_fullscreen) ? SDL_WINDOW_FULLSCREEN : 0));
 
     SDL_Event event;
 

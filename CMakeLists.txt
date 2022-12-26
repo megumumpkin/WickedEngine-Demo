@@ -13,13 +13,21 @@ find_package(WickedEngine REQUIRED)
 
 set (SOURCE_FILES
 	Source/stdafx.h
+	Source/Config.h
+	Source/Config.cpp
+	Source/Filesystem.h
+	Source/Filesystem.cpp
+	Source/Scene.h
+	Source/Scene.cpp
+	Source/RenderPipeline.h
+	Source/RenderPipeline.cpp
 	Source/Core.h
 	Source/Core.cpp
-	Source/RenderPipeline.h
 )
 
 set (DEV_FILES
 	${SOURCE_FILES}
+	Source/Dev.h
 )
 
 if (WIN32)
@@ -69,5 +77,6 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/compressonator/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/compressonator/"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/ffx-fsr/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/ffx-fsr/"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/ffx-fsr2/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/ffx-fsr2/"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WickedEngine_DIR}/../../WickedEngine/shaders/ffx-shadows-dnsr/*" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/ffx-shadows-dnsr/"
 )

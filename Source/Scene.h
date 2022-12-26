@@ -1,3 +1,4 @@
+#pragma once
 #include "stdafx.h"
 
 namespace Game{
@@ -66,4 +67,5 @@ namespace Game{
 
         void Update(float dt);
     };
+    Scene* GetScene();
 }

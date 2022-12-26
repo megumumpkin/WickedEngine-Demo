@@ -1,9 +1,10 @@
 #pragma once
 #include "stdafx.h"
 
-namespace Game{
-    class RenderPipeline : public wi::RenderPath3D
-    {};
+#include "RenderPipeline.h"
+
+namespace Game
+{
     class App : public wi::Application
     {
         RenderPipeline renderer;
