@@ -40,6 +40,20 @@ namespace Game{
         {
             std::string fileName;
 
+            // Archive directory structure:
+            // myworld.scene/  -> a folder, the scene file that is a folder with the file extension .scene
+            // |- headfile  -> a file that lists all the blocks and entities, but no actual data is stored there
+            // |- blocks/  -> a folder that contains the scene file, separated in blocks, with the file name based on the block_id of the file
+            // |  |- 1
+            // |  |- 2
+            // |- blockpreview/  -> a folder that contains the preview of certain blocks, if it exists here than the engine has to load the preview first before anything
+            // |  |- 2  -> same block_id from ./blocks/
+            // |- entitypreview/  -> a folder that contains the preview of certain object with certain meshes, contains a proxy mesh that substitutes a transform with the same entity_id
+            // |  |- 192
+            // |- animation/  -> a folder that contains an animation that runs in the scene, stores the filename instead of entity_id, contains both animation_component and lots of animation_datas in one file
+            //    |- player_run
+            //    |- player_stop
+
             // Header data, for checking what the scene's content in an overview
             // This is necessary for scene streaming to work, for all cases
             //   KEEP entity's current ID to NOT break the overall structure of the scene blocks
@@ -50,11 +64,12 @@ namespace Game{
                 // Stores the block id (the filename) and then the chunk position of said block table
                 // A chunk is about 512*512*1024 of size stored in block_position
                 // There can be different block overlaying the data
+                // Preview can be seen by checking out if the block id is available at the "./blockpreview/" subfolder
 
                 wi::ecs::Entity block_id;
                 XMINT3 block_position;
+                bool no_position = false; // We ignore position completely, making it serve as an on-demand data block, referenced by the other blocks
                 wi::vector<wi::ecs::Entity> entities;
-                wi::ecs::Entity preview_id; // We can have a proxy mesh that can preview the block's contents, to hide the fact that it is not loaded
 
                 void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
 
@@ -86,9 +101,13 @@ namespace Game{
             void Save_Header();
             void Load_Header();
             // Saving is done without streaming
-            void Save_Block(wi::ecs::Entity block_id);
             // There's no manual load for blocks, instead the data is loaded through streaming
+            void Save_Block(wi::ecs::Entity block_id);
             void Stream_Block(wi::ecs::Entity block_id);
+
+            // Scan entities for changes with dependencies and load radius to entity_table, WON'T delete any entity data
+            // entity_table's changes on deletion needs to be done together with the actual entity deletion
+            void Update_EntityTable();
         };
 
         wi::scene::Scene wiscene;
