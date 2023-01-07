@@ -4,119 +4,111 @@
 namespace Game{
     struct Scene
     {
-        // Scene Internal Data
+        struct Archive
+        {
+            std::string file; // Target file, root of the scene datablocks
+            wi::ecs::Entity prefabID; // Does this scene works as a prefab
+            
+            // File structure
+            // |- head  -> scene data header
+            // |- main  -> wiscene file with minimum structure
+            // |- preview  -> a simplified mesh that describes the whole one scene 
+            // |- meshes  -> list of meshes, stored in entity ID
+            // |  |- 1
+            // |  |- 2
+            // |- animation  -> list of animations, stored in entity ID
+            // |  |- 3
+            // |  |- 4
+
+            // head file
+            // List all known streamables here, when loaded the entity ID has already been remapped to the runtime version of the scene
+            wi::unordered_map<wi::ecs::Entity, float> radius; // Stream radius, needs to be generated from meshes and sounds
+            wi::unordered_map<wi::ecs::Entity, wi::ecs::Entity> meshes; // Meshes and its previews are listed in here
+            wi::unordered_map<std::string, wi::ecs::Entity> animations;// Animations are listed in here
+            // Store materials and sounds in binary blobs to load later
+            wi::unordered_map<wi::ecs::Entity, wi::vector<uint8_t>> materials;
+            wi::unordered_map<wi::ecs::Entity, wi::vector<uint8_t>> sounds;
+
+            // Runtime data
+            wi::unordered_map<uint64_t, wi::ecs::Entity> remap; // For use with entityseralizer
+            // Streaming progresses, check the data from here before doing anything
+            enum class LoadState
+            {
+                UNLOADED,
+                LOADING,
+                LOADED
+            };
+            LoadState load_state = LoadState::UNLOADED;
+
+            wi::unordered_set<wi::ecs::Entity> mesh_streaming_inprogress; // Check whether a component is being loaded or not
+            wi::unordered_map<wi::ecs::Entity, uint32_t> mesh_dependency_counts; // Check on whether we can remove component from the scene
+            wi::unordered_set<wi::ecs::Entity> animation_streaming_inprogress;
+            wi::unordered_map<wi::ecs::Entity, uint32_t> animation_dependency_counts;
+            wi::unordered_map<wi::ecs::Entity, uint32_t> material_dependency_counts; 
+
+            // Runtime functions, also cover functions for prefabs'
+            // Header Actions
+            void Head_Load();
+            void Head_Save();
+            // Base Scene Actions
+            void Init(wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY); // Load the main file
+            void Unload(wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY); // Unload all
+            // Streaming function, with prefabs in mind too
+            void Stream_Mesh(wi::ecs::Entity meshID, bool unload = false, wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY); // Materials are also streamed at the same time here!
+            void Stream_Animation(std::string animationID, bool unload = false, wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY);
+            void Stream_Sounds(wi::ecs::Entity soundID, bool unload = false, wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY);
+        };
+
         struct Prefab
         {
             std::string file;
-            enum class LoadMode
+            std::string target_entity;
+            enum class CopyMode
             {
-                SHALLOW_COPY,
-                DEEP_COPY,
-                FULL,
-                LIBRARY
+                SHALLOW_COPY, // For static objects
+                DEEP_COPY, // For animated objects such as player characters, Does not have any entities that will refer some data to the original prefab
+                LIBRARY // To make some of the entities to be disabled on run
             };
-            LoadMode loadMode = LoadMode::SHALLOW_COPY;
-            std::string targetEntity; // Entity to copy, we're using strings to avoid cases when the scene's structure changes for a reason
-        
-            // Runtime Variables
-            wi::vector<wi::ecs::Entity> entity_list; // Precompiled entity list for ease of work
+            CopyMode copy_mode = CopyMode::SHALLOW_COPY;
+            // Runtime data
+            bool loaded = false; // Check if this prefab is loaded or not
+            wi::unordered_map<uint64_t, wi::ecs::Entity> remap; // All remaps are handled here
+            wi::unordered_set<wi::ecs::Entity> entities; // List all entities
+            wi::unordered_set<wi::ecs::Entity> streams; // List entities that are stream related
+
+            // Check prefab clone's dependency count
+            wi::unordered_map<wi::ecs::Entity, uint32_t> mesh_dependency_counts;
+            wi::unordered_map<wi::ecs::Entity, uint32_t> material_dependency_counts; 
         };
         struct Inactive
         {
-            wi::Archive inactive_storage;
+            wi::vector<uint8_t> inactive_storage;
         };
 
         struct Component_Prefab : public Prefab
         {
-            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
+            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri){};
         };
         struct Component_Inactive : public Inactive
         {
             void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri){};
         };
 
-        // To track loaded scenes from disks and their datablocks
-        struct Archive
-        {
-            std::string fileName;
-
-            // Archive directory structure:
-            // myworld.scene/  -> a folder, the scene file that is a folder with the file extension .scene
-            // |- headfile  -> a file that lists all the blocks and entities, but no actual data is stored there
-            // |- blocks/  -> a folder that contains the scene file, separated in blocks, with the file name based on the block_id of the file
-            // |  |- 1
-            // |  |- 2
-            // |- blockpreview/  -> a folder that contains the preview of certain blocks, if it exists here than the engine has to load the preview first before anything
-            // |  |- 2  -> same block_id from ./blocks/
-            // |- entitypreview/  -> a folder that contains the preview of certain object with certain meshes, contains a proxy mesh that substitutes a transform with the same entity_id
-            // |  |- 192
-            // |- animation/  -> a folder that contains an animation that runs in the scene, stores the filename instead of entity_id, contains both animation_component and lots of animation_datas in one file
-            //    |- player_run
-            //    |- player_stop
-
-            // Header data, for checking what the scene's content in an overview
-            // This is necessary for scene streaming to work, for all cases
-            //   KEEP entity's current ID to NOT break the overall structure of the scene blocks
-            //   We want to be able to edit only a block of the scene
-            struct Block_Table
-            {
-                // Block table data structure
-                // Stores the block id (the filename) and then the chunk position of said block table
-                // A chunk is about 512*512*1024 of size stored in block_position
-                // There can be different block overlaying the data
-                // Preview can be seen by checking out if the block id is available at the "./blockpreview/" subfolder
-
-                wi::ecs::Entity block_id;
-                XMINT3 block_position;
-                bool no_position = false; // We ignore position completely, making it serve as an on-demand data block, referenced by the other blocks
-                wi::vector<wi::ecs::Entity> entities;
-
-                void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
-
-                // Runtime data
-                enum class LoadState
-                {
-                    UNLOADED,
-                    LOADING,
-                    LOADED
-                };
-                LoadState load_state = LoadState::UNLOADED;
-            };
-            wi::ecs::ComponentManager<Block_Table> block_table;
-
-            struct Entity_Table
-            {
-                wi::ecs::Entity entity;
-                wi::ecs::Entity block_id;
-                XMFLOAT4 load_radius;
-                wi::vector<wi::ecs::Entity> prerequisites;
-
-                void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
-            };
-            wi::ecs::ComponentManager<Entity_Table> entity_table;
-
-            // To note: there'll be no more saving and loading full blocks of file, instead we're handling this per block case
-            wi::ecs::EntitySerializer seri;
-            // Helper functions to update the header data
-            void Save_Header();
-            void Load_Header();
-            // Saving is done without streaming
-            // There's no manual load for blocks, instead the data is loaded through streaming
-            void Save_Block(wi::ecs::Entity block_id);
-            void Stream_Block(wi::ecs::Entity block_id);
-
-            // Scan entities for changes with dependencies and load radius to entity_table, WON'T delete any entity data
-            // entity_table's changes on deletion needs to be done together with the actual entity deletion
-            void Update_EntityTable();
-        };
-
         wi::scene::Scene wiscene;
         wi::ecs::ComponentManager<Component_Prefab>& prefabs = wiscene.componentLibrary.Register<Component_Prefab>("Game::Scene::Prefab");
-        wi::ecs::ComponentManager<Component_Inactive>& inactive = wiscene.componentLibrary.Register<Component_Inactive>("Game::Scene::Inactive");
+        wi::ecs::ComponentManager<Component_Inactive>& inactives = wiscene.componentLibrary.Register<Component_Inactive>("Game::Scene::Inactive");
+
+        std::string current_scene; // Current filename that is used to point the root scene from scene_db
+        wi::unordered_map<std::string, Archive> scene_db; // Lists all scenes referenced in this current game session
 
         // Scene Operation Function
         void Entity_Disable(wi::ecs::Entity entity);
         void Entity_Enable(wi::ecs::Entity entity);
+        void Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer* seri, bool deep_copy = false);
+
+        // Saves and loads only root scene file only, saving can only be done in Dev console mode
+        void Load(std::string file);
+        void Save(std::string file);
 
         void Update(float dt);
     };
