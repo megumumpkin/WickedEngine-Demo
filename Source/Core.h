@@ -11,9 +11,9 @@ namespace Game
     public:
         // This is where the critical initializations happen (before any rendering or anything else)
 		void Initialize() override;
-		// // This is where application-wide updates get executed once per frame. 
-		// //  RenderPath::Update is also called from here for the active component
-		// void Update(float dt) override;
+		// This is where application-wide updates get executed once per frame. 
+		//  RenderPath::Update is also called from here for the active component
+		void Update(float dt) override;
 		// // This is where application-wide updates get executed in a fixed timestep based manner. 
 		// //  RenderPath::FixedUpdate is also called from here for the active component
 		// void FixedUpdate() override;

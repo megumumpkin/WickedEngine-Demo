@@ -1,6 +1,6 @@
 #include "Scene.h"
 #include "Filesystem.h"
-#include <mutex>
+#include <chrono>
 
 namespace Game{
     Scene* GetScene(){
@@ -8,178 +8,132 @@ namespace Game{
         return &scene;
     }
 
-    wi::jobsystem::context stream_jobs;
-    std::mutex header_mutex;
-    std::mutex scene_mutex;
+    Scene::StreamJob* stream_job_data; // Pointer to stream job
 
-    void Scene::Archive::Head_Load()
+    struct _internal_Scene_Serialize_DEPRECATED_PreviousFrameTransformComponent
+	{
+		void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri) { /*this never serialized any data*/ }
+	};
+    void _internal_Scene_Serialize(wi::scene::Scene& scene, wi::Archive& archive, wi::ecs::EntitySerializer& seri, wi::ecs::Entity root = wi::ecs::INVALID_ENTITY)
     {
-        wi::jobsystem::Execute(stream_jobs, [&](wi::jobsystem::JobArgs jobArgs){
-            std::string actual_file = Filesystem::GetActualPath(file) + "/head";
-            wi::helper::FileExists(actual_file);
-            auto ar_head = wi::Archive(actual_file);
-            
-            std::scoped_lock header_sync(header_mutex);
-            
-            // Read stream radius list
-            wi::ecs::EntitySerializer seri;
-            size_t radius_size, meshes_size, animations_size, materials_size, sounds_size;
-            ar_head >> radius_size;
-            for(size_t i = 0; i < radius_size; ++i)
-            {
-                wi::ecs::Entity key;
-                float value;
-                // ar_head >> key;
-                wi::ecs::SerializeEntity(ar_head, key, seri);
-                ar_head >> value;
-                radius[key] = value;
-            }
-
-            // Read mesh list
-            ar_head >> meshes_size;
-            for(size_t i = 0; i < meshes_size; ++i)
-            {
-                wi::ecs::Entity key;
-                wi::ecs::Entity value;
-                // ar_head >> key;
-                wi::ecs::SerializeEntity(ar_head, key, seri);
-                // ar_head >> value;
-                wi::ecs::SerializeEntity(ar_head, value, seri);
-                meshes[key] = value;
-            }
-
-            // Read animation list
-            ar_head >> animations_size;
-            for(size_t i = 0; i < animations_size; ++i)
-            {
-                std::string key;
-                wi::ecs::Entity value;
-                ar_head >> key;
-                // ar_head >> value;
-                wi::ecs::SerializeEntity(ar_head, value, seri);
-                animations[key] = value;
-            }
-
-            // Read material blobs
-            ar_head >> materials_size;
-            for(size_t i = 0; i < materials_size; ++i)
-            {
-                wi::ecs::Entity key;
-                // ar_head >> key;
-                wi::ecs::SerializeEntity(ar_head, key, seri);
-                materials[key] = {};
-                ar_head >> materials[key];
-            }
-
-            // Read sound blobs
-            ar_head >> sounds_size;
-            for(size_t i = 0; i < sounds_size; ++i)
-            {
-                wi::ecs::Entity key;
-                // ar_head >> key;
-                wi::ecs::SerializeEntity(ar_head, key, seri);
-                sounds[key] = {};
-                ar_head >> sounds[key];
-            }
-        });
-    }
-
-    void Scene::Archive::Head_Save()
-    {
-        wi::helper::DirectoryCreate(Filesystem::GetActualPath(file) + "/");
-
-        std::string actual_file = Filesystem::GetActualPath(file) + "/head";
-        auto ar_head = wi::Archive(actual_file, false);
-
-        wi::ecs::EntitySerializer seri;
-        
-        // Write stream radius list
-        ar_head << radius.size();
-        for(auto& radius_pair : radius)
-        {
-            // ar_head << radius_pair.first;
-            wi::ecs::SerializeEntity(ar_head, radius_pair.first, seri);
-            ar_head << radius_pair.second;
-        }
-
-        // Write mesh list
-        ar_head << meshes.size();
-        for(auto& mesh_pair : meshes)
-        {
-            // ar_head << mesh_pair.first;
-            wi::ecs::SerializeEntity(ar_head, mesh_pair.first, seri);
-            // ar_head << mesh_pair.second;
-            wi::ecs::SerializeEntity(ar_head, mesh_pair.second, seri);
-        }
-
-        // Write animation list
-        ar_head << animations.size();
-        for(auto& animation_pair : animations)
-        {
-            ar_head << animation_pair.first;
-            // ar_head << animation_pair.second;
-            wi::ecs::SerializeEntity(ar_head, animation_pair.second, seri);
-        }
-
-        // Write material blobs
-        ar_head << materials.size();
-        for(auto& material_pair : materials)
-        {
-            // ar_head << material_pair.first;
-            wi::ecs::SerializeEntity(ar_head, material_pair.first, seri);
-            ar_head << material_pair.second;
-        }
-
-        // Write sound blobs
-        ar_head << sounds.size();
-        for(auto& sound_pair : sounds)
-        {
-            // ar_head << sound_pair.first;
-            wi::ecs::SerializeEntity(ar_head, sound_pair.first, seri);
-            ar_head << sound_pair.second;
-        }
-    }
-
-    void _internal_Scene_LoadModel(wi::scene::Scene& scene, const std::string& fileName, wi::ecs::EntitySerializer& seri, wi::ecs::Entity root = wi::ecs::INVALID_ENTITY)
-    {
-        wi::Archive archive(fileName, true);
-		if (archive.IsOpen())
+        wi::Timer timer;
+        // auto archive = wi::Archive(fileName, readMode);
+		if (archive.IsReadMode())
 		{
-			// Serialize it from file (archive version 85 as base):
-            if (archive.IsReadMode())
-            {
-                uint32_t reserved;
-                archive >> reserved;
-            }
-            else
-            {
-                uint32_t reserved = 0;
-                archive << reserved;
-            }
-            // Keeping this alive to keep serialized resources alive until entity serialization ends:
-            wi::resourcemanager::ResourceSerializer resource_seri;
-            if (archive.GetVersion() >= 63)
-            {
-                wi::resourcemanager::Serialize(archive, resource_seri);
-            }
-            // With this we will ensure that serialized entities are unique and persistent across the scene:
-            scene.componentLibrary.Serialize(archive, seri);
-            scene.ddgi.Serialize(archive);
-			// scene.Serialize(archive);
+			uint32_t reserved;
+			archive >> reserved;
+		}
+		else
+		{
+			uint32_t reserved = 0;
+			archive << reserved;
+		}
 
-            if (root != wi::ecs::INVALID_ENTITY)
+		// Keeping this alive to keep serialized resources alive until entity serialization ends:
+		wi::resourcemanager::ResourceSerializer resource_seri;
+		if (archive.GetVersion() >= 63)
+		{
+			wi::resourcemanager::Serialize(archive, resource_seri);
+		}
+
+		if(archive.GetVersion() >= 84)
+		{
+			// New scene serialization path with component library:
+			scene.componentLibrary.Serialize(archive, seri);
+		}
+		else
+		{
+			// Old serialization path with hard coded component types:
+			scene.names.Serialize(archive, seri);
+			scene.layers.Serialize(archive, seri);
+			scene.transforms.Serialize(archive, seri);
+			if (archive.GetVersion() < 75)
 			{
-				// Parent all unparented transforms to new root entity
-				for (size_t i = 0; i < scene.transforms.GetCount(); ++i)
+				wi::ecs::ComponentManager<_internal_Scene_Serialize_DEPRECATED_PreviousFrameTransformComponent> prev_transforms;
+				prev_transforms.Serialize(archive, seri);
+			}
+			scene.hierarchy.Serialize(archive, seri);
+			scene.materials.Serialize(archive, seri);
+			scene.meshes.Serialize(archive, seri);
+			scene.impostors.Serialize(archive, seri);
+			scene.objects.Serialize(archive, seri);
+			wi::ecs::ComponentManager<wi::primitive::AABB> aabbs_tmp; // no longer needed from serializer
+			aabbs_tmp.Serialize(archive, seri);
+			scene.rigidbodies.Serialize(archive, seri);
+			scene.softbodies.Serialize(archive, seri);
+			scene.armatures.Serialize(archive, seri);
+			scene.lights.Serialize(archive, seri);
+			aabbs_tmp.Serialize(archive, seri);
+			scene.cameras.Serialize(archive, seri);
+			scene.probes.Serialize(archive, seri);
+			aabbs_tmp.Serialize(archive, seri);
+			scene.forces.Serialize(archive, seri);
+			scene.decals.Serialize(archive, seri);
+			aabbs_tmp.Serialize(archive, seri);
+			scene.animations.Serialize(archive, seri);
+			scene.emitters.Serialize(archive, seri);
+			scene.hairs.Serialize(archive, seri);
+			scene.weathers.Serialize(archive, seri);
+			if (archive.GetVersion() >= 30)
+			{
+				scene.sounds.Serialize(archive, seri);
+			}
+			if (archive.GetVersion() >= 37)
+			{
+				scene.inverse_kinematics.Serialize(archive, seri);
+			}
+			if (archive.GetVersion() >= 38)
+			{
+				scene.springs.Serialize(archive, seri);
+			}
+			if (archive.GetVersion() >= 46)
+			{
+				scene.animation_datas.Serialize(archive, seri);
+			}
+
+			if (archive.GetVersion() < 46)
+			{
+				// Fixing the animation import from archive that didn't have separate animation data components:
+				for (size_t i = 0; i < scene.animations.GetCount(); ++i)
 				{
-					wi::ecs::Entity entity = scene.transforms.GetEntity(i);
-					if (!scene.hierarchy.Contains(entity))
+					wi::scene::AnimationComponent& animation = scene.animations[i];
+					for (const wi::scene::AnimationComponent::AnimationChannel& channel : animation.channels)
 					{
-						scene.Component_Attach(entity, root, true);
+						assert(channel.samplerIndex < (int)animation.samplers.size());
+						wi::scene::AnimationComponent::AnimationSampler& sampler = animation.samplers[channel.samplerIndex];
+						if (sampler.data == wi::ecs::INVALID_ENTITY)
+						{
+							// backwards-compatibility mode
+							sampler.data = wi::ecs::CreateEntity();
+							scene.animation_datas.Create(sampler.data) = sampler.backwards_compatibility_data;
+							sampler.backwards_compatibility_data.keyframe_times.clear();
+							sampler.backwards_compatibility_data.keyframe_data.clear();
+						}
 					}
 				}
 			}
 		}
+
+		// Additional data serializations:
+		if (archive.GetVersion() >= 85)
+		{
+			scene.ddgi.Serialize(archive);
+		}
+
+        // Parent all unparented transforms to new root entity
+        if(root != wi::ecs::INVALID_ENTITY)
+        {
+            for (size_t i = 0; i < scene.transforms.GetCount() - 1; ++i) // GetCount() - 1 because the last added was the "root"
+            {
+                wi::ecs::Entity entity = scene.transforms.GetEntity(i);
+                if (!scene.hierarchy.Contains(entity))
+                {
+                    scene.Component_Attach(entity, root);
+                }
+            }
+        }
+
+		wi::backlog::post("Scene serialize took " + std::to_string(timer.elapsed_seconds()) + " sec");
     }
 
     wi::ecs::Entity _internal_ecs_clone_entity(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri)
@@ -197,365 +151,105 @@ namespace Game{
         return clone_entity;
     }
 
-    void Scene::Archive::Init(wi::ecs::Entity clone_prefabID)
+    wi::jobsystem::context stream_job;
+    std::mutex stream_mutex;
+
+    void Scene::Archive::Load(wi::ecs::Entity clone_prefabID)
     {
-        wi::jobsystem::Execute(stream_jobs, [&](wi::jobsystem::JobArgs jobArgs){
-            // Thread init needs to load all necessary variables before running
-            header_mutex.lock();
-
-            // Get the actual file that is needed to be loaded
-            auto actual_file = Filesystem::GetActualPath(file) + "/main";
-
-            // Temporary copy of the archive variables for undisturbed processing
-            auto temp_archive_name = file;
-            auto temp_prefabID = prefabID;
-            auto temp_load_state = load_state;
-            auto temp_remap = remap;
-
-            // For prefabs, we need to copy the prefab data first before merging
-            Component_Prefab temp_prefab, temp_clone_prefab;
-            if(temp_prefabID != wi::ecs::INVALID_ENTITY)
-                temp_prefab = *GetScene()->prefabs.GetComponent(prefabID);
-            if(clone_prefabID != wi::ecs::INVALID_ENTITY)
-                temp_clone_prefab = *GetScene()->prefabs.GetComponent(clone_prefabID);
-
-            header_mutex.unlock();
-            // Exit initialization and start running independently
-
-            // Load from disk if the archive hasn't been loaded yet
-            if(temp_load_state == LoadState::UNLOADED)
-            {
-                wi::ecs::EntitySerializer seri;
-                seri.remap = temp_remap;
-                Scene temp_scene;
-                _internal_Scene_LoadModel(temp_scene.wiscene, actual_file, seri, temp_prefabID);
-                temp_remap = seri.remap;
-                temp_load_state = LoadState::LOADED;
-
-                // If it is a prefab, we need to process the prefab
-                if(temp_prefabID != wi::ecs::INVALID_ENTITY)
-                {
-                    temp_scene.wiscene.FindAllEntities(temp_prefab.entities);
-                    temp_prefab.remap = temp_remap;
-
-                    if(temp_prefab.copy_mode == Prefab::CopyMode::LIBRARY)
-                    {
-                        for(auto& entity : temp_prefab.entities)
-                        {
-                            temp_scene.Entity_Disable(entity);
-                        }
-                    }
-
-                    temp_prefab.loaded = true;
-                }
-
-                std::scoped_lock scene_sync(scene_mutex);
-                GetScene()->wiscene.Merge(temp_scene.wiscene);
-
-                Archive& done_archive = GetScene()->scene_db[temp_archive_name];
-                done_archive.remap = temp_remap;
-                done_archive.load_state = temp_load_state;
-
-                if(temp_prefabID != wi::ecs::INVALID_ENTITY)
-                {
-                    auto done_prefab = GetScene()->prefabs.GetComponent(temp_prefabID);
-                    (*done_prefab) = temp_prefab;
-                }
-            }
-
-            // Can only go and proceed to clone the prefab if it is already loaded from disk, ready to copy in memory
-            if(temp_load_state == LoadState::LOADED)
-            {
-                std::scoped_lock scene_sync(scene_mutex);
-                // If a clone prefab demands a prefab load, then we need to clone the original prefab components to this one too
-                if(clone_prefabID != wi::ecs::INVALID_ENTITY)
-                {
-                    wi::ecs::EntitySerializer seri;
-
-                    // Change cloning mode depending on whether it has target entity or not
-                    if(temp_clone_prefab.target_entity != "")
-                    {
-                        for(auto& entity : temp_prefab.entities)
-                        {
-                            auto name = GetScene()->wiscene.Entity_FindByName(temp_clone_prefab.target_entity);
-                            if(name != wi::ecs::INVALID_ENTITY)
-                            {
-                                GetScene()->Entity_Clone(entity, &seri);
-                                break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        for(auto& entity : temp_prefab.entities)
-                        {
-                            GetScene()->Entity_Clone(entity, &seri);
-                        }
-                    }
-
-                    // Census all newly cloned entity to prefab
-                    temp_clone_prefab.remap = seri.remap;
-                    for(auto& remap_pair : temp_clone_prefab.remap)
-                    {
-                        temp_clone_prefab.entities.insert(remap_pair.second);
-                    }
-
-                    temp_clone_prefab.loaded = true;
-
-                    auto done_clone_prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
-                    (*done_clone_prefab) = temp_clone_prefab;
-                }
-            }
-        });
-        
-        // After we launched the stream job, our next job is to set the load state to loading to block other prefabs to also execute the loading process
         if(load_state == LoadState::UNLOADED)
+        {
             load_state = LoadState::LOADING;
-    }
-    void Scene::Archive::Unload(wi::ecs::Entity clone_prefabID)
-    {
-        if(prefabID != wi::ecs::INVALID_ENTITY)
-        {
-            if(clone_prefabID != wi::ecs::INVALID_ENTITY)
+
+            // Make sure we renew the pointer if the stream job is done
+            if(!wi::jobsystem::IsBusy(stream_job))
+                stream_job_data = new StreamJob();
+
+            // Add data to stream job
+            StreamData* stream_data_init = new StreamData();
+            stream_data_init->file = file;
+            stream_data_init->remap = remap;
+            stream_job_data->stream_queue.push_back(stream_data_init);
+
+            // Add pending cloning to archive
+            temp_clone_prefabID = clone_prefabID;
+
+            //re-run stream job if the job does not exist
+            if(!wi::jobsystem::IsBusy(stream_job))
             {
-                auto prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
-                for(auto& entity : prefab->entities)
-                {
-                    GetScene()->wiscene.Entity_Remove(entity, false);
-                }
-                prefab->entities.clear();
-            }
-            else
-            {
-                auto prefab = GetScene()->prefabs.GetComponent(prefabID);
-                for(auto& entity : prefab->entities)
-                {
-                    GetScene()->wiscene.Entity_Remove(entity, false);
-                }
-                prefab->entities.clear();
-            }
-        }
-        else // Clear all since it is THE root scene
-        {
-            GetScene()->wiscene.Clear();
-        }
-    }
-    void Scene::Archive::Stream_Mesh(wi::ecs::Entity meshID, bool unload, wi::ecs::Entity clone_prefabID)
-    {
-        if(!unload)
-        {
-            // Only load when it is not in progress, please
-            if(mesh_streaming_inprogress.find(meshID) == mesh_streaming_inprogress.end())
-            {
-                mesh_streaming_inprogress.insert(meshID); // Put this into load progress list to prevent others from loading at the same time
-                wi::jobsystem::Execute(stream_jobs, [&](wi::jobsystem::JobArgs jobArgs){
-                    // Thread init needs to load all necessary variables before running
-                    header_mutex.lock();
-
-                    auto actual_file = Filesystem::GetActualPath(file) + "/meshes/" + std::to_string(meshID);
-
-                    // Load only needed header data to memory
-                    auto temp_archive_name = file;
-                    auto temp_prefabID = prefabID;
-                    auto temp_remap = remap;
-
-                    // For prefabs, we need to copy the prefab data first before merging
-                    Component_Prefab temp_prefab, temp_clone_prefab;
-                    if(temp_prefabID != wi::ecs::INVALID_ENTITY)
-                        temp_prefab = *GetScene()->prefabs.GetComponent(prefabID);
-                    if(clone_prefabID != wi::ecs::INVALID_ENTITY)
-                        temp_clone_prefab = *GetScene()->prefabs.GetComponent(clone_prefabID);
-
-                    header_mutex.unlock();
-                    // Exit initialization and start running independently
-
-                    if(!GetScene()->wiscene.meshes.Contains(meshID))
+                wi::jobsystem::Execute(stream_job, [stream_job_data](wi::jobsystem::JobArgs jobargs){
+                    size_t it = 0;
+                    size_t it_end = 0;
+                    it_end = stream_job_data->stream_queue.size();
+                    while(it < it_end)
                     {
+                        StreamData* stream_data_ptr = stream_job_data->stream_queue[it];
+
+                        std::string actual_file = Filesystem::GetActualPath(stream_data_ptr->file);
+                        auto ar_scene = wi::Archive(actual_file);
+
                         wi::ecs::EntitySerializer seri;
-                        seri.remap = temp_remap;
+                        seri.remap = stream_data_ptr->remap;
 
-                        // Load the mesh archive to memory
-                        auto ar_mesh = wi::Archive(actual_file);
+                        stream_data_ptr->block = new Scene();
+                        _internal_Scene_Serialize(stream_data_ptr->block->wiscene, ar_scene, seri);
+                        stream_data_ptr->remap = seri.remap;
 
-                        // Sync and serialize them to scene
-                        std::scoped_lock scene_sync(scene_mutex);
+                        std::scoped_lock scene_sync(stream_mutex);
 
-                        // Serialize mesh into scene
-                        GetScene()->wiscene.meshes.Component_Serialize(meshID, ar_mesh, seri);
+                        GetScene()->scene_db[stream_data_ptr->file].stream_done = true;
+                        GetScene()->scene_db[stream_data_ptr->file].remap = stream_data_ptr->remap;
+                        GetScene()->scene_db[stream_data_ptr->file].stream_block = stream_data_ptr->block;
 
-                        // Get the material dependency and load them if it is not loaded
-                        auto mesh = GetScene()->wiscene.meshes.GetComponent(meshID);
-                        wi::unordered_set<wi::ecs::Entity> material_count_up; // For count census
-                        for(auto& subset : mesh->subsets)
-                        {
-                            if(subset.materialID != wi::ecs::INVALID_ENTITY)
-                            {
-                                if(material_dependency_counts.find(subset.materialID) == material_dependency_counts.end())
-                                {
-                                    auto find_material = materials.find(subset.materialID);
-                                    if(find_material != materials.end())
-                                    {
-                                        auto ar_material = wi::Archive(find_material->second.data());
-                                        GetScene()->wiscene.materials.Component_Serialize(subset.materialID, ar_material, seri);
-                                        material_count_up.insert(subset.materialID);
-                                    }
-                                }
-                            }
-                        }
+                        delete(stream_data_ptr);
 
-                        // Update the count, but not to the prefab since it is one and the same
-                        Archive& done_archive = GetScene()->scene_db[temp_archive_name];
-                        for(auto& materialID : material_count_up)
-                        {
-                            done_archive.material_dependency_counts[materialID] += 1;
-                        }
-                        done_archive.mesh_dependency_counts[meshID] += 1;
-
-                        auto done_clone_prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
-                        (*done_clone_prefab) = temp_clone_prefab;
+                        it++;
+                        it_end = stream_job_data->stream_queue.size();
                     }
-
-                    if(clone_prefabID != wi::ecs::INVALID_ENTITY)
-                    {
-                        std::scoped_lock scene_sync(scene_mutex);
-
-                        Archive& done_archive = GetScene()->scene_db[temp_archive_name];
-
-                        // Check copy mode if it is shallow copy or deep copy, which will determine on how will mesh be also loaded
-                        wi::ecs::EntitySerializer seri;
-                        seri.allow_remap = (temp_clone_prefab.copy_mode == Component_Prefab::CopyMode::SHALLOW_COPY) ? false : true; // SHALLOW_COPY won't copy the materials, DEEP_COPY will copy the materials
-                        seri.remap = temp_clone_prefab.remap;
-
-                        auto ar_clone_mesh = wi::Archive();
-                        GetScene()->wiscene.meshes.Component_Serialize(meshID, ar_clone_mesh, seri);
-
-                        wi::ecs::Entity clone_entity = _internal_ecs_clone_entity(meshID, seri);
-                        
-                        ar_clone_mesh.SetReadModeAndResetPos(true);
-                        GetScene()->wiscene.meshes.Component_Serialize(clone_entity, ar_clone_mesh, seri);
-
-                        wi::unordered_set<wi::ecs::Entity> material_count_up; // For count census
-                        if(seri.allow_remap) // If DEEP_COPY is desired, we need to clone the material
-                        {
-                            auto mesh = GetScene()->wiscene.meshes.GetComponent(meshID);
-                            for(auto& subset : mesh->subsets)
-                            {
-                                wi::ecs::Entity material_clone_entity = _internal_ecs_clone_entity(subset.materialID, seri);
-                                auto ar_clone_material = wi::Archive(done_archive.materials[subset.materialID].data());
-                                GetScene()->wiscene.materials.Component_Serialize(material_clone_entity, ar_clone_material, seri);
-                                material_count_up.insert(subset.materialID);
-                            }
-                        }
-
-                        // Update the count
-                        for(auto& materialID : material_count_up)
-                        {
-                            done_archive.material_dependency_counts[materialID] += 1;
-                            temp_clone_prefab.material_dependency_counts[materialID] += 1;
-                        }
-                        done_archive.mesh_dependency_counts[meshID] += 1;
-                        temp_clone_prefab.mesh_dependency_counts[meshID] += 1;
-
-                        auto done_clone_prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
-                        (*done_clone_prefab) = temp_clone_prefab;
-                    }
-
-                    std::scoped_lock scene_sync(scene_mutex);
-                    Archive& done_archive = GetScene()->scene_db[temp_archive_name];
-                    done_archive.mesh_streaming_inprogress.erase(meshID);
+                    delete(stream_job_data);
                 });
             }
         }
-        else
-        {
-            if(clone_prefabID != wi::ecs::INVALID_ENTITY)
-            {
-                auto clone_prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
-                if(clone_prefab->mesh_dependency_counts.find(meshID) != clone_prefab->mesh_dependency_counts.end())
-                {
-                    // Decrease count if it has count bigger than 1 and remove the component if it is the last one left
-                    if(clone_prefab->mesh_dependency_counts[meshID] > 1)
-                    {
-                        clone_prefab->mesh_dependency_counts[meshID] -= 1;
-                    }
-                    else // Check whether to remove the material data too or not, and then finally remove the mesh
-                    {
-                        auto mesh = GetScene()->wiscene.meshes.GetComponent(clone_prefab->remap[meshID]);
-                        for(auto& subset : mesh->subsets)
-                        {
-                            if(clone_prefab->material_dependency_counts.find(subset.materialID) != clone_prefab->material_dependency_counts.end())
-                            {
-                                if(clone_prefab->material_dependency_counts[subset.materialID] > 1)
-                                {
-                                    clone_prefab->material_dependency_counts[subset.materialID] -= 1;
-                                }
-                                else
-                                {
-                                    // Remove the material from the clone object
-                                    GetScene()->wiscene.meshes.Remove(clone_prefab->remap[subset.materialID]);
-                                    clone_prefab->material_dependency_counts.erase(subset.materialID);
-                                }
-                            }
-                        }
 
-                        GetScene()->wiscene.meshes.Remove(clone_prefab->remap[meshID]);
-                        clone_prefab->mesh_dependency_counts.erase(meshID);
+        if(stream_done && (load_state == LoadState::LOADING))
+        {
+            // Start merging
+            GetScene()->wiscene.Merge(stream_block->wiscene);
+            delete(stream_block);
+
+            // Work on the prefab too if it exists
+            Prefab* find_prefab = GetScene()->prefabs.GetComponent(prefabID);
+            if(find_prefab != nullptr)
+            {
+                if(find_prefab->copy_mode == Prefab::CopyMode::LIBRARY)
+                {
+                    for(auto& map_pair : remap)
+                    {
+                        auto& target_entity = map_pair.second;
+                        GetScene()->Entity_Disable(target_entity);
                     }
                 }
+                
+                find_prefab->loaded = true;
             }
 
-            if(mesh_dependency_counts.find(meshID) != mesh_dependency_counts.end())
-            {
-                if(mesh_dependency_counts[meshID] > 1)
-                {
-                    mesh_dependency_counts[meshID] -= 1;
-                }
-                else // Check whether to remove the material data too or not, and then finally remove the mesh
-                {
-                    auto mesh = GetScene()->wiscene.meshes.GetComponent(meshID);
-                    for(auto& subset : mesh->subsets)
-                    {
-                        if(material_dependency_counts.find(subset.materialID) != material_dependency_counts.end())
-                        {
-                            if(material_dependency_counts[subset.materialID] > 1)
-                            {
-                                material_dependency_counts[subset.materialID] -= 1;
-                            }
-                            else
-                            {
-                                // Remove the material from the clone object
-                                GetScene()->wiscene.meshes.Remove(subset.materialID);
-                                material_dependency_counts.erase(subset.materialID);
-                            }
-                        }
-                    }
+            stream_done = false;
+            temp_clone_prefabID = wi::ecs::INVALID_ENTITY;
+            load_state = LoadState::LOADED;
+        }
 
-                    GetScene()->wiscene.meshes.Remove(meshID);
-                    mesh_dependency_counts.erase(meshID);
+        if((clone_prefabID == wi::ecs::INVALID_ENTITY) && (load_state == LoadState::LOADED))
+        {
+            Prefab* find_clone_prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
+            if(find_clone_prefab != nullptr)
+            {
+                wi::ecs::EntitySerializer seri;
+                seri.remap = find_clone_prefab->remap;
+                for (auto& map_pair : remap)
+                {
+                    auto& origin_entity = map_pair.second;
+                    GetScene()->Entity_Clone(origin_entity, &seri, (find_clone_prefab->copy_mode == Prefab::CopyMode::SHALLOW_COPY) ? false : true);
                 }
             }
-        }
-    }
-    void Scene::Archive::Stream_Animation(std::string animationID, bool unload, wi::ecs::Entity clone_prefabID)
-    {
-        if(!unload)
-        {
-            
-        }
-        else
-        {
-
-        }
-    }
-    void Scene::Archive::Stream_Sounds(wi::ecs::Entity soundID, bool unload, wi::ecs::Entity clone_prefabID)
-    {
-        if(!unload)
-        {
-            
-        }
-        else
-        {
-
         }
     }
 
@@ -688,8 +382,76 @@ namespace Game{
         }
     }
 
+    void Scene::Load(std::string file)
+    {
+        // Create an archive to work with
+        scene_db[file] = {};
+
+        // Set the archive data
+        current_scene = file;
+        scene_db[file].file = file;
+        scene_db[file].Load();
+    }
+
+    void Scene::Save(std::string file)
+    {
+        // Get actual file path here
+        auto actual_file = Filesystem::GetActualPath(file);
+    }
+
     void Scene::Update(float dt)
     {
-        
+        // Update all loading states of archive
+        std::scoped_lock stream_sync(stream_mutex);
+        for(auto& archive_pair : scene_db) // Merge scene 1 per frame
+        {
+            Archive& archive = archive_pair.second;
+            if(archive.load_state == Archive::LoadState::LOADING)
+            {
+                archive.Load(archive.temp_clone_prefabID);
+                break;
+            }
+        }
+
+        // Check prefabs for loading
+        wi::unordered_map<wi::ecs::Entity, Prefab> new_prefabs;
+        for(int i = 0; i < GetScene()->prefabs.GetCount(); ++i)
+        {
+            wi::ecs::Entity prefabID = GetScene()->prefabs.GetEntity(i);
+            Prefab& prefab = GetScene()->prefabs[i];
+
+            auto find_archive = GetScene()->scene_db.find(prefab.file);
+            if(find_archive != GetScene()->scene_db.end()) // Clone
+            {
+                Archive& archive = find_archive->second;
+                archive.Load(prefabID);
+            }
+            else // Load from disk
+            {
+                GetScene()->scene_db[prefab.file] = {}; // Init
+                Archive& archive_new = GetScene()->scene_db[prefab.file];
+                archive_new.file = prefab.file;
+                if(prefab.copy_mode == Prefab::CopyMode::DEEP_COPY) // Do clone first before deep copy
+                {
+                    wi::ecs::Entity new_prefabID = wi::ecs::CreateEntity();
+                    // Push back new prefab data
+                    new_prefabs[new_prefabID] = {};
+                    new_prefabs[new_prefabID].copy_mode = Prefab::CopyMode::LIBRARY;
+                    archive_new.prefabID = new_prefabID;
+                    archive_new.Load();
+                }
+                else
+                {
+                    archive_new.prefabID = prefabID;
+                    archive_new.Load(prefabID);
+                }
+            }
+        }
+
+        for(auto& new_pair : new_prefabs)
+        {
+            Prefab& new_prefab = GetScene()->prefabs.Create(new_pair.first);
+            new_prefab = new_pair.second;
+        }
     }
 }

@@ -7,5 +7,9 @@ namespace Game
     {
     public:
         void Load() override;
+        void PreUpdate() override;
+        void FixedUpdate() override;
+        void Update(float dt) override;
+        void Render() const override;
     };
 }

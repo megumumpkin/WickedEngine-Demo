@@ -70,4 +70,4 @@ _deps
 # It's in everybody's best interest to keep things nice and slim
 build/
 .cache/
-Data/Shader
+Data
