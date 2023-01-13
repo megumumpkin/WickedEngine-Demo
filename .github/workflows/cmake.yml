@@ -36,17 +36,17 @@ jobs:
 
     - name: Build Game and Dev Tool
       run: |
-        mkdir -p 'build/Data/Shader'
+        mkdir -p 'Build/Data/Shader'
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
         cmake --build Build -j$(nproc)
 
     - name: Prepare Package
       run: |
         mkdir -p './Data/Content'
-        mv 'build/Data/Shader' './Data/'
-        mv 'build/libdxcompiler.so' './'
-        mv 'build/Dev' './'
-        mv 'build/Game' './'
+        mv 'Build/Data/Shader' './Data/'
+        mv 'Build/libdxcompiler.so' './'
+        mv 'Build/Dev' './'
+        mv 'Build/Game' './'
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
