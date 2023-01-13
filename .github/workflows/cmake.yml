@@ -42,8 +42,7 @@ jobs:
 
     - name: Prepare Package
       run: |
-        mkdir -p './Data/Content'
-        mv 'Data/Shader' './Data/'
+        mkdir -p 'Data/Content'
         mv 'Build/libdxcompiler.so' './'
         mv 'Build/Dev' './'
         mv 'Build/Game' './'
