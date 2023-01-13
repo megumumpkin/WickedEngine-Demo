@@ -38,6 +38,7 @@ jobs:
       run: |
         mkdir -p 'build/Data/Shader'
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
+        cmake --build Build -j$(nproc)
 
     - name: Prepare Package
       run: |
