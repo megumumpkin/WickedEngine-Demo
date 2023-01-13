@@ -10,7 +10,7 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  build:
+  Linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -37,12 +37,12 @@ jobs:
     - name: Build Game and Dev Tool
       run: |
         mkdir -p 'Data/Shader'
+        mkdir -p 'Data/Content'
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
         cmake --build Build -j$(nproc)
 
     - name: Prepare Package
       run: |
-        mkdir -p 'Data/Content'
         mv 'Build/libdxcompiler.so' './'
         mv 'Build/Dev' './'
         mv 'Build/Game' './'
@@ -56,7 +56,45 @@ jobs:
           libdxcompiler.so
           Dev
           Game
-        
+  
+  Windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build Engine
+      run: |
+        git submodule update --init Library/WickedEngine
+        cd Library/WickedEngine/
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        make WickedEngine_Linux -j$(nproc)
+        cd ../../../ && ls
+
+    - name: Build Game and Dev Tool
+      run: |
+        mkdir -p 'Data/Shader'
+        mkdir -p 'Data/Content'
+        cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
+        cmake --build Build -j$(nproc)
+
+    - name: Prepare Package
+      run: |
+        mv 'Build/libdxcompiler.so' './'
+        mv 'Build/Dev' './'
+        mv 'Build/Game' './'
+
+    - name: Package Programs
+      uses: actions/upload-artifact@v2
+      with:
+        name: Binary (Linux - Ubuntu)
+        path: |
+          Data/
+          libdxcompiler.so
+          Dev
+          Game
 
         
       
