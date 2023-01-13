@@ -1,5 +1,39 @@
+#pragma once
+#include "stdafx.h"
+
 // Development ecosystem for integration with Blender
-class Dev
+namespace Dev
 {
-    // Contains: Development CLI, Development Preview Windows
+    struct CommandData
+    {
+        enum class CommandType
+        {
+            SCENE_IMPORT,
+            SCENE_PREVIEW,
+            SCENE_EXTRACT,
+        }; 
+        CommandType type; // -t
+        std::string input; // -i
+        std::string output; // -o
+    };
+
+    struct ProcessData
+    {
+        // SCENE_IMPORT PROCESSES DATA
+        XMFLOAT3 scene_offset;
+        wi::unordered_map<std::string, wi::scene::TransformComponent> composite_offset;
+    };
+
+    CommandData* GetCommandData();
+    ProcessData* GetProcessData();
+    bool ReadCMD(int argc, char *argv[]); // Development CLI
+    void Execute(); // Execute stored commands
+    void UpdateHook(); // Development Interconnect (with Embark Studios' Skyhook perhaps?)
+    void UpdateUI(); // Development UI
+
+    namespace IO
+    {
+        void Import_GLTF(const std::string& fileName, wi::scene::Scene& scene);
+        void Export_GLTF(const std::string& filename, wi::scene::Scene& scene);
+    }
 };

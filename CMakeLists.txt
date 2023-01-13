@@ -27,7 +27,11 @@ set (SOURCE_FILES
 
 set (DEV_FILES
 	${SOURCE_FILES}
+	Source/json.hpp
+	Source/tiny_gltf.h
 	Source/Dev.h
+	Source/Dev_IO_GLTF.cpp
+	Source/Dev.cpp
 )
 
 if (WIN32)

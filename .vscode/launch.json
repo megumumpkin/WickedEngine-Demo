@@ -13,5 +13,23 @@
             "cwd": "${workspaceRoot}/build",
             "valuesFormatting": "parseText"
         },
+        {
+            "name": "Debug Dev Scene Import",
+            "type": "gdb",
+            "request": "launch",
+            "target": "./Dev",
+            "cwd": "${workspaceRoot}/build",
+            "valuesFormatting": "parseText",
+            "arguments": "-t SCENE_IMPORT -i DEVTEST/TEST_REDLINE_GLTF_XAXA.assetsmith"
+        },
+        {
+            "name": "Debug Dev Scene Preview",
+            "type": "gdb",
+            "request": "launch",
+            "target": "./Dev",
+            "cwd": "${workspaceRoot}/build",
+            "valuesFormatting": "parseText",
+            "arguments": "-t SCENE_PREVIEW -i DEVTEST/TEST_REDLINE_GLTF_XAXA.wiscene"
+        },
     ]
 }

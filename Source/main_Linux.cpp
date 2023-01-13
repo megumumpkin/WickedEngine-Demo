@@ -4,6 +4,10 @@
 #include "Config.h"
 #include "Core.h"
 
+#ifdef IS_DEV
+#include "Dev.h"
+#endif
+
 int sdl_loop(wi::Application &application)
 {
     SDL_Event event;
@@ -45,6 +49,10 @@ int sdl_loop(wi::Application &application)
 
 int main(int argc, char *argv[])
 {
+#ifdef IS_DEV
+    if (Dev::ReadCMD(argc, argv)){
+#endif
+
     AppSettings settings = AppSettings_Load();
 
     Game::App application;
@@ -70,4 +78,9 @@ int main(int argc, char *argv[])
     SDL_Quit();
 
     return ret;
+
+#ifdef IS_DEV
+    }
+    return 0;
+#endif
 }

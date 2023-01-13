@@ -393,12 +393,6 @@ namespace Game{
         scene_db[file].Load();
     }
 
-    void Scene::Save(std::string file)
-    {
-        // Get actual file path here
-        auto actual_file = Filesystem::GetActualPath(file);
-    }
-
     void Scene::Update(float dt)
     {
         // Update all loading states of archive

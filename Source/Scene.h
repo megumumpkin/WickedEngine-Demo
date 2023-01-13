@@ -58,11 +58,13 @@ namespace Game{
             CopyMode copy_mode = CopyMode::SHALLOW_COPY;
             enum class StreamMode
             {
-                NONE,
+                DIRECT,
                 DISTANCE,
                 SCREEN_ESTATE,
+                MANUAL,
             };
-            StreamMode stream_mode = StreamMode::NONE;
+            StreamMode stream_mode = StreamMode::DIRECT;
+            float stream_distance_multiplier = 1.f;
 
             // Runtime data
             wi::unordered_map<uint64_t, wi::ecs::Entity> remap; // Remap data for the serialized file, also used for entity listing
@@ -95,9 +97,8 @@ namespace Game{
         void Entity_Enable(wi::ecs::Entity entity);
         void Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer* seri, bool deep_copy = false);
 
-        // Saves and loads only root scene file only, saving can only be done in Dev console mode
+        // Load the scene file
         void Load(std::string file);
-        void Save(std::string file);
 
         void Update(float dt);
     };

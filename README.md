@@ -1,9 +1,10 @@
 # Wicked Engine - Demo
-## STATUS: Still in development - Building Editor Tooling
+## STATUS: Building Project Editing Structure
 
 ## Support Devs
 |Contributor|Support|
 |---|---|
+|Turansi Janos|[![Patreon](https://img.shields.io/badge/donate-patreon-blue?style=for-the-badge&logo=patreon&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://patreon.com/wickedengine)|
 |Megumumpkin|TBA|
 |MolassesLover|[![Ko-Fi](https://img.shields.io/badge/donate-kofi-blue?style=for-the-badge&logo=ko-fi&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://ko-fi.com/molasses) [![Patreon](https://img.shields.io/badge/donate-patreon-blue?style=for-the-badge&logo=patreon&color=E35B57&logoColor=FFFFFF&labelColor=232323)](https://www.patreon.com/molasseslover)|
 
@@ -20,14 +21,6 @@ the [Git LFS](https://git-lfs.github.com/) extension.
 ➜ cd WickedEngine-Demo
 ➜ git submodule update Library/WickedEngine
 ```
-
- <html>
-  <div class="container">
-      <img src="https://user-images.githubusercontent.com/60114762/162796909-dc754428-c4d1-47f4-9c80-82d3e3b35d71.png">
-  </div>
-</html>
-
-> Artwork by [@Megumumpkin](https://github.com/megumumpkin)
 
 ## Dependencies
 In order to build this project you will need a few pieces of software on your

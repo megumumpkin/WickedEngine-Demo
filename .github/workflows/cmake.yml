@@ -16,29 +16,47 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Install dependencies
+    - name: Install Dependencies
       run: |
         wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
-        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.170-focal.list https://packages.lunarg.com/vulkan/1.2.170/lunarg-vulkan-1.2.170-focal.list
+        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.198-focal.list https://packages.lunarg.com/vulkan/1.2.198/lunarg-vulkan-1.2.198-focal.list
         sudo apt update
         sudo apt install vulkan-sdk
         sudo apt install libsdl2-dev
-        git submodule update --init Library/efsw
 
-    - name: Build engine
+    - name: Build Engine
       run: |
         git submodule update --init Library/WickedEngine
         cd Library/WickedEngine/
         mkdir build
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release
-        make -j$(nproc)
+        make WickedEngine_Linux -j$(nproc)
         cd ../../../ && ls
+
+    - name: Build Game and Dev Tool
+      run: |
+        mkdir -p 'build/Data/Shader'
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
 
-    - name: Build game
+    - name: Prepare Package
       run: |
-        cd Source/Building/ 
-        chmod +x Build.sh
-        sh Build.sh
+        mkdir -p './Data/Content'
+        mv 'build/Data/Shader' './Data/'
+        mv 'build/libdxcompiler.so' './'
+        mv 'build/Dev' './'
+        mv 'build/Game' './'
+
+    - name: Package Programs
+      uses: actions/upload-artifact@v2
+      with:
+        name: Binary (Linux - Ubuntu)
+        path: |
+          Data/
+          libdxcompiler.so
+          Dev
+          Game
+        
+
+        
       
