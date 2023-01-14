@@ -68,6 +68,7 @@ jobs:
         git submodule update --init Library/WickedEngine
         cd Library\WickedEngine\
         mkdir Build
+        cmake .
         cmake --build Build
         cd ..\..\
 
