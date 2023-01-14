@@ -83,8 +83,8 @@ jobs:
         mkdir -p 'Data\Content'
         move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
         move "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
-        move "Build\Dev.exe' "Dev.exe"
-        move "Build\Game.exe' "Game.exe"
+        move "Build\Dev.exe" "Dev.exe"
+        move "Build\Game.exe" "Game.exe"
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
