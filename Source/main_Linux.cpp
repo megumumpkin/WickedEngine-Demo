@@ -20,6 +20,7 @@ int sdl_loop(wi::Application &application)
 
         while( SDL_PollEvent(&event)) 
         {
+            bool textinput_action_delete = false;
             switch (event.type) 
             {
                 case SDL_QUIT:      
@@ -34,12 +35,34 @@ int sdl_loop(wi::Application &application)
                     case SDL_WINDOWEVENT_RESIZED:
                         application.SetWindow(application.window);
                         break;
+                    case SDL_WINDOWEVENT_FOCUS_LOST:
+                        // application.is_window_active = false;
+                        break;
+                    case SDL_WINDOWEVENT_FOCUS_GAINED:
+                        // application.is_window_active = true;
+                        break;
                     default:
                         break;
                     }
+                case SDL_KEYDOWN:
+                    if(event.key.keysym.scancode == SDL_SCANCODE_BACKSPACE 
+                        || event.key.keysym.scancode == SDL_SCANCODE_DELETE
+                        || event.key.keysym.scancode == SDL_SCANCODE_KP_BACKSPACE){
+                            wi::gui::TextInputField::DeleteFromInput();
+                            textinput_action_delete = true;
+                        }
+                    break;
+                case SDL_TEXTINPUT:
+                    if(!textinput_action_delete){
+                        if(event.text.text[0] >= 21){
+                            wi::gui::TextInputField::AddInput(event.text.text[0]);
+                        }
+                    }
+                    break;
                 default:
                     break;
             }
+            wi::input::sdlinput::ProcessEvent(event);
         }
     }
 

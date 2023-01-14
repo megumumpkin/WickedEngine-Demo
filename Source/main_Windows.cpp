@@ -4,13 +4,22 @@
 #include "stdafx.h"
 #include "main_Windows.h"
 
+// Game Software Entry
+#include "Config.h"
+#include "Core.h"
+
+#ifdef IS_DEV
+#include "Dev.h"
+#endif
+
 #define MAX_LOADSTRING 100
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-wi::Application application;					// Wicked Engine Application
+// wi::Application application;					// Wicked Engine Application
+Game::App application;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -27,11 +36,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // TODO: Place code here.
+    AppSettings settings = AppSettings_Load();
 
     BOOL dpi_success = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     assert(dpi_success);
 
-	wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
+	// wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -47,10 +57,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_TEMPLATEWINDOWS));
 
 	// just show some basic info:
-	application.infoDisplay.active = true;
-	application.infoDisplay.watermark = true;
-	application.infoDisplay.resolution = true;
-	application.infoDisplay.fpsinfo = true;
+	// application.infoDisplay.active = true;
+	// application.infoDisplay.watermark = true;
+	// application.infoDisplay.resolution = true;
+	// application.infoDisplay.fpsinfo = true;
 
 	MSG msg = { 0 };
 	while (msg.message != WM_QUIT)
@@ -185,10 +195,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		wi::input::rawinput::ParseMessage((void*)lParam);
 		break;
 	case WM_KILLFOCUS:
-		application.is_window_active = false;
+		// application.is_window_active = false;
 		break;
 	case WM_SETFOCUS:
-		application.is_window_active = true;
+		// application.is_window_active = true;
 		break;
     case WM_PAINT:
         {
