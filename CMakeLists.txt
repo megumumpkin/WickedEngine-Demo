@@ -44,7 +44,7 @@ if (WIN32)
 	add_executable(Game WIN32 ${SOURCE_FILES})
 
 	target_link_libraries(Game PUBLIC
-	 	WickedEngine_Windows
+	 	WickedEngine::WickedEngine
 	)
 else()
 	list (APPEND SOURCE_FILES Source/main_Linux.cpp)

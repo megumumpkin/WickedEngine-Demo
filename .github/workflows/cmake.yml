@@ -68,7 +68,7 @@ jobs:
         git submodule update --init Library/WickedEngine
         cd Library\WickedEngine\
         cmake -B Build .
-        cmake --build Build
+        cmake --build Build --target WickedEngine_Windows
         cd ..\..\
 
     - name: Build Game and Dev Tool
@@ -80,17 +80,17 @@ jobs:
 
     - name: Prepare Package
       run: |
-        move 'Build\libdxcompiler.so' '.\'
+        move 'Build\dxcompiler.dll' '.\'
         move 'Build\Dev' '.\'
         move 'Build\Game' '.\'
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
       with:
-        name: Binary (Linux - Ubuntu)
+        name: Binary (Windows)
         path: |
           Data/
-          libdxcompiler.so
+          dxcompiler.dll
           Dev
           Game
 
