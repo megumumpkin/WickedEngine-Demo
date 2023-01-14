@@ -75,8 +75,8 @@ jobs:
 
     - name: Build Game and Dev Tool
       run: |
-        mkdir -p 'Data\Shader'
         mkdir -p 'Data\Content'
+        move `Library\WickedEngine\WickedEngine\shader` `Data\Shader`
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
         cmake --build Build
 
