@@ -58,7 +58,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 		std::istringstream iss(to);
 
-		params =
+		argv =
 		{
 			std::istream_iterator<char*>{iss},
 			std::istream_iterator<char*>{}
