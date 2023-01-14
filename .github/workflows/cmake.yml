@@ -76,15 +76,15 @@ jobs:
     - name: Build Game and Dev Tool
       run: |
         mkdir -p 'Data\Content'
-        move `Library\WickedEngine\WickedEngine\shader` `Data\Shader`
+        move "Library\WickedEngine\WickedEngine\shader" "Data\Shader"
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
         cmake --build Build
 
     - name: Prepare Package
       run: |
-        move 'Build\dxcompiler.dll' '.\'
-        move 'Build\Dev' '.\'
-        move 'Build\Game' '.\'
+        move "Build\dxcompiler.dll' ".\"
+        move "Build\Dev' ".\"
+        move "Build\Game' ".\"
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
