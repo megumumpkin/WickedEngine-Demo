@@ -73,8 +73,8 @@ jobs:
 
     - name: Build Game and Dev Tool
       run: |
-        mkdir -p 'Data\Shader'
-        mkdir -p 'Data\Content'
+        mkdir -p 'Build\Data\Shader'
+        mkdir -p 'Build\Data\Content'
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
         cmake --build Build
 
@@ -89,7 +89,7 @@ jobs:
       with:
         name: Binary (Windows)
         path: |
-          Data\
+          Build\Data\
           dxcompiler.dll
           Dev
           Game
