@@ -4,6 +4,9 @@
 #include "stdafx.h"
 #include "main_Windows.h"
 
+#include <sstream>
+#include <iterator>
+
 // Game Software Entry
 #include "Config.h"
 #include "Core.h"
