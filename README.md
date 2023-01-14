@@ -1,5 +1,5 @@
 # Wicked Engine - Demo
-## STATUS: Building Project Editing Structure
+## STATUS: Pre-Production (Come and join our [Discord](https://discord.gg/CFjRYmE))
 
 ## Support Devs
 |Developer|Support|
@@ -12,15 +12,7 @@
 A fully-fledged game made using [Wicked Engine](https://github.com/turanszkij/WickedEngine) 
 in order to battle-test features, mature the engine, and expand the community. 
 
-This repository contains submodules in the [`Library/`](Library/) directory, you 
-might want to clone those! It's also worth noting that this repository uses
-the [Git LFS](https://git-lfs.github.com/) extension.
-
-```sh 
-➜ git clone https://github.com/MolassesLover/WickedEngine-Demo.git --recursive
-➜ cd WickedEngine-Demo
-➜ git submodule update Library/WickedEngine
-```
+</br>
 
 ## Dependencies
 In order to build this project you will need a few pieces of software on your
@@ -35,28 +27,76 @@ Here is a full list of dependencies:
 - [SDL2](https://www.libsdl.org/download-2.0.php)
 - [DXC](https://github.com/Microsoft/DirectXShaderCompiler)
 
+</br>
+
 ## Building
 
-First things first, make sure you have a fully-built version of 
-[Wicked Engine](https://github.com/turanszkij/WickedEngine) somewhere on
-your system. It's also worth mentioning that it should be compiled using CMake.
+### Step 1 - Git Clone this repository
 
-This project also uses CMake, so do make sure that dependency is met.
-
-### Manually
-Replace `/path/to/wicked/build_folder/` with your 
-[Wicked Engine](https://github.com/turanszkij/WickedEngine) `build/` directory.
 ```sh
-➜ cmake -B Build -DWickedEngine_DIR=/path/to/wicked/build_folder/cmake .
+➜ git clone --recursive https://github.com/megumumpkin/WickedEngine-Demo.git
+```
+
+### Step 2 - Build WickedEngine Library (not automatically built!)
+
+Linux
+```sh
+➜ cd Library/WickedEngine
+➜ mkdir build
+➜ cd build
+➜ cmake .. -DCMAKE_BUILD_TYPE=Release
+➜ make WickedEngine_Linux -j$(nproc)
+➜ cd ../../../ && ls
+```
+Windows
+```sh
+➜ cd Library\WickedEngine\
+➜ mkdir build
+➜ cd build
+➜ cmake ..
+➜ cmake --build . --target WickedEngine_Windows --config Release
+```
+
+### Step 3 - Build The Game and Dev Tool
+
+Linux
+```sh
+➜ mkdir -p 'Data/Shader'
+➜ mkdir -p 'Data/Content'
+➜ cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
 ➜ cmake --build Build -j$(nproc)
 ```
 
-### Automatically
-You can run the [`Build.sh`](Source/Building/Build.sh) script in order to build
-both [Wicked Engine](https://github.com/turanszkij/WickedEngine)  and this demo project. 
-Just make sure you have the [Wicked Engine submodule](Library/WickedEngine/) in the 
-root directory of this repository. Otherwise, you can clone it with this command:
+Windows
+```sh
+➜ cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
+➜ cmake --build Build --config Release
+➜ mkdir -p "Build\Release\Data\Content"
+➜ move -p "Library\WickedEngine\WickedEngine\shaders" "Build\Release\Data\Shader"
+➜ move -p "Library\WickedEngine\WickedEngine\dxcompiler.dll" "Build\Release\dxcompiler.dll"
+```
 
-```sh 
-➜ git submodule update --init Library/WickedEngine
+### Step 4 - Launch Game or Game.exe (depends on your platform of choice)
+
+You can launch by terminal/cmd or just click the executable.
+The first launch will:
+- Create an .ini file for configuration
+- Compiles all WickedEngine's and this game's shaders
+
+</br>
+
+## Developer's CLI
+
+There's another executable named Dev / Dev.exe in the built folder or the downloaded package. This will be used as a tool to manage game assets, like importing and previews.
+
+Launch the program through terminal/cmd, and try the command below
+
+Linux
+```
+➜ ./Dev -h
+```
+
+Windows
+```
+➜  Dev.exe -h
 ```
