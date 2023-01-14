@@ -100,3 +100,10 @@ Windows
 ```
 ➜  Dev.exe -h
 ```
+
+## You Like to Design Levels and Create Assets?
+
+Get yourself this [**Blender Plugin**](https://github.com/megumumpkin/Redline-Studio) and start creating game data within the `Data/Content` folder!
+Make sure that the `Data` folder resides at the same place as the `Dev` / `Dev.exe` executable!
+
+Download the program to import assets to engine on the Releases tab of this project page, especially the one with the name Dev Release 202X.XX
