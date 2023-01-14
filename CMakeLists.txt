@@ -40,10 +40,19 @@ if (WIN32)
 		Source/main_Windows.h
 		Source/TemplateWindows.rc
 	)
-
 	add_executable(Game WIN32 ${SOURCE_FILES})
-
 	target_link_libraries(Game PUBLIC
+	 	WickedEngine::WickedEngine
+	)
+
+	list (APPEND DEV_FILES
+		Source/main_Windows.cpp
+		Source/main_Windows.h
+		Source/TemplateWindows.rc
+	)
+	add_executable(Dev WIN32 ${DEV_FILES})
+	target_compile_definitions(Dev PUBLIC IS_DEV=1)
+	target_link_libraries(Dev PUBLIC
 	 	WickedEngine::WickedEngine
 	)
 else()
