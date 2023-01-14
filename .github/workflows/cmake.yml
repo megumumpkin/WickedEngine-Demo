@@ -67,9 +67,11 @@ jobs:
       run: |
         git submodule update --init Library/WickedEngine
         cd Library\WickedEngine\
-        cmake -B Build .
-        cmake --build Build --target WickedEngine_Windows
-        cd ..\..\
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        cmake --build . --target WickedEngine_Windows
+        cd ../../../
 
     - name: Build Game and Dev Tool
       run: |
