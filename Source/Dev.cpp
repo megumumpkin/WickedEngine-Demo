@@ -285,10 +285,7 @@ void _DEV_scene_import()
         }
         case 3:
         {
-            SDL_Event quit_event;
-            quit_event.type = SDL_QUIT;
-            SDL_PushEvent(&quit_event);
-            // wi::platform::Exit();
+            wi::platform::Exit();
             break;
         }
     }
