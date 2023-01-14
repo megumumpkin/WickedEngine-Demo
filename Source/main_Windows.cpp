@@ -12,6 +12,17 @@
 #include "Dev.h"
 #endif
 
+// Enable macro and follow instructions from here: https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/
+//#define USING_D3D12_AGILITY_SDK
+#ifdef USING_D3D12_AGILITY_SDK
+extern "C"
+{
+	// Used to enable the "Agility SDK" components
+	__declspec(dllexport) extern const UINT D3D12SDKVersion = 608 /* D3D12_SDK_VERSION*/;
+	__declspec(dllexport) extern const char* D3D12SDKPath = u8".\\D3D12\\";
+}
+#endif
+
 #define MAX_LOADSTRING 100
 
 // Global Variables:
@@ -19,7 +30,7 @@ HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 // wi::Application application;					// Wicked Engine Application
-Game::App application;
+Game::App application;                          // Wicked Engine Application
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -36,12 +47,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // TODO: Place code here.
-    AppSettings settings = AppSettings_Load();
+    // AppSettings settings = AppSettings_Load();
 
     BOOL dpi_success = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     assert(dpi_success);
 
-	// wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
+	wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -63,6 +74,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	// application.infoDisplay.fpsinfo = true;
 
 	MSG msg = { 0 };
+#ifdef IS_DEV
+    if (Dev::ReadCMD(argc, argv)){
+#endif
 	while (msg.message != WM_QUIT)
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -77,6 +91,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
     return (int) msg.wParam;
+#ifdef IS_DEV
+    }
+    return 0;
+#endif
 }
 
 
