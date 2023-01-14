@@ -67,7 +67,7 @@ jobs:
       run: |
         git submodule update --init Library/WickedEngine
         cd Library\WickedEngine\
-        cmake --build Build -j$(nproc)
+        cmake --build Build
         cd ..\..\
 
     - name: Build Game and Dev Tool
