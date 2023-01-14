@@ -75,10 +75,11 @@ jobs:
 
     - name: Build Game and Dev Tool
       run: |
-        mkdir -p 'Data\Content'
-        move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
         cmake --build Build
+        mkdir -p 'Data\Content'
+        move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
+        move "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
 
     - name: Prepare Package
       run: |
