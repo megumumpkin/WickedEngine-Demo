@@ -69,22 +69,22 @@ jobs:
         cd Library\WickedEngine\
         mkdir build
         cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        cmake --build . --target WickedEngine_Windows
+        cmake ..
+        cmake --build . --target WickedEngine_Windows --config Release
         cd ../../../
 
     - name: Build Game and Dev Tool
       run: |
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
-        cmake --build Build
+        cmake --build Build --config Release
 
     - name: Prepare Package
       run: |
         mkdir -p 'Data\Content'
         move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
         move "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
-        move "Build\Dev.exe" "Dev.exe"
-        move "Build\Game.exe" "Game.exe"
+        move "Build\Release\Dev.exe" "Dev.exe"
+        move "Build\Release\Game.exe" "Game.exe"
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
