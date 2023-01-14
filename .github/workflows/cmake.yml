@@ -77,25 +77,24 @@ jobs:
       run: |
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
         cmake --build Build
-        mkdir -p 'Data\Content'
-        move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
-        move "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
 
     - name: Prepare Package
       run: |
-        move "Build\dxcompiler.dll' ".\"
-        move "Build\Dev' ".\"
-        move "Build\Game' ".\"
+        mkdir -p 'Data\Content'
+        move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
+        move "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
+        move "Build\Dev.exe' "Dev.exe"
+        move "Build\Game.exe' "Game.exe"
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
       with:
         name: Binary (Windows)
         path: |
-          Build\Data\
+          Data\
           dxcompiler.dll
-          Dev
-          Game
+          Dev.exe
+          Game.exe
 
         
       
