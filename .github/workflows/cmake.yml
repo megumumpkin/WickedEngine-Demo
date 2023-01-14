@@ -89,7 +89,7 @@ jobs:
       with:
         name: Binary (Windows)
         path: |
-          Data/
+          Data\
           dxcompiler.dll
           Dev
           Game

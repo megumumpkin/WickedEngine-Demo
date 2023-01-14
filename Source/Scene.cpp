@@ -8,7 +8,11 @@ namespace Game{
         return &scene;
     }
 
-    Scene::StreamJob* stream_job_data; // Pointer to stream job
+    Scene::StreamJob* GetStreamJobData() // Pointer to stream job
+    {
+        static Scene::StreamJob stream_data;
+        return &stream_data;
+    }
 
     struct _internal_Scene_Serialize_DEPRECATED_PreviousFrameTransformComponent
 	{
@@ -160,18 +164,16 @@ namespace Game{
         {
             load_state = LoadState::LOADING;
 
-            // Make sure we renew the pointer if the stream job is done
-            if(!wi::jobsystem::IsBusy(stream_job))
-                stream_job_data = new StreamJob();
-
             // Add data to stream job
             StreamData* stream_data_init = new StreamData();
             stream_data_init->file = file;
             stream_data_init->remap = remap;
-            stream_job_data->stream_queue.push_back(stream_data_init);
+            GetStreamJobData()->stream_queue.push_back(stream_data_init);
 
             // Add pending cloning to archive
             temp_clone_prefabID = clone_prefabID;
+
+            auto stream_job_data = GetStreamJobData();
 
             //re-run stream job if the job does not exist
             if(!wi::jobsystem::IsBusy(stream_job))
@@ -205,7 +207,6 @@ namespace Game{
                         it++;
                         it_end = stream_job_data->stream_queue.size();
                     }
-                    delete(stream_job_data);
                 });
             }
         }
