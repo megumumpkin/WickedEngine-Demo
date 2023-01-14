@@ -66,25 +66,22 @@ jobs:
     - name: Build Engine
       run: |
         git submodule update --init Library/WickedEngine
-        cd Library/WickedEngine/
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        make WickedEngine_Linux -j$(nproc)
-        cd ../../../ && ls
+        cd Library\WickedEngine\
+        cmake --build Build -j$(nproc)
+        cd ..\..\
 
     - name: Build Game and Dev Tool
       run: |
-        mkdir -p 'Data/Shader'
-        mkdir -p 'Data/Content'
+        mkdir -p 'Data\Shader'
+        mkdir -p 'Data\Content'
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
         cmake --build Build -j$(nproc)
 
     - name: Prepare Package
       run: |
-        mv 'Build/libdxcompiler.so' './'
-        mv 'Build/Dev' './'
-        mv 'Build/Game' './'
+        move 'Build\libdxcompiler.so' '.\'
+        move 'Build\Dev' '.\'
+        move 'Build\Game' '.\'
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
