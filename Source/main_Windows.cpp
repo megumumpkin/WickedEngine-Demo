@@ -46,13 +46,30 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+    // Convert argc and argv
+    wi::vector<char*> argv;
+    {
+		std::wstring from = lpCmdLine;
+		std::string to;
+		wi::helper::StringConvert(from, to);
+
+		std::istringstream iss(to);
+
+		params =
+		{
+			std::istream_iterator<char*>{iss},
+			std::istream_iterator<char*>{}
+		};
+	}
+    int argc = argv.size();
+
     // TODO: Place code here.
     // AppSettings settings = AppSettings_Load();
 
     BOOL dpi_success = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     assert(dpi_success);
 
-	wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
+	// wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -75,7 +92,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	MSG msg = { 0 };
 #ifdef IS_DEV
-    if (Dev::ReadCMD(argc, argv)){
+    if (Dev::ReadCMD(argc, argv.data())){
 #endif
 	while (msg.message != WM_QUIT)
 	{
