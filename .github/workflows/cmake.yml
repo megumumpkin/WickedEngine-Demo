@@ -67,8 +67,7 @@ jobs:
       run: |
         git submodule update --init Library/WickedEngine
         cd Library\WickedEngine\
-        mkdir Build
-        cmake .
+        cmake -B Build .
         cmake --build Build
         cd ..\..\
 
@@ -77,7 +76,7 @@ jobs:
         mkdir -p 'Data\Shader'
         mkdir -p 'Data\Content'
         cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
-        cmake --build Build -j$(nproc)
+        cmake --build Build
 
     - name: Prepare Package
       run: |
