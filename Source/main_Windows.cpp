@@ -209,7 +209,7 @@ BOOL CreateAppWindow(int nCmdShow)
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
-	RegisterHotKey(hWnd, PRINTSCREEN, 0, VK_SNAPSHOT);
+	// RegisterHotKey(hWnd, PRINTSCREEN, 0, VK_SNAPSHOT);
 
 	return TRUE;
 }
