@@ -42,7 +42,7 @@ if (WIN32)
 	)
 	add_executable(Game WIN32 ${SOURCE_FILES})
 	target_link_libraries(Game PUBLIC
-	 	WickedEngine::WickedEngine
+	 	WickedEngine::WickedEngine_Windows
 	)
 
 	list (APPEND DEV_FILES
@@ -53,20 +53,20 @@ if (WIN32)
 	add_executable(Dev WIN32 ${DEV_FILES})
 	target_compile_definitions(Dev PUBLIC IS_DEV=1)
 	target_link_libraries(Dev PUBLIC
-	 	WickedEngine::WickedEngine
+	 	WickedEngine::WickedEngine_Windows
 	)
 else()
 	list (APPEND SOURCE_FILES Source/main_Linux.cpp)
 	add_executable(Game ${SOURCE_FILES})
 	target_link_libraries(Game PUBLIC
-	 	WickedEngine::WickedEngine
+	 	WickedEngine::WickedEngine_Linux
 	)
 
 	list (APPEND DEV_FILES Source/main_Linux.cpp)
 	add_executable(Dev ${DEV_FILES})
 	target_compile_definitions(Dev PUBLIC IS_DEV=1)
 	target_link_libraries(Dev PUBLIC
-	 	WickedEngine::WickedEngine
+	 	WickedEngine::WickedEngine_Linux
 	)
 endif ()
 

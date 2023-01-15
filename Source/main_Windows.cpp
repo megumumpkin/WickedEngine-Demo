@@ -138,11 +138,80 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_TEMPLATEWINDOWS));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_TEMPLATEWINDOWS);
+    // wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_TEMPLATEWINDOWS);
+    wcex.lpszMenuName = L"";
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
     return RegisterClassExW(&wcex);
+}
+
+BOOL CreateAppWindow(int nCmdShow)
+{
+	// int width = CW_USEDEFAULT;
+	// int height = 0;
+    int width = 1280;
+    int height = 720;
+	bool fullscreen = false;
+	bool borderless = false;
+
+	HWND hWnd = NULL;
+
+	if (borderless || fullscreen)
+	{
+		width = std::max(100, width);
+		height = std::max(100, height);
+
+		hWnd = CreateWindowEx(
+			WS_EX_APPWINDOW,
+			szWindowClass,
+			szTitle,
+			WS_POPUP,
+			CW_USEDEFAULT, 0, width, height,
+			NULL,
+			NULL,
+			hInst,
+			NULL
+		);
+	}
+	else
+	{
+		hWnd = CreateWindow(
+			szWindowClass,
+			szTitle,
+			WS_OVERLAPPEDWINDOW,
+			CW_USEDEFAULT, 0, width, height,
+			NULL,
+			NULL,
+			hInst,
+			NULL
+		);
+	}
+
+	if (!hWnd)
+	{
+		return FALSE;
+	}
+
+	if (fullscreen)
+	{
+		HMONITOR monitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+		MONITORINFO info;
+		info.cbSize = sizeof(MONITORINFO);
+		GetMonitorInfo(monitor, &info);
+		width = info.rcMonitor.right - info.rcMonitor.left;
+		height = info.rcMonitor.bottom - info.rcMonitor.top;
+		MoveWindow(hWnd, 0, 0, width, height, FALSE);
+	}
+
+	application.SetWindow(hWnd);
+
+	ShowWindow(hWnd, nCmdShow);
+	UpdateWindow(hWnd);
+
+	RegisterHotKey(hWnd, PRINTSCREEN, 0, VK_SNAPSHOT);
+
+	return TRUE;
 }
 
 //
@@ -159,22 +228,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-
-   if (!hWnd)
-   {
-      return FALSE;
-   }
-
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
-
-
-   application.SetWindow(hWnd); // assign window handle (mandatory)
-
-
-   return TRUE;
+   return CreateAppWindow(nCmdShow);;
 }
 
 //
