@@ -2,6 +2,7 @@
 #include <SDL2/SDL.h>
 
 #include "Config.h"
+#include "Filesystem.h"
 #include "Core.h"
 
 #ifdef IS_DEV
@@ -72,9 +73,16 @@ int sdl_loop(wi::Application &application)
 
 int main(int argc, char *argv[])
 {
+    wi::arguments::Parse(argc, argv); // if you wish to use command line arguments, here is a good place to parse them...
 #ifdef IS_DEV
-    if (Dev::ReadCMD(argc, argv)){
+    if (Dev::ReadCMD()){
 #endif
+
+    Game::Filesystem::Register_FS("content/", "Data/Content/", false);
+    Game::Filesystem::Register_FS("shader/", "Data/Shader/", false);
+
+    wi::renderer::SetShaderSourcePath(Game::Filesystem::GetActualPath("shader/"));
+    wi::renderer::SetShaderPath(Game::Filesystem::GetActualPath("shader/"));
 
     AppSettings settings = AppSettings_Load();
 

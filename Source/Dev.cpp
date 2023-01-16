@@ -47,8 +47,10 @@ Options:
                   Usage:   Dev -t SCENE_EXTRACT -i my_scene.wiscene -o my_scene.glb
 )";
 
-bool Dev::ReadCMD(int argc, char *argv[])
+bool Dev::ReadCMD()
 {
+    auto& argv = *wi::arguments::GetParameters();
+    size_t argc = argv.size();
     for(size_t i = 0; i < argc; ++i)
     {
         std::string arg_str = std::string(argv[i]);

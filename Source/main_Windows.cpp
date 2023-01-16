@@ -32,8 +32,7 @@ extern "C"
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-// wi::Application application;					// Wicked Engine Application
-Game::App application;                          // Wicked Engine Application
+Game::App app;                          // Wicked Engine Application
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -49,30 +48,22 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // Convert argc and argv
-    wi::vector<char*> argv;
-    {
-		std::wstring from = lpCmdLine;
-		std::string to;
-		wi::helper::StringConvert(from, to);
+	wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
+	
+#ifdef IS_DEV
+    if (Dev::ReadCMD()){
+#endif
 
-		std::istringstream iss(to);
+	Game::Filesystem::Register_FS("content/", "Data/Content/", false);
+    Game::Filesystem::Register_FS("shader/", "Data/Shader/", false);
 
-		argv =
-		{
-			std::istream_iterator<char*>{iss},
-			std::istream_iterator<char*>{}
-		};
-	}
-    int argc = argv.size();
+    wi::renderer::SetShaderSourcePath(Game::Filesystem::GetActualPath("shader/"));
+    wi::renderer::SetShaderPath(Game::Filesystem::GetActualPath("shader/"));
 
-    // TODO: Place code here.
     // AppSettings settings = AppSettings_Load();
 
     BOOL dpi_success = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     assert(dpi_success);
-
-	// wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -88,15 +79,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_TEMPLATEWINDOWS));
 
 	// just show some basic info:
-	// application.infoDisplay.active = true;
-	// application.infoDisplay.watermark = true;
-	// application.infoDisplay.resolution = true;
-	// application.infoDisplay.fpsinfo = true;
+	// app.infoDisplay.active = true;
+	// app.infoDisplay.watermark = true;
+	// app.infoDisplay.resolution = true;
+	// app.infoDisplay.fpsinfo = true;
 
 	MSG msg = { 0 };
-#ifdef IS_DEV
-    if (Dev::ReadCMD(argc, argv.data())){
-#endif
 	while (msg.message != WM_QUIT)
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -105,7 +93,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 		else {
 
-			application.Run(); // run the update - render loop (mandatory)
+			app.Run(); // run the update - render loop (mandatory)
 
 		}
 	}
@@ -204,7 +192,7 @@ BOOL CreateAppWindow(int nCmdShow)
 		MoveWindow(hWnd, 0, 0, width, height, FALSE);
 	}
 
-	application.SetWindow(hWnd);
+	app.SetWindow(hWnd);
 
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
@@ -228,7 +216,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   return CreateAppWindow(nCmdShow);;
+   return CreateAppWindow(nCmdShow);
 }
 
 //
@@ -264,8 +252,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     case WM_SIZE:
     case WM_DPICHANGED:
-		if (application.is_window_active)
-			application.SetWindow(hWnd);
+		if (app.is_window_active)
+			app.SetWindow(hWnd);
         break;
 	case WM_CHAR:
 		switch (wParam)
@@ -287,10 +275,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		wi::input::rawinput::ParseMessage((void*)lParam);
 		break;
 	case WM_KILLFOCUS:
-		// application.is_window_active = false;
+		// app.is_window_active = false;
 		break;
 	case WM_SETFOCUS:
-		// application.is_window_active = true;
+		// app.is_window_active = true;
 		break;
     case WM_PAINT:
         {

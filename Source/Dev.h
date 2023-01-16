@@ -26,7 +26,7 @@ namespace Dev
 
     CommandData* GetCommandData();
     ProcessData* GetProcessData();
-    bool ReadCMD(int argc, char *argv[]); // Development CLI
+    bool ReadCMD(); // Development CLI
     void Execute(); // Execute stored commands
     void UpdateHook(); // Development Interconnect (with Embark Studios' Skyhook perhaps?)
     void UpdateUI(); // Development UI
