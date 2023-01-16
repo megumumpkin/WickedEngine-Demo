@@ -3,6 +3,8 @@
 #include "Scene.h"
 
 #include <iostream>
+#include <sstream>
+#include <iterator>
 
 Dev::CommandData* Dev::GetCommandData()
 {
