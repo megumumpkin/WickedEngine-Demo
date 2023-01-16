@@ -24,9 +24,12 @@ namespace Dev
         wi::unordered_map<std::string, wi::scene::TransformComponent> composite_offset;
     };
 
+    // Development CLI
     CommandData* GetCommandData();
     ProcessData* GetProcessData();
-    bool ReadCMD(); // Development CLI
+    bool ReadCMD(int argc, char *argv[]);
+    bool ReadCMD(const wchar_t* win_args);
+    
     void Execute(); // Execute stored commands
     void UpdateHook(); // Development Interconnect (with Embark Studios' Skyhook perhaps?)
     void UpdateUI(); // Development UI

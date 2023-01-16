@@ -47,55 +47,81 @@ Options:
                   Usage:   Dev -t SCENE_EXTRACT -i my_scene.wiscene -o my_scene.glb
 )";
 
-bool Dev::ReadCMD()
+bool _internal_ReadCMD(wi::vector<std::string>& args)
 {
-    auto& argv = *wi::arguments::GetParameters();
-    size_t argc = argv.size();
-    for(size_t i = 0; i < argc; ++i)
+    for(size_t i = 0; i < args.size(); ++i)
     {
-        std::string arg_str = std::string(argv[i]);
+        std::string arg_str = std::string(args[i]);
         if(arg_str[0] == '-')
         {
             switch(arg_str[1])
             {
                 case 'h':
                 {
-                    std::cout << HelpMenuStr;
+                    std::cout << HelpMenuStr << std::endl;
                     return false;
                     break;
                 }
                 case 't':
                 {
-                    if ((i+1) < argc)
+                    if ((i+1) < args.size())
                     {
-                        GetCommandData()->type = CommandTypeLookup.find(std::string(argv[i+1]))->second;
+                        Dev::GetCommandData()->type = CommandTypeLookup.find(std::string(args[i+1]))->second;
                     }
                     break;
                 }
                 case 'i':
                 {
-                    if ((i+1) < argc)
+                    if ((i+1) < args.size())
                     {
-                        GetCommandData()->input = "content/" + std::string(argv[i+1]);
+                        Dev::GetCommandData()->input = "content/" + std::string(args[i+1]);
                     }
                     break;
                 }
                 case 'o':
                 {
-                    if ((i+1) < argc)
+                    if ((i+1) < args.size())
                     {
-                        GetCommandData()->output = "content/" + std::string(argv[i+1]);
+                        Dev::GetCommandData()->output = "content/" + std::string(args[i+1]);
                     }
                     break;
                 }
 
                 default:
-                    std::cout << "Running Dev as full game with debug menu";
+                    std::cout << "Running Dev as full game with debug menu" << std::endl;
             }
             ++i;
         }
     }
     return true;
+}
+
+bool Dev::ReadCMD(int argc, char *argv[])
+{
+    wi::vector<std::string> args;
+    for (int i = 1; i < argc; i++)
+    {
+        args.push_back(std::string(argv[i]));
+    }
+    return _internal_ReadCMD(args);
+}
+
+bool Dev::ReadCMD(const wchar_t* win_args)
+{
+    wi::vector<std::string> args;
+
+    std::wstring from = win_args;
+    std::string to;
+    wi::helper::StringConvert(from, to);
+
+    std::istringstream iss(to);
+
+    args =
+    {
+        std::istream_iterator<std::string>{iss},
+        std::istream_iterator<std::string>{}
+    };
+    return _internal_ReadCMD(args);
 }
 
 void _DEV_scene_import()

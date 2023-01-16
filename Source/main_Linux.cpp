@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
 {
     wi::arguments::Parse(argc, argv); // if you wish to use command line arguments, here is a good place to parse them...
 #ifdef IS_DEV
-    if (Dev::ReadCMD()){
+    if (Dev::ReadCMD(argc, argv)){
 #endif
 
     Game::Filesystem::Register_FS("content/", "Data/Content/", false);

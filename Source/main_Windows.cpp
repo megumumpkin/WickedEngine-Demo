@@ -52,7 +52,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
 	
 #ifdef IS_DEV
-    if (Dev::ReadCMD()){
+    if (Dev::ReadCMD(lpCmdLine)){
 #endif
 
 	Game::Filesystem::Register_FS("content/", "Data/Content/", false);
