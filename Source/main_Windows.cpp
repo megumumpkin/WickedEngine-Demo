@@ -9,6 +9,7 @@
 
 // Game Software Entry
 #include "Config.h"
+#include "Filesystem.h"
 #include "Core.h"
 
 #ifdef IS_DEV
