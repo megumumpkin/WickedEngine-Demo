@@ -1827,97 +1827,93 @@ void Dev::IO::Import_GLTF(const std::string& fileName, Scene& scene)
 
 void Import_Extension_REDLINE_assetsmith(LoaderState& state)
 {
+	// Traverse GLTF_MODEL for data
 	static const std::string ext_name = "REDLINE_assetsmith";
-	auto ext_asm_exist = state.gltfModel.extensions.find(ext_name);
-	if (ext_asm_exist != state.gltfModel.extensions.end())
+
+	// Check out node ID extensions
+	for(size_t nodeID = 0; nodeID < state.gltfModel.nodes.size(); ++nodeID)
 	{
-		// Traverse GLTF_MODEL for data
-
-		// Check out node ID extensions
-		for(size_t nodeID = 0; nodeID < state.gltfModel.nodes.size(); ++nodeID)
+		// Check if entity exists, if not then create new
+		wi::ecs::Entity entity = wi::ecs::INVALID_ENTITY;
+		auto find_entity = state.entityMap.find(nodeID);
+		if(find_entity != state.entityMap.end())
+			entity = find_entity->second;
+		if(entity == wi::ecs::INVALID_ENTITY)
 		{
-			// Check if entity exists, if not then create new
-			wi::ecs::Entity entity = wi::ecs::INVALID_ENTITY;
-			auto find_entity = state.entityMap.find(nodeID);
-			if(find_entity != state.entityMap.end())
-				entity = find_entity->second;
-			if(entity == wi::ecs::INVALID_ENTITY)
-			{
-				// Add name, transform, and layer too perhaps?
-				entity = wi::ecs::CreateEntity();
-			}
+			// Add name, transform, and layer too perhaps?
+			entity = wi::ecs::CreateEntity();
+		}
 
-			// Check if layer and object exists, if not we need to create them
-			if(!Game::GetScene()->wiscene.layers.Contains(entity))
-				Game::GetScene()->wiscene.layers.Create(entity);
-			if(!Game::GetScene()->wiscene.objects.Contains(entity))
-				Game::GetScene()->wiscene.objects.Create(entity);
-
-			// Fetch node data
-			tinygltf::Node& node = state.gltfModel.nodes[nodeID];
-			auto ext_asm = node.extensions.find(ext_name);
-			if (ext_asm != node.extensions.end())
+		// Fetch node data
+		tinygltf::Node& node = state.gltfModel.nodes[nodeID];
+		auto ext_asm = node.extensions.find(ext_name);
+		if (ext_asm != node.extensions.end())
+		{
+			const tinygltf::Value& ext_data = ext_asm->second;
+			if (ext_data.Has("prefab"))
 			{
-				const tinygltf::Value& ext_data = ext_asm->second;
-				if (ext_data.Has("prefab"))
+				const tinygltf::Value& gltf_prefab = ext_data.Get("prefab");
+				Game::Scene::Prefab& prefab = Game::GetScene()->prefabs.Create(entity);
+
+				// Check if layer and object exists, if not we need to create them
+				if(!Game::GetScene()->wiscene.layers.Contains(entity))
+					Game::GetScene()->wiscene.layers.Create(entity);
+				if(!Game::GetScene()->wiscene.objects.Contains(entity))
+					Game::GetScene()->wiscene.objects.Create(entity);
+				
+				const tinygltf::Value& gltf_prefab_file = gltf_prefab.Get("file");
+				prefab.file = gltf_prefab_file.Get<std::string>();
+
+				static const wi::unordered_map<std::string,Game::Scene::Prefab::CopyMode> gltf_prefab_copymode_conversion = {
+					{"SHALLOW_COPY", Game::Scene::Prefab::CopyMode::SHALLOW_COPY},
+					{"DEEP_COPY", Game::Scene::Prefab::CopyMode::DEEP_COPY},
+					{"LIBRARY", Game::Scene::Prefab::CopyMode::LIBRARY}
+				};
+				const tinygltf::Value& gltf_prefab_copymode = gltf_prefab.Get("copy_mode");
+				prefab.copy_mode = gltf_prefab_copymode_conversion.find(gltf_prefab_copymode.Get<std::string>())->second;
+
+				static const wi::unordered_map<std::string,Game::Scene::Prefab::StreamMode> gltf_prefab_streammode_conversion = {
+					{"DIRECT", Game::Scene::Prefab::StreamMode::DIRECT},
+					{"DISTANCE", Game::Scene::Prefab::StreamMode::DISTANCE},
+					{"SCREEN_ESTATE", Game::Scene::Prefab::StreamMode::SCREEN_ESTATE},
+					{"MANUAL", Game::Scene::Prefab::StreamMode::MANUAL},
+				};
+				const tinygltf::Value& gltf_prefab_streammode = gltf_prefab.Get("stream_mode");
+				prefab.stream_mode = gltf_prefab_streammode_conversion.find(gltf_prefab_streammode.Get<std::string>())->second;
+
+				const tinygltf::Value& gltf_prefab_streamdistancemul = gltf_prefab.Get("stream_distance_multiplier");
+				prefab.stream_distance_multiplier = (float)gltf_prefab_streamdistancemul.Get<double>();
+
+				const tinygltf::Value& gltf_prefab_composite = gltf_prefab.Get("is_composite");
+				if(gltf_prefab_composite.Get<bool>())
 				{
-					const tinygltf::Value& gltf_prefab = ext_data.Get("prefab");
-					Game::Scene::Prefab& prefab = Game::GetScene()->prefabs.Create(entity);
-					
-					const tinygltf::Value& gltf_prefab_file = gltf_prefab.Get("file");
-					prefab.file = gltf_prefab_file.Get<std::string>();
-
-					static const wi::unordered_map<std::string,Game::Scene::Prefab::CopyMode> gltf_prefab_copymode_conversion = {
-						{"SHALLOW_COPY", Game::Scene::Prefab::CopyMode::SHALLOW_COPY},
-						{"DEEP_COPY", Game::Scene::Prefab::CopyMode::DEEP_COPY},
-						{"LIBRARY", Game::Scene::Prefab::CopyMode::LIBRARY}
-					};
-					const tinygltf::Value& gltf_prefab_copymode = gltf_prefab.Get("copy_mode");
-					prefab.copy_mode = gltf_prefab_copymode_conversion.find(gltf_prefab_copymode.Get<std::string>())->second;
-
-					static const wi::unordered_map<std::string,Game::Scene::Prefab::StreamMode> gltf_prefab_streammode_conversion = {
-						{"DIRECT", Game::Scene::Prefab::StreamMode::DIRECT},
-						{"DISTANCE", Game::Scene::Prefab::StreamMode::DISTANCE},
-						{"SCREEN_ESTATE", Game::Scene::Prefab::StreamMode::SCREEN_ESTATE},
-						{"MANUAL", Game::Scene::Prefab::StreamMode::MANUAL},
-					};
-					const tinygltf::Value& gltf_prefab_streammode = gltf_prefab.Get("stream_mode");
-					prefab.stream_mode = gltf_prefab_streammode_conversion.find(gltf_prefab_streammode.Get<std::string>())->second;
-
-					const tinygltf::Value& gltf_prefab_streamdistancemul = gltf_prefab.Get("stream_distance_multiplier");
-					prefab.stream_distance_multiplier = (float)gltf_prefab_streamdistancemul.Get<double>();
-
-					const tinygltf::Value& gltf_prefab_composite = gltf_prefab.Get("is_composite");
-					if(gltf_prefab_composite.Get<bool>())
+					// Check if composite exists
+					auto find_composite = Dev::GetProcessData()->composite_offset.find(prefab.file);
+					if(find_composite == Dev::GetProcessData()->composite_offset.end())
 					{
-						// Check if composite exists
-						auto find_composite = Dev::GetProcessData()->composite_offset.find(prefab.file);
-						if(find_composite == Dev::GetProcessData()->composite_offset.end())
+						std::string offset_file = wi::helper::ReplaceExtension(Game::Filesystem::GetActualPath(prefab.file), "offset");
+						if(wi::helper::FileExists(offset_file))
 						{
-							std::string offset_file = wi::helper::ReplaceExtension(Game::Filesystem::GetActualPath(prefab.file), "offset");
-							if(wi::helper::FileExists(offset_file))
-							{
-								wi::ecs::EntitySerializer seri;
-								auto ar_offset = wi::Archive(offset_file);
+							wi::ecs::EntitySerializer seri;
+							auto ar_offset = wi::Archive(offset_file);
 
-								wi::scene::TransformComponent temp_transform;
-								temp_transform.Serialize(ar_offset, seri);
+							wi::scene::TransformComponent temp_transform;
+							temp_transform.Serialize(ar_offset, seri);
 
-								Dev::GetProcessData()->composite_offset[prefab.file] = temp_transform;
-								find_composite = Dev::GetProcessData()->composite_offset.find(prefab.file);
-							}
+							Dev::GetProcessData()->composite_offset[prefab.file] = temp_transform;
+							find_composite = Dev::GetProcessData()->composite_offset.find(prefab.file);
 						}
+					}
 
-						// If exists then we need to transform that prefab to the offset
-						if(find_composite != Dev::GetProcessData()->composite_offset.end())
+					// If exists then we need to transform that prefab to the offset
+					if(find_composite != Dev::GetProcessData()->composite_offset.end())
+					{
+						auto transform = Game::GetScene()->wiscene.transforms.GetComponent(entity);
+						if(transform != nullptr)
 						{
-							auto transform = Game::GetScene()->wiscene.transforms.GetComponent(entity);
-							if(transform != nullptr)
-							{
-								transform->translation_local = find_composite->second.translation_local;
-								transform->rotation_local = find_composite->second.rotation_local;
-								transform->scale_local = find_composite->second.scale_local;
-							}
+							transform->translation_local = find_composite->second.translation_local;
+							transform->rotation_local = find_composite->second.rotation_local;
+							transform->scale_local = find_composite->second.scale_local;
 						}
 					}
 				}

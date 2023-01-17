@@ -29,16 +29,15 @@ namespace Game{
                 LOADED
             };
             LoadState load_state = LoadState::UNLOADED; // Check loading progress of streaming
-            bool stream_done = false; // Check if the thread has done streaming
-            Scene* stream_block; // Get the block of the stream
-            wi::ecs::Entity temp_clone_prefabID = wi::ecs::INVALID_ENTITY; // Temp storage for pending cloning
 
             void Load(wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY);
         };
         struct StreamData
         {
-            std::string file; // Archive file where streaming is done
-            wi::unordered_map<uint64_t, wi::ecs::Entity> remap; // Remap data for serialization in stream
+            std::string file; // File mapping for archive
+            std::string actual_file; // Actual file path for loading the scene file
+            wi::unordered_map<uint64_t, wi::ecs::Entity> remap;
+            wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY;
             Scene* block; // Scene file where the serialization happens
         };
         struct StreamJob
@@ -78,7 +77,7 @@ namespace Game{
         // Component data attached to scene
         struct Component_Prefab : public Prefab
         {
-            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri){};
+            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
         };
         struct Component_Inactive : public Inactive
         {
@@ -95,7 +94,7 @@ namespace Game{
         // Scene operation functions
         void Entity_Disable(wi::ecs::Entity entity);
         void Entity_Enable(wi::ecs::Entity entity);
-        void Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer* seri, bool deep_copy = false);
+        wi::ecs::Entity Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri, bool deep_copy = false);
 
         // Load the scene file
         void Load(std::string file);

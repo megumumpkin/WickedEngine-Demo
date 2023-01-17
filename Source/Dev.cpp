@@ -146,21 +146,21 @@ void _DEV_scene_import()
             XMStoreFloat3(&offset_inv, offset_inv_vector);
 
             // Translate scene to center
-            {
-                for(int i = 0; i < Game::GetScene()->wiscene.transforms.GetCount(); ++i)
-                {
-                    auto entity = Game::GetScene()->wiscene.transforms.GetEntity(i);
-                    auto hierarchy = Game::GetScene()->wiscene.hierarchy.GetComponent(entity);
-                    if(hierarchy != nullptr)
-                    {
-                        if(hierarchy->parentID != wi::ecs::INVALID_ENTITY)
-                            continue;
-                    }
+            // {
+            //     for(int i = 0; i < Game::GetScene()->wiscene.transforms.GetCount(); ++i)
+            //     {
+            //         auto entity = Game::GetScene()->wiscene.transforms.GetEntity(i);
+            //         auto hierarchy = Game::GetScene()->wiscene.hierarchy.GetComponent(entity);
+            //         if(hierarchy != nullptr)
+            //         {
+            //             if(hierarchy->parentID != wi::ecs::INVALID_ENTITY)
+            //                 continue;
+            //         }
 
-                    wi::scene::TransformComponent& transform = Game::GetScene()->wiscene.transforms[i];
-                    transform.Translate(offset_inv);
-                }
-            }
+            //         wi::scene::TransformComponent& transform = Game::GetScene()->wiscene.transforms[i];
+            //         transform.Translate(offset_inv);
+            //     }
+            // }
 
             // Make texture paths relative to wiscene file
             {
@@ -259,12 +259,12 @@ void _DEV_scene_import()
                                     }
                                 };
 
-                                // Translate mesh's vertices
-                                for(auto& v_pos : mesh->vertex_positions)
-                                {
-                                    XMVECTOR v_offset = XMVectorAdd(XMLoadFloat3(&v_pos), XMLoadFloat3(&(Dev::GetProcessData()->scene_offset)));
-                                    XMStoreFloat3(&v_pos, v_offset);
-                                }
+                                // // Translate mesh's vertices
+                                // for(auto& v_pos : mesh->vertex_positions)
+                                // {
+                                //     XMVECTOR v_offset = XMVectorAdd(XMLoadFloat3(&v_pos), XMLoadFloat3(&(Dev::GetProcessData()->scene_offset)));
+                                //     XMStoreFloat3(&v_pos, v_offset);
+                                // }
 
                                 // Save this mesh entity to archive
                                 {
@@ -323,8 +323,9 @@ void _DEV_scene_import()
     cycle++;
 }
 
-void Dev::Execute()
+void Dev::Execute(float dt)
 {
+    static bool run_gamescene_update = false;
     static bool execution_done = false;
     if(!execution_done)
     {
@@ -338,8 +339,9 @@ void Dev::Execute()
             case CommandData::CommandType::SCENE_PREVIEW:
             {
                 // We load our wiscene here
-                // Game::GetScene()->Load(GetCommandData()->input);
-                wi::scene::LoadModel(Game::GetScene()->wiscene, Game::Filesystem::GetActualPath(GetCommandData()->input));
+                Game::GetScene()->Load(GetCommandData()->input);
+                // wi::scene::LoadModel(Game::GetScene()->wiscene, Game::Filesystem::GetActualPath(GetCommandData()->input));
+                run_gamescene_update = true;
                 execution_done = true;
                 break;
             }
@@ -349,4 +351,7 @@ void Dev::Execute()
             }
         }
     }
+
+    if(run_gamescene_update)
+        Game::GetScene()->Update(dt);
 }

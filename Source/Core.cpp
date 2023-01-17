@@ -19,9 +19,10 @@ namespace Game{
     void App::Update(float dt)
     {   
 #ifdef IS_DEV
-        Dev::Execute();
-#endif
+        Dev::Execute(dt);
+#else
         GetScene()->Update(dt);
+#endif
         wi::Application::Update(dt);
     }
 

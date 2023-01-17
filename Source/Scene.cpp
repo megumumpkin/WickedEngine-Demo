@@ -8,6 +8,22 @@ namespace Game{
         return &scene;
     }
 
+    void Scene::Component_Prefab::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri)
+    {
+        if(archive.IsReadMode())
+        {
+            archive >> file;
+            archive >> (uint32_t&)copy_mode;
+            archive >> (uint32_t&)stream_mode;
+        }
+        else
+        {
+            archive << file;
+            archive << uint32_t(copy_mode);
+            archive << uint32_t(stream_mode);
+        }
+    }
+
     Scene::StreamJob* GetStreamJobData() // Pointer to stream job
     {
         static Scene::StreamJob stream_data;
@@ -158,6 +174,97 @@ namespace Game{
     wi::jobsystem::context stream_job;
     std::mutex stream_mutex;
 
+    void _internal_Clone_Prefab(Scene::Archive& archive, wi::ecs::Entity clone_prefabID)
+    {
+        Scene::Prefab* find_clone_prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
+        if(find_clone_prefab != nullptr)
+        {
+            wi::ecs::EntitySerializer seri;
+            seri.remap = find_clone_prefab->remap;
+            wi::unordered_map<wi::ecs::Entity, wi::ecs::Entity> clone_remap;
+            for (auto& map_pair : archive.remap)
+            {
+                // Clone entity first
+                auto& origin_entity = map_pair.second;
+                auto clone_entity = GetScene()->Entity_Clone(origin_entity, seri, (find_clone_prefab->copy_mode == Scene::Prefab::CopyMode::SHALLOW_COPY) ? false : true);
+                clone_remap[origin_entity] = clone_entity;
+            }
+            wi::jobsystem::Wait(seri.ctx);
+            find_clone_prefab->remap = seri.remap;
+
+            // Remap parenting for shallow copy
+            if(find_clone_prefab->copy_mode == Scene::Prefab::CopyMode::SHALLOW_COPY){
+                for(auto& map_pair : clone_remap)
+                {
+                    wi::backlog::post(std::to_string(map_pair.second));
+
+                    // If it has no parent then we attach them to prefab
+                    wi::scene::HierarchyComponent* original_hierarchy = GetScene()->wiscene.hierarchy.GetComponent(map_pair.first);
+                    wi::scene::HierarchyComponent* hierarchy = GetScene()->wiscene.hierarchy.GetComponent(map_pair.second);
+                    if((original_hierarchy != nullptr) && (hierarchy != nullptr))
+                    {
+                        if(original_hierarchy->parentID == archive.prefabID)
+                            GetScene()->wiscene.Component_Attach(map_pair.second, clone_prefabID, true);
+                        else
+                            GetScene()->wiscene.Component_Attach(map_pair.second, clone_remap[original_hierarchy->parentID], true);
+                    }
+                    else
+                        GetScene()->wiscene.Component_Attach(map_pair.second, clone_prefabID, true);
+                }
+            }
+
+            find_clone_prefab->loaded = true;
+        }
+    }
+
+    std::vector<Scene::StreamData*> stream_callbacks;
+    void _internal_Finish_Stream(Scene::StreamData* stream_callback)
+    {
+        Scene::Archive& archive = GetScene()->scene_db[stream_callback->file];
+        archive.remap = stream_callback->remap;
+
+        GetScene()->wiscene.Merge(stream_callback->block->wiscene);
+        delete(stream_callback->block);
+
+        // Work on the prefab too if it exists
+        Scene::Prefab* find_prefab = GetScene()->prefabs.GetComponent(archive.prefabID);
+        if(find_prefab != nullptr)
+        {
+            // Need to parent components to the scene
+            for(auto& map_pair : archive.remap)
+            {
+                // If it has no parent then we attach them to prefab
+                bool set_parent = false;
+                wi::scene::HierarchyComponent* hierarchy = GetScene()->wiscene.hierarchy.GetComponent(map_pair.second);
+                if(hierarchy != nullptr)
+                {
+                    if(hierarchy->parentID == wi::ecs::INVALID_ENTITY)
+                        set_parent = true;
+                }
+                else
+                    set_parent = true;
+                if(set_parent)
+                    GetScene()->wiscene.Component_Attach(map_pair.second, archive.prefabID, true);
+
+                // If prefab is a library then we need to disable the entity
+                if(find_prefab->copy_mode == Scene::Prefab::CopyMode::LIBRARY)
+                {
+                    auto& target_entity = map_pair.second;
+                    GetScene()->Entity_Disable(target_entity);
+                }
+            }
+            
+            find_prefab->loaded = true;
+        }
+
+        if(stream_callback->clone_prefabID != wi::ecs::INVALID_ENTITY)
+        {
+            _internal_Clone_Prefab(archive, stream_callback->clone_prefabID);
+        }
+
+        delete(stream_callback);
+        archive.load_state = Scene::Archive::LoadState::LOADED;
+    }
     void Scene::Archive::Load(wi::ecs::Entity clone_prefabID)
     {
         if(load_state == LoadState::UNLOADED)
@@ -167,11 +274,10 @@ namespace Game{
             // Add data to stream job
             StreamData* stream_data_init = new StreamData();
             stream_data_init->file = file;
+            stream_data_init->actual_file = Filesystem::GetActualPath(file);
             stream_data_init->remap = remap;
+            stream_data_init->clone_prefabID = clone_prefabID;
             GetStreamJobData()->stream_queue.push_back(stream_data_init);
-
-            // Add pending cloning to archive
-            temp_clone_prefabID = clone_prefabID;
 
             auto stream_job_data = GetStreamJobData();
 
@@ -185,76 +291,36 @@ namespace Game{
                     while(it < it_end)
                     {
                         StreamData* stream_data_ptr = stream_job_data->stream_queue[it];
-
-                        std::string actual_file = Filesystem::GetActualPath(stream_data_ptr->file);
-                        auto ar_scene = wi::Archive(actual_file);
-
                         wi::ecs::EntitySerializer seri;
                         seri.remap = stream_data_ptr->remap;
 
                         stream_data_ptr->block = new Scene();
-                        _internal_Scene_Serialize(stream_data_ptr->block->wiscene, ar_scene, seri);
+
+                        auto ar_stream = wi::Archive(stream_data_ptr->actual_file);
+                        _internal_Scene_Serialize(stream_data_ptr->block->wiscene, ar_stream, seri);
+                        wi::jobsystem::Wait(seri.ctx);
+
                         stream_data_ptr->remap = seri.remap;
 
                         std::scoped_lock scene_sync(stream_mutex);
 
-                        GetScene()->scene_db[stream_data_ptr->file].stream_done = true;
-                        GetScene()->scene_db[stream_data_ptr->file].remap = stream_data_ptr->remap;
-                        GetScene()->scene_db[stream_data_ptr->file].stream_block = stream_data_ptr->block;
-
-                        delete(stream_data_ptr);
+                        stream_callbacks.push_back(stream_data_ptr);
 
                         it++;
                         it_end = stream_job_data->stream_queue.size();
                     }
+                    stream_job_data->stream_queue.clear();
                 });
             }
         }
 
-        if(stream_done && (load_state == LoadState::LOADING))
+        if((clone_prefabID != wi::ecs::INVALID_ENTITY) && (load_state == LoadState::LOADED))
         {
-            // Start merging
-            GetScene()->wiscene.Merge(stream_block->wiscene);
-            delete(stream_block);
-
-            // Work on the prefab too if it exists
-            Prefab* find_prefab = GetScene()->prefabs.GetComponent(prefabID);
-            if(find_prefab != nullptr)
-            {
-                if(find_prefab->copy_mode == Prefab::CopyMode::LIBRARY)
-                {
-                    for(auto& map_pair : remap)
-                    {
-                        auto& target_entity = map_pair.second;
-                        GetScene()->Entity_Disable(target_entity);
-                    }
-                }
-                
-                find_prefab->loaded = true;
-            }
-
-            stream_done = false;
-            temp_clone_prefabID = wi::ecs::INVALID_ENTITY;
-            load_state = LoadState::LOADED;
-        }
-
-        if((clone_prefabID == wi::ecs::INVALID_ENTITY) && (load_state == LoadState::LOADED))
-        {
-            Prefab* find_clone_prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
-            if(find_clone_prefab != nullptr)
-            {
-                wi::ecs::EntitySerializer seri;
-                seri.remap = find_clone_prefab->remap;
-                for (auto& map_pair : remap)
-                {
-                    auto& origin_entity = map_pair.second;
-                    GetScene()->Entity_Clone(origin_entity, &seri, (find_clone_prefab->copy_mode == Prefab::CopyMode::SHALLOW_COPY) ? false : true);
-                }
-            }
+            _internal_Clone_Prefab(*this, clone_prefabID);
         }
     }
 
-    const wi::vector<std::string> disable_filter_list = { // Any element that is not commented out will be disabled by the component
+    wi::vector<std::string> disable_filter_list = { // Any element that is not commented out will be disabled by the component
         // "wi::scene::Scene::names",
         // "wi::scene::Scene::layers",
         // "wi::scene::Scene::transforms",
@@ -285,7 +351,7 @@ namespace Game{
         "wi::scene::Scene::humanoids",
         "wi::scene::Scene::terrains",
     };
-    const wi::vector<std::string> clone_filter_list = { // Any that is commented out will not be cloned over!
+    wi::vector<std::string> full_clone_filter_list = { // Any that is commented out will not be cloned over!
         "wi::scene::Scene::names",
         "wi::scene::Scene::layers",
         "wi::scene::Scene::transforms",
@@ -317,6 +383,38 @@ namespace Game{
         "wi::scene::Scene::terrains",
         "Game::Scene::Prefab"
     };
+    wi::vector<std::string> shallow_clone_filter_list = { // Any that is commented out will not be cloned over!
+        "wi::scene::Scene::names",
+        "wi::scene::Scene::layers",
+        "wi::scene::Scene::transforms",
+        "wi::scene::Scene::hierarchy",
+        // "wi::scene::Scene::materials",
+        // "wi::scene::Scene::meshes",
+        "wi::scene::Scene::impostors",
+        "wi::scene::Scene::objects",
+        "wi::scene::Scene::rigidbodies",
+        "wi::scene::Scene::softbodies",
+        // "wi::scene::Scene::armatures",
+        "wi::scene::Scene::lights",
+        "wi::scene::Scene::cameras",
+        "wi::scene::Scene::probes",
+        "wi::scene::Scene::forces",
+        "wi::scene::Scene::decals",
+        // "wi::scene::Scene::animations",
+        // "wi::scene::Scene::animation_datas",
+        "wi::scene::Scene::emitters",
+        "wi::scene::Scene::hairs",
+        "wi::scene::Scene::weathers",
+        "wi::scene::Scene::sounds",
+        "wi::scene::Scene::inverse_kinematics",
+        "wi::scene::Scene::springs",
+        "wi::scene::Scene::colliders",
+        "wi::scene::Scene::scripts",
+        "wi::scene::Scene::expressions",
+        "wi::scene::Scene::humanoids",
+        "wi::scene::Scene::terrains",
+        "Game::Scene::Prefab"
+    };
     void Scene::Entity_Disable(wi::ecs::Entity entity)
     {
         auto& inactive = inactives.Create(entity);
@@ -325,9 +423,13 @@ namespace Game{
         auto ar_disable = wi::Archive();
         for(auto& componentID : disable_filter_list)
         {
-            wiscene.componentLibrary.entries[componentID].component_manager->Component_Serialize(entity, ar_disable, seri);
-            wiscene.componentLibrary.entries[componentID].component_manager->Remove(entity);
+            auto compmgr = wiscene.componentLibrary.entries[componentID].component_manager.get();
+            auto& compver = wiscene.componentLibrary.entries[componentID].version;
+            seri.version = compver;
+            compmgr->Component_Serialize(entity, ar_disable, seri);
+            compmgr->Remove(entity);
         }
+        ar_disable.WriteData(inactive.inactive_storage);
     }
     void Scene::Entity_Enable(wi::ecs::Entity entity)
     {
@@ -339,48 +441,66 @@ namespace Game{
             auto ar_enable = wi::Archive(inactive->inactive_storage.data());
             for(auto& componentID : disable_filter_list)
             {
-                wiscene.componentLibrary.entries[componentID].component_manager->Component_Serialize(entity, ar_enable, seri);
+                auto compmgr = wiscene.componentLibrary.entries[componentID].component_manager.get();
+                auto& compver = wiscene.componentLibrary.entries[componentID].version;
+                seri.version = compver;
+                compmgr->Component_Serialize(entity, ar_enable, seri);
             }
         }
     }
-    void Scene::Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer *seri, bool deep_copy)
+    wi::ecs::Entity Scene::Entity_Clone(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri, bool deep_copy)
     {
         // Clone filter'll cut out inactive and prefab from being cloned, as it poses some risk
         wi::Archive ar_copy;
-        for(auto& componentID : clone_filter_list)
-        {
-            wiscene.componentLibrary.entries[componentID].component_manager->Component_Serialize(entity, ar_copy, *seri);
-        }
 
-        wi::ecs::Entity clone_entity = wi::ecs::INVALID_ENTITY;
-        if(seri->remap.find(entity) != seri->remap.end())
-        {
-            clone_entity = seri->remap[entity];
-        }
-        else
-        {
-            clone_entity = wi::ecs::CreateEntity();
-            seri->remap[entity] = clone_entity;
-        }
+        bool temp_remap = seri.allow_remap;
+        if(!deep_copy)
+            seri.allow_remap = false;
 
-        for(auto& componentID : clone_filter_list)
+        wi::vector<std::string>* clone_filter_list = &shallow_clone_filter_list;
+        if(deep_copy)
+            clone_filter_list = &full_clone_filter_list;
+        
+        ar_copy.SetReadModeAndResetPos(false);
+        for(auto& componentID : *clone_filter_list)
         {
-            wiscene.componentLibrary.entries[componentID].component_manager->Component_Serialize(clone_entity, ar_copy, *seri);
+            auto compmgr = wiscene.componentLibrary.entries[componentID].component_manager.get();
+            auto& compver = wiscene.componentLibrary.entries[componentID].version;
+            seri.version = compver;
+            compmgr->Component_Serialize(entity, ar_copy, seri);
         }
+        wi::jobsystem::Wait(seri.ctx);
+
+        wi::ecs::Entity clone_entity = wi::ecs::CreateEntity();
+
+        ar_copy.SetReadModeAndResetPos(true);
+        for(auto& componentID : *clone_filter_list)
+        {
+            auto compmgr = wiscene.componentLibrary.entries[componentID].component_manager.get();
+            auto& compver = wiscene.componentLibrary.entries[componentID].version;
+            seri.version = compver;
+            compmgr->Component_Serialize(clone_entity, ar_copy, seri);
+        }
+        wi::jobsystem::Wait(seri.ctx);
 
         // Only copy inactives if the cloning's deep_copy value to true
-        if(deep_copy)
+        auto inactive = inactives.GetComponent(entity);
+        if(inactive != nullptr)
         {
-            auto inactive = inactives.GetComponent(entity);
-            if(inactive != nullptr)
+            if(deep_copy)
             {
                 auto ar_enable = wi::Archive(inactive->inactive_storage.data());
                 for(auto& componentID : disable_filter_list)
                 {
-                    wiscene.componentLibrary.entries[componentID].component_manager->Component_Serialize(clone_entity, ar_enable, *seri);
+                    auto compmgr = wiscene.componentLibrary.entries[componentID].component_manager.get();
+                    auto& compver = wiscene.componentLibrary.entries[componentID].version;
+                    seri.version = compver;
+                    compmgr->Component_Serialize(clone_entity, ar_enable, seri);
                 }
             }
         }
+        seri.allow_remap = temp_remap;
+        return clone_entity;
     }
 
     void Scene::Load(std::string file)
@@ -396,57 +516,64 @@ namespace Game{
 
     void Scene::Update(float dt)
     {
-        // Update all loading states of archive
-        std::scoped_lock stream_sync(stream_mutex);
-        for(auto& archive_pair : scene_db) // Merge scene 1 per frame
+        // Finish load callback
+        std::scoped_lock stream_lock(stream_mutex);
+        for(auto stream_callback : stream_callbacks)
         {
-            Archive& archive = archive_pair.second;
-            if(archive.load_state == Archive::LoadState::LOADING)
-            {
-                archive.Load(archive.temp_clone_prefabID);
-                break;
-            }
+            _internal_Finish_Stream(stream_callback);
         }
+        stream_callbacks.clear();
 
-        // Check prefabs for loading
-        wi::unordered_map<wi::ecs::Entity, Prefab> new_prefabs;
-        for(int i = 0; i < GetScene()->prefabs.GetCount(); ++i)
+        // Stream prefabs
+        wi::unordered_map<wi::ecs::Entity,std::string> deferred_lib_stream;
+        for(int i = 0; i < prefabs.GetCount(); ++i)
         {
-            wi::ecs::Entity prefabID = GetScene()->prefabs.GetEntity(i);
-            Prefab& prefab = GetScene()->prefabs[i];
+            auto prefabID = prefabs.GetEntity(i);
+            Prefab& prefab = prefabs[i];
 
-            auto find_archive = GetScene()->scene_db.find(prefab.file);
-            if(find_archive != GetScene()->scene_db.end()) // Clone
+            if(!prefab.loaded)
             {
+                auto find_archive = scene_db.find(prefab.file);
+                if(find_archive == scene_db.end()) // Create archive
+                {
+                    scene_db[prefab.file] = {};
+                    Archive& archive = scene_db[prefab.file];
+                    archive.file = prefab.file;
+                    if(prefab.copy_mode == Prefab::CopyMode::DEEP_COPY)
+                    {
+                        deferred_lib_stream[prefabID] = prefab.file;
+                    }
+                    else
+                    {
+                        archive.prefabID = prefabID;
+                        archive.Load();
+                    }
+
+                    find_archive = scene_db.find(prefab.file);
+                }
+
                 Archive& archive = find_archive->second;
-                archive.Load(prefabID);
-            }
-            else // Load from disk
-            {
-                GetScene()->scene_db[prefab.file] = {}; // Init
-                Archive& archive_new = GetScene()->scene_db[prefab.file];
-                archive_new.file = prefab.file;
-                if(prefab.copy_mode == Prefab::CopyMode::DEEP_COPY) // Do clone first before deep copy
+                if((archive.prefabID != prefabID) && (archive.load_state == Archive::LoadState::LOADED)) // Clone, but only after streaming
                 {
-                    wi::ecs::Entity new_prefabID = wi::ecs::CreateEntity();
-                    // Push back new prefab data
-                    new_prefabs[new_prefabID] = {};
-                    new_prefabs[new_prefabID].copy_mode = Prefab::CopyMode::LIBRARY;
-                    archive_new.prefabID = new_prefabID;
-                    archive_new.Load();
-                }
-                else
-                {
-                    archive_new.prefabID = prefabID;
-                    archive_new.Load(prefabID);
+                    archive.Load(prefabID);
                 }
             }
         }
 
-        for(auto& new_pair : new_prefabs)
+        // Deferred library loading
+        for(auto& deferred_pair : deferred_lib_stream)
         {
-            Prefab& new_prefab = GetScene()->prefabs.Create(new_pair.first);
-            new_prefab = new_pair.second;
+            wi::ecs::EntitySerializer seri;
+            seri.allow_remap = false;
+             
+            Archive& archive = scene_db[deferred_pair.second];
+            auto lib_prefabID = Entity_Clone(deferred_pair.first,seri);
+            
+            Prefab* prefab = prefabs.GetComponent(lib_prefabID);
+            prefab->copy_mode = Prefab::CopyMode::LIBRARY;
+            
+            archive.prefabID = lib_prefabID;
+            archive.Load(deferred_pair.first);
         }
     }
 }

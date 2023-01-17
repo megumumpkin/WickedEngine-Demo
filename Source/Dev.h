@@ -30,7 +30,7 @@ namespace Dev
     bool ReadCMD(int argc, char *argv[]);
     bool ReadCMD(const wchar_t* win_args);
     
-    void Execute(); // Execute stored commands
+    void Execute(float dt); // Execute stored commands
     void UpdateHook(); // Development Interconnect (with Embark Studios' Skyhook perhaps?)
     void UpdateUI(); // Development UI
 
