@@ -139,28 +139,14 @@ void _DEV_scene_import()
         }
         case 1: // PHASE 2 - Transform the whole scene to be centered - Update Texture Assets - Extract preview mesh of the scene
         {
-            // Used by scene translation and preview extraction
-            Dev::GetProcessData()->scene_offset = Game::GetScene()->wiscene.bounds.getCenter();
-            XMVECTOR offset_inv_vector = XMVectorMultiply(XMLoadFloat3(&Dev::GetProcessData()->scene_offset), XMLoadFloat3(new XMFLOAT3(-1.f,-1.f,-1.f)));
-            XMFLOAT3 offset_inv;
-            XMStoreFloat3(&offset_inv, offset_inv_vector);
-
-            // Translate scene to center
-            // {
-            //     for(int i = 0; i < Game::GetScene()->wiscene.transforms.GetCount(); ++i)
-            //     {
-            //         auto entity = Game::GetScene()->wiscene.transforms.GetEntity(i);
-            //         auto hierarchy = Game::GetScene()->wiscene.hierarchy.GetComponent(entity);
-            //         if(hierarchy != nullptr)
-            //         {
-            //             if(hierarchy->parentID != wi::ecs::INVALID_ENTITY)
-            //                 continue;
-            //         }
-
-            //         wi::scene::TransformComponent& transform = Game::GetScene()->wiscene.transforms[i];
-            //         transform.Translate(offset_inv);
-            //     }
-            // }
+            // Extract scene boundary
+            {
+                std::string bounds_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input);
+                bounds_file = wi::helper::ReplaceExtension(bounds_file, "bounds");
+                wi::ecs::EntitySerializer seri;
+                wi::Archive ar_bounds = wi::Archive(bounds_file, false);
+                Game::GetScene()->wiscene.bounds.Serialize(ar_bounds, seri);
+            }
 
             // Make texture paths relative to wiscene file
             {
@@ -231,8 +217,9 @@ void _DEV_scene_import()
                     {
                         if(name->name.substr(0,8) == "PREVIEW_")
                         {
+                            wi::scene::TransformComponent* transform = Game::GetScene()->wiscene.transforms.GetComponent(entity);
                             wi::scene::MeshComponent* mesh = Game::GetScene()->wiscene.meshes.GetComponent(object.meshID);
-                            if(mesh != nullptr)
+                            if((transform != nullptr) && (mesh != nullptr))
                             {
                                 // Rename the mesh entity name to a format that is known
                                 auto mesh_name = Game::GetScene()->wiscene.names.GetComponent(object.meshID);
@@ -254,17 +241,11 @@ void _DEV_scene_import()
                                         
                                         ar_copy_material.SetReadModeAndResetPos(true);
                                         Game::GetScene()->wiscene.materials.Component_Serialize(object.meshID, ar_copy_material, seri);
+                                        mesh->subsets[0].materialID = object.meshID;
                                         
                                         entity_to_remove.insert(mesh->subsets[0].materialID);
                                     }
                                 };
-
-                                // // Translate mesh's vertices
-                                // for(auto& v_pos : mesh->vertex_positions)
-                                // {
-                                //     XMVECTOR v_offset = XMVectorAdd(XMLoadFloat3(&v_pos), XMLoadFloat3(&(Dev::GetProcessData()->scene_offset)));
-                                //     XMStoreFloat3(&v_pos, v_offset);
-                                // }
 
                                 // Save this mesh entity to archive
                                 {
@@ -272,12 +253,16 @@ void _DEV_scene_import()
                                     std::string preview_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input);
                                     preview_file = wi::helper::ReplaceExtension(preview_file, "preview");
                                     wi::Archive ar_prev_mesh = wi::Archive(preview_file, false);
+                                    // Store object offset position
+                                    transform->Serialize(ar_prev_mesh, seri);
+                                    // Store mesh
                                     Game::GetScene()->wiscene.Entity_Serialize(
                                             ar_prev_mesh,
                                             seri,
                                             object.meshID,
                                             wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES
                                         );
+                                    wi::jobsystem::Wait(seri.ctx);
                                 }
 
                                 entity_to_remove.insert(object.meshID);
@@ -304,13 +289,6 @@ void _DEV_scene_import()
             wi::Archive scene_save = wi::Archive(wiscene_file, false);
             Game::GetScene()->wiscene.Serialize(scene_save);
 
-            std::string offset_file = wi::helper::ReplaceExtension(wiscene_file, "offset");
-            wi::scene::TransformComponent offset_data;
-            offset_data.translation_local = Dev::GetProcessData()->scene_offset;
-            wi::ecs::EntitySerializer seri;
-            wi::Archive ar_offset = wi::Archive(offset_file, false);
-            offset_data.Serialize(ar_offset, seri);
-            
             break;
         }
         case 3:
@@ -321,6 +299,126 @@ void _DEV_scene_import()
     }
 
     cycle++;
+}
+
+void _internal_updateDevCamera(float dt)
+{
+    static wi::scene::TransformComponent devCameraTransform;
+    static XMFLOAT3 devCameraMove;
+    float devCamMoveSPD = 0.25f;
+    wi::scene::CameraComponent& camera = wi::scene::GetCamera();
+    // float devCamRotSPD;
+
+    XMFLOAT4 currentMouse = wi::input::GetPointer();
+    static XMFLOAT4 originalMouse = XMFLOAT4(0, 0, 0, 0);
+    static bool camControlStart = true;
+    if (camControlStart)
+    {
+        originalMouse = wi::input::GetPointer();
+    }
+
+    float xDif = 0, yDif = 0;
+
+    if (wi::input::Down(wi::input::MOUSE_BUTTON_MIDDLE))
+    {
+        camControlStart = false;
+#if 0
+        // Mouse delta from previous frame:
+        xDif = currentMouse.x - originalMouse.x;
+        yDif = currentMouse.y - originalMouse.y;
+#else
+        // Mouse delta from hardware read:
+        xDif = wi::input::GetMouseState().delta_position.x;
+        yDif = wi::input::GetMouseState().delta_position.y;
+#endif
+        xDif = 0.1f * xDif * (1.0f / 60.0f);
+        yDif = 0.1f * yDif * (1.0f / 60.0f);
+        wi::input::SetPointer(originalMouse);
+        wi::input::HidePointer(true);
+}
+    else
+    {
+        camControlStart = true;
+        wi::input::HidePointer(false);
+    }
+
+    const float buttonrotSpeed = 16.0f * dt;
+    if (wi::input::Down(wi::input::KEYBOARD_BUTTON_LEFT))
+    {
+        xDif -= buttonrotSpeed;
+    }
+    if (wi::input::Down(wi::input::KEYBOARD_BUTTON_RIGHT))
+    {
+        xDif += buttonrotSpeed;
+    }
+    if (wi::input::Down(wi::input::KEYBOARD_BUTTON_UP))
+    {
+        yDif -= buttonrotSpeed;
+    }
+    if (wi::input::Down(wi::input::KEYBOARD_BUTTON_DOWN))
+    {
+        yDif += buttonrotSpeed;
+    }
+
+    const XMFLOAT4 leftStick = wi::input::GetAnalog(wi::input::GAMEPAD_ANALOG_THUMBSTICK_L, 0);
+    const XMFLOAT4 rightStick = wi::input::GetAnalog(wi::input::GAMEPAD_ANALOG_THUMBSTICK_R, 0);
+    const XMFLOAT4 rightTrigger = wi::input::GetAnalog(wi::input::GAMEPAD_ANALOG_TRIGGER_R, 0);
+
+    const float jostickrotspeed = 0.05f;
+    xDif += rightStick.x * jostickrotspeed;
+    yDif += rightStick.y * jostickrotspeed;
+
+    xDif *= 0.18f;
+    yDif *= 0.18f;
+
+    // FPS Camera
+    const float clampedDT = std::min(dt, 0.1f); // if dt > 100 millisec, don't allow the camera to jump too far...
+
+    const float speed = ((wi::input::Down(wi::input::KEYBOARD_BUTTON_LSHIFT) ? 10.0f : 1.0f) + rightTrigger.x * 10.0f) * devCamMoveSPD * clampedDT;
+    XMVECTOR move = XMLoadFloat3(&devCameraMove);
+    XMVECTOR moveNew = XMVectorSet(leftStick.x, 0, leftStick.y, 0);
+
+    if (!wi::input::Down(wi::input::KEYBOARD_BUTTON_LCONTROL))
+    {
+        // Only move camera if control not pressed
+        if (wi::input::Down((wi::input::BUTTON)'A') || wi::input::Down(wi::input::GAMEPAD_BUTTON_LEFT)) { moveNew += XMVectorSet(-1, 0, 0, 0); }
+        if (wi::input::Down((wi::input::BUTTON)'D') || wi::input::Down(wi::input::GAMEPAD_BUTTON_RIGHT)) { moveNew += XMVectorSet(1, 0, 0, 0); }
+        if (wi::input::Down((wi::input::BUTTON)'W') || wi::input::Down(wi::input::GAMEPAD_BUTTON_UP)) { moveNew += XMVectorSet(0, 0, 1, 0); }
+        if (wi::input::Down((wi::input::BUTTON)'S') || wi::input::Down(wi::input::GAMEPAD_BUTTON_DOWN)) { moveNew += XMVectorSet(0, 0, -1, 0); }
+        if (wi::input::Down((wi::input::BUTTON)'E') || wi::input::Down(wi::input::GAMEPAD_BUTTON_2)) { moveNew += XMVectorSet(0, 1, 0, 0); }
+        if (wi::input::Down((wi::input::BUTTON)'Q') || wi::input::Down(wi::input::GAMEPAD_BUTTON_1)) { moveNew += XMVectorSet(0, -1, 0, 0); }
+        moveNew += XMVector3Normalize(moveNew);
+    }
+    moveNew *= speed;
+
+    move = XMVectorLerp(move, moveNew, devCamMoveSPD * clampedDT / 0.0166f); // smooth the movement a bit
+    float moveLength = XMVectorGetX(XMVector3Length(move));
+
+    if (moveLength < 0.0001f)
+    {
+        move = XMVectorSet(0, 0, 0, 0);
+    }
+
+    if (abs(xDif) + abs(yDif) > 0 || moveLength > 0.0001f)
+    {
+        XMMATRIX camRot = XMMatrixRotationQuaternion(XMLoadFloat4(&devCameraTransform.rotation_local));
+        XMVECTOR move_rot = XMVector3TransformNormal(move, camRot);
+        XMFLOAT3 _move;
+        XMStoreFloat3(&_move, move_rot);
+        devCameraTransform.Translate(_move);
+        devCameraTransform.RotateRollPitchYaw(XMFLOAT3(yDif, xDif, 0));
+        camera.SetDirty();
+    }
+
+    devCameraTransform.UpdateTransform();
+    XMStoreFloat3(&devCameraMove, move);
+
+    camera.TransformCamera(devCameraTransform);
+    camera.UpdateCamera();
+    auto stream_pos = devCameraTransform.GetPosition();
+    Game::GetScene()->stream_loader_bounds.x = stream_pos.x;
+    Game::GetScene()->stream_loader_bounds.y = stream_pos.y;
+    Game::GetScene()->stream_loader_bounds.z = stream_pos.z;
 }
 
 void Dev::Execute(float dt)
@@ -353,5 +451,5 @@ void Dev::Execute(float dt)
     }
 
     if(run_gamescene_update)
-        Game::GetScene()->Update(dt);
+        _internal_updateDevCamera(dt);
 }

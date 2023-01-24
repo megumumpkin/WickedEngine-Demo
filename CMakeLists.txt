@@ -17,8 +17,13 @@ set (SOURCE_FILES
 	Source/Config.cpp
 	Source/Filesystem.h
 	Source/Filesystem.cpp
+	Source/Scripting_Globals.h
+	Source/Scripting.h
+	Source/Scripting.cpp
 	Source/Scene.h
 	Source/Scene.cpp
+	Source/Scene_BindScript.h
+	Source/Scene_BindScript.cpp
 	Source/RenderPipeline.h
 	Source/RenderPipeline.cpp
 	Source/Core.h

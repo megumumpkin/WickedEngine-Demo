@@ -1854,12 +1854,6 @@ void Import_Extension_REDLINE_assetsmith(LoaderState& state)
 			{
 				const tinygltf::Value& gltf_prefab = ext_data.Get("prefab");
 				Game::Scene::Prefab& prefab = Game::GetScene()->prefabs.Create(entity);
-
-				// Check if layer and object exists, if not we need to create them
-				if(!Game::GetScene()->wiscene.layers.Contains(entity))
-					Game::GetScene()->wiscene.layers.Create(entity);
-				if(!Game::GetScene()->wiscene.objects.Contains(entity))
-					Game::GetScene()->wiscene.objects.Create(entity);
 				
 				const tinygltf::Value& gltf_prefab_file = gltf_prefab.Get("file");
 				prefab.file = gltf_prefab_file.Get<std::string>();
@@ -1918,8 +1912,474 @@ void Import_Extension_REDLINE_assetsmith(LoaderState& state)
 					}
 				}
 			}
+
+			if (ext_data.Has("object"))
+			{
+				const tinygltf::Value& gltf_object = ext_data.Get("object");
+				wi::scene::ObjectComponent* object = state.scene->objects.GetComponent(entity);
+				if(object != nullptr)
+				{
+					const tinygltf::Value& gltf_object_flags = gltf_object.Get("flags");
+					object->_flags = uint32_t(gltf_object_flags.Get<double>());
+
+					const tinygltf::Value& gltf_object_emissivecolor = gltf_object.Get("emissivecolor");
+					object->emissiveColor.x = float(gltf_object_emissivecolor.Get(0).Get<double>());
+					object->emissiveColor.y = float(gltf_object_emissivecolor.Get(1).Get<double>());
+					object->emissiveColor.z = float(gltf_object_emissivecolor.Get(2).Get<double>());
+					object->emissiveColor.w = float(gltf_object_emissivecolor.Get(3).Get<double>());
+
+					const tinygltf::Value& gltf_object_shadowCascadeMask = gltf_object.Get("shadow_cascade_mask");
+					object->cascadeMask = uint32_t(gltf_object_shadowCascadeMask.Get<double>());
+				}
+			}
+
+			if (ext_data.Has("layermask"))
+			{
+				const tinygltf::Value& gltf_layermask = ext_data.Get("layermask");
+				wi::scene::LayerComponent* layer = state.scene->layers.GetComponent(entity);
+				if(layer != nullptr)
+					layer->layerMask = uint32_t(gltf_layermask.Get<double>());
+			}
+
+			if (ext_data.Has("collider"))
+			{
+				const tinygltf::Value& gltf_collider = ext_data.Get("collider");
+				wi::scene::ColliderComponent* collider = state.scene->colliders.GetComponent(entity);
+				if(collider == nullptr)
+				{
+					state.scene->colliders.Create(entity);
+					collider = state.scene->colliders.GetComponent(entity);
+				}
+
+				const tinygltf::Value& gltf_collider_flags = gltf_collider.Get("flags");
+				collider->_flags = uint32_t(gltf_collider_flags.Get<double>());
+
+				static const wi::unordered_map<std::string,wi::scene::ColliderComponent::Shape> gltf_collider_shape_conversion = {
+					{"CAPSULE", wi::scene::ColliderComponent::Shape::Capsule},
+					{"PLANE", wi::scene::ColliderComponent::Shape::Plane},
+					{"SPHERE", wi::scene::ColliderComponent::Shape::Sphere}
+				};
+				const tinygltf::Value& gltf_collider_shape = gltf_collider.Get("shape");
+				collider->shape = gltf_collider_shape_conversion.find(gltf_collider_shape.Get<std::string>())->second;
+
+				const tinygltf::Value& gltf_collider_radius = gltf_collider.Get("radius");
+				collider->radius = float(gltf_collider_radius.Get<double>());
+
+				const tinygltf::Value& gltf_collider_offset = gltf_collider.Get("offset");
+				collider->offset.x = float(gltf_collider_offset.Get(0).Get<double>());
+				collider->offset.y = float(gltf_collider_offset.Get(1).Get<double>());
+				collider->offset.z = float(gltf_collider_offset.Get(2).Get<double>());
+
+				const tinygltf::Value& gltf_collider_tail = gltf_collider.Get("offset");
+				collider->tail.x = float(gltf_collider_tail.Get(0).Get<double>());
+				collider->tail.y = float(gltf_collider_tail.Get(1).Get<double>());
+				collider->tail.z = float(gltf_collider_tail.Get(2).Get<double>());
+			}
+
+			if (ext_data.Has("rigidbody"))
+			{
+				const tinygltf::Value& gltf_rigidbody = ext_data.Get("rigidbody");
+				wi::scene::RigidBodyPhysicsComponent* rigidbody = state.scene->rigidbodies.GetComponent(entity);
+				if(rigidbody == nullptr)
+				{
+					state.scene->rigidbodies.Create(entity);
+					rigidbody = state.scene->rigidbodies.GetComponent(entity);
+				}
+
+				const tinygltf::Value& gltf_rigidbody_flags = gltf_rigidbody.Get("flags");
+				rigidbody->_flags = uint32_t(gltf_rigidbody_flags.Get<double>());
+
+				static const wi::unordered_map<std::string,wi::scene::RigidBodyPhysicsComponent::CollisionShape> gltf_rigidbody_shape_conversion = {
+					{"BOX", wi::scene::RigidBodyPhysicsComponent::CollisionShape::BOX},
+					{"SPHERE", wi::scene::RigidBodyPhysicsComponent::CollisionShape::SPHERE},
+					{"CAPSULE", wi::scene::RigidBodyPhysicsComponent::CollisionShape::CAPSULE},
+					{"CONVEX_HULL", wi::scene::RigidBodyPhysicsComponent::CollisionShape::CONVEX_HULL},
+					{"MESH", wi::scene::RigidBodyPhysicsComponent::CollisionShape::TRIANGLE_MESH}
+				};
+				const tinygltf::Value& gltf_rigidbody_shape = gltf_rigidbody.Get("shape");
+				auto find_shape = gltf_rigidbody_shape_conversion.find(gltf_rigidbody_shape.Get<std::string>());
+				if(find_shape != gltf_rigidbody_shape_conversion.end())
+				{
+					rigidbody->shape = find_shape->second;
+				}
+
+				const tinygltf::Value& gltf_rigidbody_mass = gltf_rigidbody.Get("mass");
+				rigidbody->mass = float(gltf_rigidbody_mass.Get<double>());
+
+				const tinygltf::Value& gltf_rigidbody_friction = gltf_rigidbody.Get("friction");
+				rigidbody->friction = float(gltf_rigidbody_friction.Get<double>());
+
+				const tinygltf::Value& gltf_rigidbody_restitution = gltf_rigidbody.Get("restitution");
+				rigidbody->restitution = float(gltf_rigidbody_restitution.Get<double>());
+
+				const tinygltf::Value& gltf_rigidbody_dampingLinear = gltf_rigidbody.Get("damping_linear");
+				rigidbody->damping_linear = float(gltf_rigidbody_dampingLinear.Get<double>());
+
+				const tinygltf::Value& gltf_rigidbody_dampingAngular = gltf_rigidbody.Get("damping_angular");
+				rigidbody->damping_angular = float(gltf_rigidbody_dampingAngular.Get<double>());
+			
+				const tinygltf::Value& gltf_rigidbody_extents = gltf_rigidbody.Get("extents");
+				rigidbody->box.halfextents.x = float(gltf_rigidbody_extents.Get(0).Get<double>());
+				rigidbody->box.halfextents.y = float(gltf_rigidbody_extents.Get(1).Get<double>());
+				rigidbody->box.halfextents.z = float(gltf_rigidbody_extents.Get(2).Get<double>());
+				rigidbody->capsule.height = float(gltf_rigidbody_extents.Get(0).Get<double>());
+				rigidbody->capsule.radius = float(gltf_rigidbody_extents.Get(1).Get<double>());
+				rigidbody->sphere.radius = float(gltf_rigidbody_extents.Get(0).Get<double>());
+			}
+
+			if (ext_data.Has("softbody") && node.mesh >= 0)
+			{
+				const tinygltf::Value& gltf_softbody = ext_data.Get("softbody");
+				wi::ecs::Entity meshID = state.scene->meshes.GetEntity(node.mesh);
+				wi::scene::SoftBodyPhysicsComponent* softbody = state.scene->softbodies.GetComponent(meshID);
+				if(softbody == nullptr)
+				{
+					state.scene->softbodies.Create(meshID);
+					softbody = state.scene->softbodies.GetComponent(meshID);
+				}
+
+				const tinygltf::Value& gltf_softbody_flags = gltf_softbody.Get("flags");
+				softbody->_flags = uint32_t(gltf_softbody_flags.Get<double>());
+
+				const tinygltf::Value& gltf_softbody_mass = gltf_softbody.Get("mass");
+				softbody->mass = float(gltf_softbody_mass.Get<double>());
+
+				const tinygltf::Value& gltf_softbody_friction = gltf_softbody.Get("friction");
+				softbody->friction = float(gltf_softbody_friction.Get<double>());
+
+				const tinygltf::Value& gltf_softbody_restitution = gltf_softbody.Get("restitution");
+				softbody->restitution = float(gltf_softbody_restitution.Get<double>());
+
+				// GET VERTEX ATTRIBUTES FROM MESH
+				// wi::scene::MeshComponent* mesh = Game::GetScene()->wiscene.meshes.GetComponent(node.mesh);
+				softbody->CreateFromMesh(state.scene->meshes[node.mesh]);
+				tinygltf::Mesh& assess_mesh = state.gltfModel.meshes[node.mesh];
+				uint32_t vertexOffset = 0;
+				wi::vector<float> temp_weights;
+				for(auto& prim : assess_mesh.primitives)
+				{
+					auto softbody_accessor_find = prim.attributes.find("_SOFTBODY");
+					if(softbody_accessor_find != prim.attributes.end())
+					{
+						int softbody_accessorID = softbody_accessor_find->second;
+
+						const tinygltf::Accessor& accessor = state.gltfModel.accessors[softbody_accessorID];
+						const tinygltf::BufferView& bufferView = state.gltfModel.bufferViews[accessor.bufferView];
+						const tinygltf::Buffer& buffer = state.gltfModel.buffers[bufferView.buffer];
+
+						int stride = accessor.ByteStride(bufferView);
+						size_t vertexCount = accessor.count;
+
+						// JUMPTO
+						// if (mesh.subsets.back().indexCount == 0)
+
+						const unsigned char* data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
+
+						temp_weights.resize(vertexOffset + vertexCount);
+						for (size_t i = 0; i < vertexCount; ++i)
+						{
+							temp_weights[vertexOffset + i] = *(float*)(data + i * stride);
+						}
+						vertexOffset += vertexCount;
+					}
+				}
+				for(int i = 0; i < softbody->physicsToGraphicsVertexMapping.size(); ++i)
+				{
+					softbody->weights[i] = temp_weights[softbody->physicsToGraphicsVertexMapping[i]];
+				}
+			}
+
+			if (ext_data.Has("script"))
+			{
+				const tinygltf::Value& gltf_script = ext_data.Get("script");
+				Game::Scene::Component_Script& script = Game::GetScene()->scripts.Create(entity);
+				script.file = gltf_script.Get<std::string>();
+			}
+
+			if (ext_data.Has("params"))
+			{
+				const tinygltf::Value& gltf_params = ext_data.Get("params");
+				Game::Scene::Component_Script* script = Game::GetScene()->scripts.GetComponent(entity);
+				if(script == nullptr)
+				{
+					Game::GetScene()->scripts.Create(entity);
+					script = Game::GetScene()->scripts.GetComponent(entity);
+					script->file = "content/NOSCRIPT.lua";
+				}
+				script->params = gltf_params.Get<std::string>();
+			}
+
+			if (ext_data.Has("hairsettings"))
+			{
+				const tinygltf::Value& gltf_hairsettings = ext_data.Get("hairsettings");
+				for(auto& hairdata_key : gltf_hairsettings.Keys())
+				{
+					std::string hair_name = hairdata_key;
+					const tinygltf::Value& gltf_hair = gltf_hairsettings.Get(hairdata_key);
+					
+					// Create entity
+					wi::ecs::Entity hair_entity = state.scene->Entity_CreateHair(hair_name);
+					wi::HairParticleSystem* hair = state.scene->hairs.GetComponent(hair_entity);
+
+					const tinygltf::Value& gltf_hair_strandcount = gltf_hair.Get("strand_count");
+					hair->strandCount = uint32_t(gltf_hair_strandcount.Get<double>());
+
+					const tinygltf::Value& gltf_hair_segmentcount = gltf_hair.Get("segment_count");
+					hair->segmentCount = uint32_t(gltf_hair_segmentcount.Get<double>());
+
+					const tinygltf::Value& gltf_hair_randomseed = gltf_hair.Get("random_seed");
+					hair->randomSeed = uint32_t(gltf_hair_randomseed.Get<double>());
+
+					const tinygltf::Value& gltf_hair_length = gltf_hair.Get("length");
+					hair->length = float(gltf_hair_length.Get<double>());
+
+					const tinygltf::Value& gltf_hair_stiffness = gltf_hair.Get("stiffness");
+					hair->stiffness = float(gltf_hair_stiffness.Get<double>());
+
+					const tinygltf::Value& gltf_hair_randomness = gltf_hair.Get("randomness");
+					hair->randomness = float(gltf_hair_randomness.Get<double>());
+
+					const tinygltf::Value& gltf_hair_viewdistance = gltf_hair.Get("view_distance");
+					hair->viewDistance = float(gltf_hair_viewdistance.Get<double>());
+
+					std::string src_material_name = "";
+					const tinygltf::Value& gltf_hair_mtlname = gltf_hair.Get("material");
+					src_material_name = gltf_hair_mtlname.Get<std::string>();
+
+					hair->meshID = state.scene->meshes.GetEntity(node.mesh);
+					state.scene->Component_Attach(hair_entity, state.entityMap[nodeID],true);
+
+					// Capture hair weights
+					if(node.mesh >= 0)
+					{
+						// wi::scene::MeshComponent& mesh = state.scene->meshes[node.mesh];
+						tinygltf::Mesh& assess_mesh = state.gltfModel.meshes[node.mesh];
+						uint32_t vertexOffset = 0;
+						wi::vector<float> temp_weights;
+						for(auto& prim : assess_mesh.primitives)
+						{
+							auto hair_accessor_find = prim.attributes.find("_HAIRVGL_"+wi::helper::toUpper(hair_name));
+							if(hair_accessor_find != prim.attributes.end())
+							{
+								int hair_accessorID = hair_accessor_find->second;
+
+								const tinygltf::Accessor& accessor = state.gltfModel.accessors[hair_accessorID];
+								const tinygltf::BufferView& bufferView = state.gltfModel.bufferViews[accessor.bufferView];
+								const tinygltf::Buffer& buffer = state.gltfModel.buffers[bufferView.buffer];
+
+								int stride = accessor.ByteStride(bufferView);
+								size_t vertexCount = accessor.count;
+
+								// JUMPTO
+								// if (mesh.subsets.back().indexCount == 0)
+
+								const unsigned char* data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
+
+								hair->vertex_lengths.resize(vertexOffset + vertexCount);
+								for (size_t i = 0; i < vertexCount; ++i)
+								{
+									hair->vertex_lengths[vertexOffset + i] = 1.f+((*(float*)(data + i * stride))*-1.f);
+								}
+								vertexOffset += vertexCount;
+							}
+						}
+					}
+
+					wi::scene::MaterialComponent* material = state.scene->materials.GetComponent(hair_entity);
+					wi::scene::MaterialComponent* src_material = state.scene->materials.GetComponent(state.scene->Entity_FindByName(src_material_name));
+					if((material != nullptr) && (src_material != nullptr))
+					{
+						(*material) = (*src_material);
+					}
+				}
+			}
+
+			if (ext_data.Has("force"))
+			{
+				const tinygltf::Value& gltf_force = ext_data.Get("force");
+				wi::scene::ForceFieldComponent& force = state.scene->forces.Create(entity);
+
+				const tinygltf::Value& gltf_force_gravity = gltf_force.Get("gravity");
+				force.gravity = float(gltf_force_gravity.Get<double>());
+
+				const tinygltf::Value& gltf_force_range = gltf_force.Get("range");
+				force.range = float(gltf_force_range.Get<double>());
+			}
+
+			if (ext_data.Has("decal"))
+			{
+				const tinygltf::Value& gltf_decal = ext_data.Get("decal");
+				std::string gltf_decal_material_name = gltf_decal.Get<std::string>();
+				wi::scene::DecalComponent& decal = state.scene->decals.Create(entity);
+				wi::scene::MaterialComponent& material = state.scene->materials.Create(entity);
+				wi::scene::MaterialComponent* src_material = state.scene->materials.GetComponent(state.scene->Entity_FindByName(gltf_decal_material_name));
+				if(src_material != nullptr)
+				{
+					material = (*src_material);
+				}
+			}
+
+			if (ext_data.Has("emitter"))
+			{
+				const tinygltf::Value& gltf_emitter = ext_data.Get("emitter");
+				wi::EmittedParticleSystem& emitter = state.scene->emitters.Create(entity);
+
+				static const wi::unordered_map<std::string,wi::EmittedParticleSystem::PARTICLESHADERTYPE> gltf_emitter_shadertype_conversion = {
+					{"SOFT", wi::EmittedParticleSystem::PARTICLESHADERTYPE::SOFT},
+					{"SOFT_DISTORTION", wi::EmittedParticleSystem::PARTICLESHADERTYPE::SOFT_DISTORTION},
+					{"SIMPLE", wi::EmittedParticleSystem::PARTICLESHADERTYPE::SIMPLE},
+					{"SOFT_LIGHTING", wi::EmittedParticleSystem::PARTICLESHADERTYPE::SOFT_LIGHTING}
+				};
+
+				const tinygltf::Value& gltf_emitter_shadertype = gltf_emitter.Get("shadertype");
+				emitter.shaderType = gltf_emitter_shadertype_conversion.find(gltf_emitter_shadertype.Get<std::string>())->second;
+
+				const tinygltf::Value& gltf_emitter_size = gltf_emitter.Get("size");
+				emitter.size = float(gltf_emitter_size.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_randomfactor = gltf_emitter.Get("random_factor");
+				emitter.random_factor = float(gltf_emitter_randomfactor.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_normalfactor = gltf_emitter.Get("normal_factor");
+				emitter.normal_factor = float(gltf_emitter_normalfactor.Get<double>());
+			
+				const tinygltf::Value& gltf_emitter_count = gltf_emitter.Get("count");
+				emitter.count = float(gltf_emitter_count.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_life = gltf_emitter.Get("life");
+				emitter.life = float(gltf_emitter_life.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_randomlife = gltf_emitter.Get("random_life");
+				emitter.random_life = float(gltf_emitter_randomlife.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_scale = gltf_emitter.Get("scale");
+				emitter.scaleX = float(gltf_emitter_scale.Get(0).Get<double>());
+				emitter.scaleY = float(gltf_emitter_scale.Get(1).Get<double>());
+
+				const tinygltf::Value& gltf_emitter_rotation = gltf_emitter.Get("rotation");
+				emitter.rotation = float(gltf_emitter_rotation.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_motionblur = gltf_emitter.Get("motion_blur_amount");
+				emitter.motionBlurAmount = float(gltf_emitter_motionblur.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_mass = gltf_emitter.Get("mass");
+				emitter.mass = float(gltf_emitter_mass.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_randomcolor = gltf_emitter.Get("random_color");
+				emitter.random_color = float(gltf_emitter_randomcolor.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_velocity = gltf_emitter.Get("velocity");
+				emitter.velocity.x = float(gltf_emitter_velocity.Get(0).Get<double>());
+				emitter.velocity.y = float(gltf_emitter_velocity.Get(1).Get<double>());
+				emitter.velocity.z = float(gltf_emitter_velocity.Get(2).Get<double>());
+
+				const tinygltf::Value& gltf_emitter_gravity = gltf_emitter.Get("gravity");
+				emitter.gravity.x = float(gltf_emitter_gravity.Get(0).Get<double>());
+				emitter.gravity.y = float(gltf_emitter_gravity.Get(1).Get<double>());
+				emitter.gravity.z = float(gltf_emitter_gravity.Get(2).Get<double>());
+
+				const tinygltf::Value& gltf_emitter_drag = gltf_emitter.Get("drag");
+				emitter.drag = float(gltf_emitter_drag.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_sph_h = gltf_emitter.Get("sph_h");
+				emitter.SPH_h = float(gltf_emitter_sph_h.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_sph_k = gltf_emitter.Get("sph_K");
+				emitter.SPH_K = float(gltf_emitter_sph_k.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_sph_p0 = gltf_emitter.Get("sph_p0");
+				emitter.SPH_p0 = float(gltf_emitter_sph_p0.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_sph_e = gltf_emitter.Get("sph_e");
+				emitter.SPH_e = float(gltf_emitter_sph_e.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_sprite_frames = gltf_emitter.Get("sprite_frames");
+				emitter.framesX = uint32_t(gltf_emitter_sprite_frames.Get(0).Get<double>());
+				emitter.framesY = uint32_t(gltf_emitter_sprite_frames.Get(1).Get<double>());
+
+				const tinygltf::Value& gltf_emitter_sprite_framecount = gltf_emitter.Get("sprite_framecount");
+				emitter.frameCount = uint32_t(gltf_emitter_sprite_framecount.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_sprite_framestart = gltf_emitter.Get("sprite_framestart");
+				emitter.frameStart = uint32_t(gltf_emitter_sprite_framestart.Get<double>());
+
+				const tinygltf::Value& gltf_emitter_sprite_framerate = gltf_emitter.Get("sprite_framerate");
+				emitter.frameRate = float(gltf_emitter_sprite_framerate.Get<double>());
+
+				wi::scene::MaterialComponent& material = state.scene->materials.Create(entity);
+				if(gltf_emitter.Has("material"))
+				{
+					const tinygltf::Value& gltf_emitter_material = gltf_emitter.Get("material");
+					std::string src_material_name = gltf_emitter_material.Get<std::string>();
+					wi::scene::MaterialComponent* src_material = state.scene->materials.GetComponent(state.scene->Entity_FindByName(src_material_name));
+					if(src_material != nullptr)
+					{
+						material = (*src_material);
+					}
+				}
+			}
 		}
 	}
+
+	// Process materials
+	for(size_t materialID = 0; materialID < state.gltfModel.materials.size(); ++materialID)
+	{
+		tinygltf::Material& gltf_material = state.gltfModel.materials[materialID];
+		wi::scene::MaterialComponent& material = state.scene->materials[materialID];
+
+		auto ext_asm = gltf_material.extensions.find(ext_name);
+		if (ext_asm != gltf_material.extensions.end())
+		{
+			const tinygltf::Value& ext_data = ext_asm->second;
+			if (ext_data.Has("material_extra"))
+			{
+				const tinygltf::Value& gltf_materialExtra = ext_data.Get("material_extra");
+
+				const tinygltf::Value& gltf_materialExtra_flags = gltf_materialExtra.Get("flags");
+				material._flags = uint32_t(gltf_materialExtra_flags.Get<double>());
+			}
+		}
+	}
+
+
+	// Process meshes
+	for(size_t meshID = 0; meshID < state.gltfModel.meshes.size(); ++meshID)
+	{
+		tinygltf::Mesh& gltf_mesh = state.gltfModel.meshes[meshID];
+		wi::scene::MeshComponent& mesh = state.scene->meshes[meshID];
+
+		// Vertex wind import
+		for(auto& prim : gltf_mesh.primitives)
+		{
+			auto wind_accessor_find = prim.attributes.find("_WIND");
+			if(wind_accessor_find != prim.attributes.end())
+			{
+				int wind_accessorID = wind_accessor_find->second;
+
+				const tinygltf::Accessor& accessor = state.gltfModel.accessors[wind_accessorID];
+				const tinygltf::BufferView& bufferView = state.gltfModel.bufferViews[accessor.bufferView];
+				const tinygltf::Buffer& buffer = state.gltfModel.buffers[bufferView.buffer];
+
+				int stride = accessor.ByteStride(bufferView);
+				size_t vertexOffset = mesh.vertex_windweights.size();
+				size_t vertexCount = accessor.count;
+
+				// JUMPTO
+				// if (mesh.subsets.back().indexCount == 0)
+
+				const unsigned char* data = buffer.data.data() + accessor.byteOffset + bufferView.byteOffset;
+
+				mesh.vertex_windweights.resize(vertexOffset + vertexCount);
+				for (size_t i = 0; i < vertexCount; ++i)
+				{
+					uint8_t ww = uint8_t((*(float*)(data + i * stride))*255);
+					mesh.vertex_windweights[vertexOffset + i] = uint8_t((*(float*)(data + i * stride))*255);
+				}
+				vertexOffset += vertexCount;
+			}
+		}
+	}
+
 }
 
 void Import_Extension_VRM(LoaderState& state)

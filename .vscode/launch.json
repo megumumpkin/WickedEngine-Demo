@@ -20,7 +20,7 @@
             "target": "./Dev",
             "cwd": "${workspaceRoot}/build",
             "valuesFormatting": "parseText",
-            "arguments": "-t SCENE_IMPORT -i DEVTEST/TEST_REDLINE_GLTF.assetsmith"
+            "arguments": "-t SCENE_IMPORT -i DEVTEST/TEST_REDLINE_GLTF_XAXA.assetsmith"
         },
         {
             "name": "Debug Dev Scene Preview",
