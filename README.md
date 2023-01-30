@@ -72,8 +72,8 @@ Windows
 ➜ cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
 ➜ cmake --build Build --config Release
 ➜ mkdir -p "Build\Release\Data\Content"
-➜ move -p "Library\WickedEngine\WickedEngine\shaders" "Build\Release\Data\Shader"
-➜ move -p "Library\WickedEngine\WickedEngine\dxcompiler.dll" "Build\Release\dxcompiler.dll"
+➜ xcopy /e /i "Library\WickedEngine\WickedEngine\shaders" "Build\Release\Data\Shader"
+➜ xcopy /i /e "Library\WickedEngine\WickedEngine\dxcompiler.dll" "Build\Release\dxcompiler.dll"
 ```
 
 ### Step 4 - Launch Game or Game.exe (depends on your platform of choice)
