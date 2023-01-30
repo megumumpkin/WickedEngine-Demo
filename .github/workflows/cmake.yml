@@ -81,10 +81,11 @@ jobs:
     - name: Prepare Package
       run: |
         mkdir -p 'Data\Content'
-        move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
-        move "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
-        move "Build\Release\Dev.exe" "Dev.exe"
-        move "Build\Release\Game.exe" "Game.exe"
+        xcopy /i /e "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
+        xcopy /i /e "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
+        xcopy /i /e "Library\WickedEngine\WickedEngine\dxil.dll" "dxil.dll"
+        xcopy /i /e "Build\Release\Dev.exe" "Dev.exe"
+        xcopy /i /e "Build\Release\Game.exe" "Game.exe"
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
@@ -93,6 +94,7 @@ jobs:
         path: |
           Data\
           dxcompiler.dll
+          dxil.dll
           Dev.exe
           Game.exe
 
