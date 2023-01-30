@@ -94,37 +94,37 @@ namespace tinygltf
 		std::string *warn, int req_width, int req_height,
 		const unsigned char *bytes, int size, void *userdata)
 	{
-		(void)warn;
+		// (void)warn;
 
-		if (image->uri.empty())
-		{
-			// Force some image resource name:
-			std::string ss;
-			do {
-				ss.clear();
-				ss += "gltfimport_" + std::to_string(wi::random::GetRandom(std::numeric_limits<int>::max())) + ".png";
-			} while (wi::resourcemanager::Contains(ss)); // this is to avoid overwriting an existing imported image
-			image->uri = ss;
-		}
+		// if (image->uri.empty())
+		// {
+		// 	// Force some image resource name:
+		// 	std::string ss;
+		// 	do {
+		// 		ss.clear();
+		// 		ss += "gltfimport_" + std::to_string(wi::random::GetRandom(std::numeric_limits<int>::max())) + ".png";
+		// 	} while (wi::resourcemanager::Contains(ss)); // this is to avoid overwriting an existing imported image
+		// 	image->uri = ss;
+		// }
 
-		auto resource = wi::resourcemanager::Load(
-			image->uri,
-			wi::resourcemanager::Flags::IMPORT_RETAIN_FILEDATA,
-			(const uint8_t*)bytes,
-			(size_t)size
-		);
+		// auto resource = wi::resourcemanager::Load(
+		// 	image->uri,
+		// 	wi::resourcemanager::Flags::IMPORT_RETAIN_FILEDATA,
+		// 	(const uint8_t*)bytes,
+		// 	(size_t)size
+		// );
 
-		if (!resource.IsValid())
-		{
-			return false;
-		}
+		// if (!resource.IsValid())
+		// {
+		// 	return false;
+		// }
 
-		image->width = resource.GetTexture().desc.width;
-		image->height = resource.GetTexture().desc.height;
-		image->component = 4;
+		// image->width = resource.GetTexture().desc.width;
+		// image->height = resource.GetTexture().desc.height;
+		// image->component = 4;
 
-		wi::resourcemanager::ResourceSerializer* seri = (wi::resourcemanager::ResourceSerializer*)userdata;
-		seri->resources.push_back(resource);
+		// wi::resourcemanager::ResourceSerializer* seri = (wi::resourcemanager::ResourceSerializer*)userdata;
+		// seri->resources.push_back(resource);
 
 		return true;
 	}
@@ -521,6 +521,13 @@ void Dev::IO::Import_GLTF(const std::string& fileName, Scene& scene)
 	scene.transforms.Create(state.rootEntity);
 	scene.names.Create(state.rootEntity) = name;
 	state.name = name;
+
+	//EDIT: remap texture
+	for(tinygltf::Image& x : state.gltfModel.images)
+	{
+		std::string root_path = wi::helper::GetDirectoryFromPath(Game::Filesystem::GetActualPath(Dev::GetCommandData()->input));
+		x.uri = root_path + x.uri.substr(3,x.uri.length()-3);
+	}
 
 	// Create materials:
 	for (auto& x : state.gltfModel.materials)
@@ -2337,6 +2344,28 @@ void Import_Extension_REDLINE_assetsmith(LoaderState& state)
 
 				const tinygltf::Value& gltf_materialExtra_flags = gltf_materialExtra.Get("flags");
 				material._flags = uint32_t(gltf_materialExtra_flags.Get<double>());
+
+				static const wi::unordered_map<std::string,wi::graphics::ShadingRate> gltf_materialExtra_shadingrate_conversion = {
+					{"1X1", wi::graphics::ShadingRate::RATE_1X1},
+					{"1X2", wi::graphics::ShadingRate::RATE_1X2},
+					{"2X1", wi::graphics::ShadingRate::RATE_2X1},
+					{"2X2", wi::graphics::ShadingRate::RATE_2X2},
+					{"2X4", wi::graphics::ShadingRate::RATE_2X4},
+					{"4X2", wi::graphics::ShadingRate::RATE_4X2},
+					{"4X4", wi::graphics::ShadingRate::RATE_4X4}
+				};
+				const tinygltf::Value& gltf_materialExtra_shadingrate = gltf_materialExtra.Get("shading_rate");
+				material.shadingRate = gltf_materialExtra_shadingrate_conversion.find(gltf_materialExtra_shadingrate.Get<std::string>())->second;
+
+				const tinygltf::Value& gltf_materialExtra_texanimdir = gltf_materialExtra.Get("tex_anim_dir");
+				material.texAnimDirection.x = float(gltf_materialExtra_texanimdir.Get(0).Get<double>());
+				material.texAnimDirection.y = float(gltf_materialExtra_texanimdir.Get(1).Get<double>());
+
+				const tinygltf::Value& gltf_materialExtra_texanimframerate = gltf_materialExtra.Get("tex_anim_framerate");
+				material.texAnimFrameRate = float(gltf_materialExtra_texanimframerate.Get<double>());
+
+				const tinygltf::Value& gltf_materialExtra_texanimelapsedtime = gltf_materialExtra.Get("tex_anim_elapsedtime");
+				material.texAnimElapsedTime = float(gltf_materialExtra_texanimelapsedtime.Get<double>());
 			}
 		}
 	}

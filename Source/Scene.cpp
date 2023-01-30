@@ -318,6 +318,9 @@ namespace Game{
 
                 auto stream_data_ptr = stream_job_data->stream_queue.at(it);
 
+                if(stream_data_ptr->stream_type == Scene::StreamData::StreamType::INIT)
+                    return_callback = true;
+
                 if(wi::helper::FileExists(stream_data_ptr->actual_file))
                 {
                     wi::ecs::EntitySerializer seri;
@@ -338,7 +341,6 @@ namespace Game{
                                 wi::scene::Scene::EntitySerializeFlags::NONE
                             );
                             wi::jobsystem::Wait(seri.ctx);
-                            return_callback = true;
                             break;
                         }
                         case Scene::StreamData::StreamType::FULL:
@@ -386,9 +388,12 @@ namespace Game{
         {
             case Scene::StreamData::StreamType::INIT:
             {
-                GetScene()->wiscene.Merge(stream_callback->block->wiscene);
-                archive.previewID = stream_callback->clone_prefabID;
-                archive.preview_transform = stream_callback->preview_transform;
+                if(stream_callback->block != nullptr)
+                {
+                    GetScene()->wiscene.Merge(stream_callback->block->wiscene);
+                    archive.previewID = stream_callback->clone_prefabID;
+                    archive.preview_transform = stream_callback->preview_transform;
+                }
                 archive.load_state = Scene::Archive::LoadState::UNLOADED;
                 break;
             }
@@ -475,6 +480,7 @@ namespace Game{
             stream_data_init->stream_type = StreamData::StreamType::FULL;
             stream_data_init->file = file;
             stream_data_init->actual_file = Filesystem::GetActualPath(file);
+            wi::backlog::post(stream_data_init->actual_file);
             stream_data_init->remap = remap;
             stream_data_init->is_prefab = (prefabID != wi::ecs::INVALID_ENTITY);
 

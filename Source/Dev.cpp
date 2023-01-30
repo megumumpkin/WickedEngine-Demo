@@ -135,6 +135,7 @@ void _DEV_scene_import()
         {
             std::string gltf_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input) + "/model.gltf";
             Dev::IO::Import_GLTF(gltf_file, Game::GetScene()->wiscene);
+
             break;
         }
         case 1: // PHASE 2 - Transform the whole scene to be centered - Update Texture Assets - Extract preview mesh of the scene
@@ -162,10 +163,11 @@ void _DEV_scene_import()
                             // Convert textures here and now, but check first
                             std::string root_path = wi::helper::GetDirectoryFromPath(Game::Filesystem::GetActualPath(Dev::GetCommandData()->input));
                             
-                            std::string texture_file = material.textures[i].name.substr(3,material.textures[i].name.length()-3);
+                            // std::string texture_file = material.textures[i].name.substr(3,material.textures[i].name.length()-3);
+                            std::string texture_file = material.textures[i].name.substr(root_path.length(), material.textures[i].name.length()-root_path.length());
                             std::string actual_texture_file = root_path + texture_file;
                             
-                            std::string texture_ktx2 = wi::helper::ReplaceExtension(texture_file, "ktx2");
+                            std::string texture_ktx2 = wi::helper::ReplaceExtension(texture_file, (i == wi::scene::MaterialComponent::NORMALMAP) ? wi::helper::GetExtensionFromFileName(texture_file) : "ktx2");
                             std::string actual_texture_ktx2 = root_path + texture_ktx2;
 
                             bool update = false;
@@ -176,6 +178,9 @@ void _DEV_scene_import()
                             }
                             else
                                 update = true;
+
+                            if(texture_file == texture_ktx2)
+                                update = false;
 
                             if(update)
                             {
@@ -198,6 +203,7 @@ void _DEV_scene_import()
                             }
 
                             material.textures[i].name = texture_ktx2;
+                            // material.textures[i].name = texture_file;
                         }
 
                     }
