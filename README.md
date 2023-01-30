@@ -74,6 +74,7 @@ Windows
 ➜ mkdir -p "Build\Release\Data\Content"
 ➜ xcopy /e /i "Library\WickedEngine\WickedEngine\shaders" "Build\Release\Data\Shader"
 ➜ xcopy /i /e "Library\WickedEngine\WickedEngine\dxcompiler.dll" "Build\Release\dxcompiler.dll"
+➜ xcopy /i /e "Library\WickedEngine\WickedEngine\dxil.dll" "Build\Release\dxil.dll"
 ```
 
 ### Step 4 - Launch Game or Game.exe (depends on your platform of choice)
