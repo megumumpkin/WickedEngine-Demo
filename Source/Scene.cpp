@@ -70,12 +70,14 @@ namespace Game{
             archive >> file;
             archive >> (uint32_t&)copy_mode;
             archive >> (uint32_t&)stream_mode;
+            archive >> stream_distance_multiplier;
         }
         else
         {
             archive << file;
             archive << uint32_t(copy_mode);
             archive << uint32_t(stream_mode);
+            archive << stream_distance_multiplier;
         }
     }
     void Scene::Component_Script::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri)
@@ -903,11 +905,20 @@ namespace Game{
                         // Calculate by zone distance
                         wi::primitive::AABB zone_check = archive.bounds;
                         wi::scene::TransformComponent transformator;
+                        
+                        XMFLOAT3 zone_center = XMFLOAT3(((zone_check._max.x-zone_check._min.x)*0.5f)+zone_check._min.x,((zone_check._max.y-zone_check._min.y)*0.5f)+zone_check._min.y,((zone_check._max.z-zone_check._min.z)*0.5f)+zone_check._min.z);
+                        transformator.Translate(XMFLOAT3(-zone_center.x, -zone_center.y, -zone_center.z));
+                        transformator.UpdateTransform();
+                        zone_check = zone_check.transform(transformator.world);
+                        
+                        transformator = wi::scene::TransformComponent();
+                        transformator.Scale(XMFLOAT3(prefab.stream_distance_multiplier, prefab.stream_distance_multiplier, prefab.stream_distance_multiplier));
+                        transformator.UpdateTransform();
+                        zone_check = zone_check.transform(transformator.world);
+                        
                         wi::scene::TransformComponent* prefab_transform = wiscene.transforms.GetComponent(prefabID);
                         if(prefab_transform != nullptr)
                             transformator = *prefab_transform;
-                        transformator.Scale(XMFLOAT3(prefab.stream_distance_multiplier, prefab.stream_distance_multiplier, prefab.stream_distance_multiplier));
-                        transformator.UpdateTransform();
                         zone_check = zone_check.transform(transformator.world);
 
                         is_loadable = zone_check.intersects(
@@ -922,12 +933,23 @@ namespace Game{
                         // Calculate by zone estate
                         wi::primitive::AABB zone_check = archive.bounds;
                         wi::scene::TransformComponent transformator;
+                        
+                        XMFLOAT3 zone_center = XMFLOAT3(((zone_check._max.x-zone_check._min.x)*0.5f)+zone_check._min.x,((zone_check._max.y-zone_check._min.y)*0.5f)+zone_check._min.y,((zone_check._max.z-zone_check._min.z)*0.5f)+zone_check._min.z);
+                        transformator.Translate(XMFLOAT3(-zone_center.x, -zone_center.y, -zone_center.z));
+                        transformator.UpdateTransform();
+                        zone_check = zone_check.transform(transformator.world);
+                        
+                        transformator = wi::scene::TransformComponent();
+                        transformator.Scale(XMFLOAT3(prefab.stream_distance_multiplier, prefab.stream_distance_multiplier, prefab.stream_distance_multiplier));
+                        transformator.UpdateTransform();
+                        zone_check = zone_check.transform(transformator.world);
+                        
                         wi::scene::TransformComponent* prefab_transform = wiscene.transforms.GetComponent(prefabID);
                         if(prefab_transform != nullptr)
                             transformator = *prefab_transform;
                         zone_check = zone_check.transform(transformator.world);
 
-                        is_loadable = ((zone_check.getArea()/wi::math::Distance(transformator.GetPosition(),wi::scene::GetCamera().Eye)) > (stream_loader_screen_estate*prefab.stream_distance_multiplier));
+                        is_loadable = ((zone_check.getRadius()/wi::math::Distance(zone_center,wi::scene::GetCamera().Eye)) > (stream_loader_screen_estate));
                         break;
                     }
                     default:

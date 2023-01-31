@@ -1884,40 +1884,6 @@ void Import_Extension_REDLINE_assetsmith(LoaderState& state)
 
 				const tinygltf::Value& gltf_prefab_streamdistancemul = gltf_prefab.Get("stream_distance_multiplier");
 				prefab.stream_distance_multiplier = (float)gltf_prefab_streamdistancemul.Get<double>();
-
-				const tinygltf::Value& gltf_prefab_composite = gltf_prefab.Get("is_composite");
-				if(gltf_prefab_composite.Get<bool>())
-				{
-					// Check if composite exists
-					auto find_composite = Dev::GetProcessData()->composite_offset.find(prefab.file);
-					if(find_composite == Dev::GetProcessData()->composite_offset.end())
-					{
-						std::string offset_file = wi::helper::ReplaceExtension(Game::Filesystem::GetActualPath(prefab.file), "offset");
-						if(wi::helper::FileExists(offset_file))
-						{
-							wi::ecs::EntitySerializer seri;
-							auto ar_offset = wi::Archive(offset_file);
-
-							wi::scene::TransformComponent temp_transform;
-							temp_transform.Serialize(ar_offset, seri);
-
-							Dev::GetProcessData()->composite_offset[prefab.file] = temp_transform;
-							find_composite = Dev::GetProcessData()->composite_offset.find(prefab.file);
-						}
-					}
-
-					// If exists then we need to transform that prefab to the offset
-					if(find_composite != Dev::GetProcessData()->composite_offset.end())
-					{
-						auto transform = Game::GetScene()->wiscene.transforms.GetComponent(entity);
-						if(transform != nullptr)
-						{
-							transform->translation_local = find_composite->second.translation_local;
-							transform->rotation_local = find_composite->second.rotation_local;
-							transform->scale_local = find_composite->second.scale_local;
-						}
-					}
-				}
 			}
 
 			if (ext_data.Has("object"))
