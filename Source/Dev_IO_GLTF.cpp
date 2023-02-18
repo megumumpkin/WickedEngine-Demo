@@ -153,7 +153,7 @@ struct LoaderState
 	wi::unordered_map<size_t, TransformComponent> transforms_original; // original transform states
 };
 
-void Import_Extension_REDLINE_assetsmith(LoaderState& state);
+void Import_Extension_MURAMASA_assetsmith(LoaderState& state);
 void Import_Extension_VRM(LoaderState& state);
 void Import_Extension_VRMC(LoaderState& state);
 void Import_Mixamo_Bone(LoaderState& state, Entity armatureEntity, Entity boneEntity, const tinygltf::Node& node);
@@ -1819,7 +1819,7 @@ void Dev::IO::Import_GLTF(const std::string& fileName, Scene& scene)
 		camera.zNearP = (float)x.perspective.znear;
 	}
 
-	Import_Extension_REDLINE_assetsmith(state);
+	Import_Extension_MURAMASA_assetsmith(state);
 	Import_Extension_VRM(state);
 	Import_Extension_VRMC(state);
 
@@ -1832,10 +1832,10 @@ void Dev::IO::Import_GLTF(const std::string& fileName, Scene& scene)
 	scene.Update(0);
 }
 
-void Import_Extension_REDLINE_assetsmith(LoaderState& state)
+void Import_Extension_MURAMASA_assetsmith(LoaderState& state)
 {
 	// Traverse GLTF_MODEL for data
-	static const std::string ext_name = "REDLINE_assetsmith";
+	static const std::string ext_name = "MURAMASA_assetsmith";
 
 	// Check out node ID extensions
 	for(size_t nodeID = 0; nodeID < state.gltfModel.nodes.size(); ++nodeID)
