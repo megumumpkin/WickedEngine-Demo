@@ -36,7 +36,7 @@ jobs:
 
     - name: Build Library (reproc++)
       run: |
-        mkdir build/Install
+        mkdir -p 'build/Install'
         git submodule update --init Library/reproc
         cd Library/reproc/
         mkdir build
