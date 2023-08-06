@@ -34,18 +34,29 @@ jobs:
         make WickedEngine_Linux -j$(nproc)
         cd ../../../ && ls
 
+    - name: Build Library (reproc++)
+      run: |
+        mkdir build/Install
+        git submodule update --init Library/reproc
+        cd Library/reproc/
+        mkdir build
+        cd build
+        cmake .. -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$GITHUB_ACTION_PATH/"
+        make -j$(nproc)
+        cd ../../../ && ls
+
     - name: Build Game and Dev Tool
       run: |
         mkdir -p 'Data/Shader'
         mkdir -p 'Data/Content'
-        cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
-        cmake --build Build -j$(nproc)
+        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
+        cmake --build build -j$(nproc)
 
     - name: Prepare Package
       run: |
-        mv 'Build/libdxcompiler.so' './'
-        mv 'Build/Dev' './'
-        mv 'Build/Game' './'
+        mv 'build/libdxcompiler.so' './'
+        mv 'build/Dev' './'
+        mv 'build/Game' './'
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
@@ -75,8 +86,8 @@ jobs:
 
     - name: Build Game and Dev Tool
       run: |
-        cmake -B Build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
-        cmake --build Build --config Release
+        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake . 
+        cmake --build build --config Release
 
     - name: Prepare Package
       run: |
@@ -84,8 +95,8 @@ jobs:
         move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
         move "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
         move "Library\WickedEngine\WickedEngine\dxil.dll" "dxil.dll"
-        move "Build\Release\Dev.exe" "Dev.exe"
-        move "Build\Release\Game.exe" "Game.exe"
+        move "build\Release\Dev.exe" "Dev.exe"
+        move "build\Release\Game.exe" "Game.exe"
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
