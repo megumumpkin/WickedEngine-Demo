@@ -41,7 +41,7 @@ jobs:
         cd Library/reproc/
         cmake -B build -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release
         cmake --build build
-        cmake --install build --prefix "$GITHUB_ACTION_PATH/"
+        cmake --install build --prefix "${GITHUB_WORKSPACE}/"
         cd ../../../ && ls
 
     - name: Build Game and Dev Tool
