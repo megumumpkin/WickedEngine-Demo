@@ -30,10 +30,10 @@ jobs:
         cd Library/WickedEngine/
         mkdir build
         cd build
-        cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-        cmake --build . --target LUA --config Release -DCMAKE_CXX_FLAGS="-fPIC"
-        cmake --build . --target FAudio --config Release -DCMAKE_CXX_FLAGS="-fPIC"
-        cmake --build . --target WickedEngine_Linux --config Release -DCMAKE_CXX_FLAGS="-fPIC"
+        cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS="-fPIC"
+        cmake --build . --target LUA --config Release
+        cmake --build . --target FAudio --config Release
+        cmake --build . --target WickedEngine_Linux --config Release
 
     - name: Build Library (reproc++)
       run: |
