@@ -32,7 +32,6 @@ jobs:
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release
         make WickedEngine_Linux -j$(nproc)
-        cd ../../../ && ls
 
     - name: Build Library (reproc++)
       run: |
@@ -41,8 +40,11 @@ jobs:
         cd Library/reproc/
         cmake -B build -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release
         cmake --build build
-        cmake --install build --prefix "${GITHUB_WORKSPACE}/"
-        cd ../../../ && ls
+        cmake --install build --prefix "${GITHUB_WORKSPACE}/build/Install"
+
+    - name: Build Library (efsw)
+      run: |
+        git submodule update --init Library/efsw
 
     - name: Build Game and Dev Tool
       run: |
