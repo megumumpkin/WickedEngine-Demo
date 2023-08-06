@@ -30,8 +30,10 @@ jobs:
         cd Library/WickedEngine/
         mkdir build
         cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS="-fPIC"
-        make WickedEngine_Linux -j$(nproc)
+        cmake .. 
+        cmake --build . --target LUA --config Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS="-fPIC"
+        cmake --build . --target FAudio --config Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS="-fPIC"
+        cmake --build . --target WickedEngine_Linux --config Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS="-fPIC"
 
     - name: Build Library (reproc++)
       run: |
@@ -82,8 +84,23 @@ jobs:
         mkdir build
         cd build
         cmake ..
-        cmake --build . --target WickedEngine_Windows --config Release
+        cmake --build . --target LUA --config Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS="-fPIC"
+        cmake --build . --target FAudio --config Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS="-fPIC"
+        cmake --build . --target WickedEngine_Windows --config Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS="-fPIC"
         cd ../../../
+
+    - name: Build Library (reproc++)
+      run: |
+        mkdir -p 'build/Install'
+        git submodule update --init Library/reproc
+        cd Library/reproc/
+        cmake -B build -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release
+        cmake --build build
+        cmake --install build --prefix "${GITHUB_WORKSPACE}/build/Install"
+
+    - name: Build Library (efsw)
+      run: |
+        git submodule update --init Library/efsw
 
     - name: Build Game and Dev Tool
       run: |
