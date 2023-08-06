@@ -30,8 +30,8 @@ jobs:
         cd Library/WickedEngine/
         mkdir build
         cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        make WickedEngine_Linux -j$(nproc)
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        make WickedEngine_Linux -j$(nproc) 
 
     - name: Build Library (reproc++)
       run: |
