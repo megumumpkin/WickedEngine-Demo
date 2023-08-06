@@ -8,7 +8,7 @@ namespace Game::Scripting
         // PREFAB SECTION START
         const char Prefab_Bind::className[] = "PrefabComponent";
         Luna<Prefab_Bind>::FunctionType Prefab_Bind::methods[] = {
-            lunamethod(Prefab_Bind, FindEntityByName),
+            // lunamethod(Prefab_Bind, FindEntityByName),
             lunamethod(Prefab_Bind, Enable),
             lunamethod(Prefab_Bind, Disable),
             lunamethod(Prefab_Bind, Unload),
@@ -23,22 +23,22 @@ namespace Game::Scripting
             lunaproperty(Prefab_Bind, stream_distance_multiplier),
             {NULL, NULL}
         };
-        int Prefab_Bind::FindEntityByName(lua_State *L)
-        {
-            int argc = wi::lua::SGetArgCount(L);
-            if(argc > 0)
-            {
-                std::string name = wi::lua::SGetString(L, 1);
-                wi::ecs::Entity entity = component->FindEntityByName(name);
-                wi::lua::SSetLongLong(L, entity);
-                return 1;
-            }
-            else
-            {
-                wi::lua::SError(L, "PrefabComponent.FindEntityByName(string name) not enough arguments!");
-            }
-            return 0;
-        }
+        // int Prefab_Bind::FindEntityByName(lua_State *L)
+        // {
+        //     int argc = wi::lua::SGetArgCount(L);
+        //     if(argc > 0)
+        //     {
+        //         std::string name = wi::lua::SGetString(L, 1);
+        //         wi::ecs::Entity entity = component->FindEntityByName(name);
+        //         wi::lua::SSetLongLong(L, entity);
+        //         return 1;
+        //     }
+        //     else
+        //     {
+        //         wi::lua::SError(L, "PrefabComponent.FindEntityByName(string name) not enough arguments!");
+        //     }
+        //     return 0;
+        // }
         int Prefab_Bind::Enable(lua_State *L)
         {
             component->Enable();
@@ -90,6 +90,7 @@ namespace Game::Scripting
             lunamethod(Scene_Bind, Entity_Disable),
             lunamethod(Scene_Bind, Entity_Enable),
             lunamethod(Scene_Bind, Entity_Clone),
+            lunamethod(Scene_Bind, Entity_GetParent),
             lunamethod(Scene_Bind, Load),
             {NULL, NULL}
         };
@@ -101,7 +102,7 @@ namespace Game::Scripting
         };
         int Scene_Bind::GetWiScene(lua_State* L)
         {
-            Luna<wi::lua::scene::Scene_BindLua>::push(L, new wi::lua::scene::Scene_BindLua(&(scene->wiscene)));
+            Luna<wi::lua::scene::Scene_BindLua>::push(L, &(scene->wiscene));
             return 1;
         }
         int Scene_Bind::Component_CreatePrefab(lua_State *L)
@@ -111,7 +112,7 @@ namespace Game::Scripting
             {
                 wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
                 Game::Scene::Component_Prefab& component = scene->prefabs.Create(entity);
-                Luna<Prefab_Bind>::push(L, new Prefab_Bind(&component));
+                Luna<Prefab_Bind>::push(L, &component);
                 return 1;
             }
             else
@@ -127,7 +128,7 @@ namespace Game::Scripting
             {
                 wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
                 Game::Scene::Component_Script& component = scene->scripts.Create(entity);
-                Luna<Script_Bind>::push(L, new Script_Bind(&component));
+                Luna<Script_Bind>::push(L, &component);
                 return 1;
             }
             else
@@ -145,7 +146,7 @@ namespace Game::Scripting
                 Game::Scene::Component_Prefab* component = scene->prefabs.GetComponent(entity);
                 if(component != nullptr)
                 {
-                    Luna<Prefab_Bind>::push(L, new Prefab_Bind(component));
+                    Luna<Prefab_Bind>::push(L, component);
                     return 1;
                 }
             }
@@ -164,7 +165,7 @@ namespace Game::Scripting
                 Game::Scene::Component_Script* component = scene->scripts.GetComponent(entity);
                 if(component != nullptr)
                 {
-                    Luna<Script_Bind>::push(L, new Script_Bind(component));
+                    Luna<Script_Bind>::push(L, component);
                     return 1;
                 }
                 
@@ -257,6 +258,28 @@ namespace Game::Scripting
             }
             return 0;
         }
+        int Scene_Bind::Entity_GetParent(lua_State *L)
+        {
+            int argc = wi::lua::SGetArgCount(L);
+            if(argc > 0)
+            {
+                wi::ecs::Entity parent_entity = wi::ecs::INVALID_ENTITY;
+
+                wi::ecs::Entity entity = (wi::ecs::Entity)wi::lua::SGetLongLong(L, 1);
+                wi::scene::HierarchyComponent* hierarchy = scene->wiscene.hierarchy.GetComponent(entity);
+                if(hierarchy != nullptr)
+                {
+                    parent_entity = hierarchy->parentID;
+                }
+                wi::lua::SSetLongLong(L, parent_entity);
+                return 1;
+            }
+            else
+            {
+                wi::lua::SError(L, "Scene.Entity_GetParent(int entity) not enough arguments!");
+            }
+            return 0;
+        }
         int Scene_Bind::Load(lua_State *L)
         {
             int argc = wi::lua::SGetArgCount(L);
@@ -275,7 +298,7 @@ namespace Game::Scripting
 
         int GetScene(lua_State* L)
         {
-            Luna<Scene_Bind>::push(L, new Scene_Bind(Game::GetScene()));
+            Luna<Scene_Bind>::push(L, &Game::GetScene());
             return 1;
         }
 

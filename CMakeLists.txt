@@ -4,12 +4,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/build/Install")
+set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build/Install")
+
 project(Game)
 
 add_subdirectory(Library)
 
 set(WickedEngine_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Library/WickedEngine/build/cmake")
 find_package(WickedEngine REQUIRED)
+find_package(reproc++)
 
 set (SOURCE_FILES
 	Source/stdafx.h
@@ -26,6 +32,8 @@ set (SOURCE_FILES
 	Source/Scene_BindScript.cpp
 	Source/RenderPipeline.h
 	Source/RenderPipeline.cpp
+	Source/Gameplay.h
+	Source/Gameplay.cpp
 	Source/Core.h
 	Source/Core.cpp
 )
@@ -35,8 +43,29 @@ set (DEV_FILES
 	Source/json.hpp
 	Source/tiny_gltf.h
 	Source/Dev.h
+	Source/Dev_LiveUpdate.cpp
 	Source/Dev_IO_GLTF.cpp
 	Source/Dev.cpp
+)
+
+set (GAMEPLAY_FILES
+	Source/Gameplay/Hook.cpp
+	Source/Gameplay/GameplayAgencyControl.h
+	Source/Gameplay/GameplayAgencyControl.cpp
+	Source/Gameplay/Helpers.h
+	Source/Gameplay/Helpers.cpp
+	Source/Gameplay/Components.h
+	Source/Gameplay/Components.cpp
+	Source/Gameplay/Components_BindScript.h
+	Source/Gameplay/Components_BindScript.cpp
+	Source/Gameplay/Player.h
+	Source/Gameplay/Player.cpp
+	Source/Gameplay/Camera.h
+	Source/Gameplay/Camera.cpp
+	Source/Gameplay/Projectile.h
+	Source/Gameplay/Projectile.cpp
+	Source/Gameplay/HitProcessor.h
+	Source/Gameplay/HitProcessor.cpp
 )
 
 if (WIN32)
@@ -59,19 +88,41 @@ if (WIN32)
 	target_compile_definitions(Dev PUBLIC IS_DEV=1)
 	target_link_libraries(Dev PUBLIC
 	 	WickedEngine::WickedEngine_Windows
+		efsw
+		reproc++
 	)
 else()
 	list (APPEND SOURCE_FILES Source/main_Linux.cpp)
 	add_executable(Game ${SOURCE_FILES})
+	set_target_properties(Game PROPERTIES
+		ENABLE_EXPORTS 1
+	)
 	target_link_libraries(Game PUBLIC
 	 	WickedEngine::WickedEngine_Linux
 	)
 
+	add_library(Gameplay SHARED ${GAMEPLAY_FILES})
+	target_link_libraries(Gameplay PUBLIC
+	 	WickedEngine::WickedEngine_Linux
+		Game
+	)
+
 	list (APPEND DEV_FILES Source/main_Linux.cpp)
 	add_executable(Dev ${DEV_FILES})
+	set_target_properties(Dev PROPERTIES
+		ENABLE_EXPORTS 1
+	)
 	target_compile_definitions(Dev PUBLIC IS_DEV=1)
 	target_link_libraries(Dev PUBLIC
 	 	WickedEngine::WickedEngine_Linux
+		efsw
+		reproc++
+	)
+
+	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
+	target_link_libraries(Gameplay_DEV PUBLIC
+	 	WickedEngine::WickedEngine_Linux
+		Dev
 	)
 endif ()
 

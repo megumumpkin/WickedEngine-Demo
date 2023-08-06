@@ -5,6 +5,7 @@
 
 namespace Game
 {
+	RenderPipeline* GetRenderPipeline();
     class App : public wi::Application
     {
         RenderPipeline renderer;
@@ -14,9 +15,9 @@ namespace Game
 		// This is where application-wide updates get executed once per frame. 
 		//  RenderPath::Update is also called from here for the active component
 		void Update(float dt) override;
-		// // This is where application-wide updates get executed in a fixed timestep based manner. 
-		// //  RenderPath::FixedUpdate is also called from here for the active component
-		// void FixedUpdate() override;
+		// This is where application-wide updates get executed in a fixed timestep based manner. 
+		//  RenderPath::FixedUpdate is also called from here for the active component
+		void FixedUpdate() override;
 		// // This is where application-wide rendering happens to offscreen buffers. 
 		// //  RenderPath::Render is also called from here for the active component
 		// void Render() override;

@@ -87,6 +87,7 @@ namespace Game{
             // Runtime data
             wi::unordered_map<uint64_t, wi::ecs::Entity> remap; // Remap data for the serialized file, also used for entity listing
             wi::unordered_map<std::string, wi::ecs::Entity> entity_name_map; // For fast entity searching
+            uint32_t safe_delete_counter = 0;
             bool loaded = false; // Has the prefab been loaded or not?
             bool disabled = false;
 
@@ -95,7 +96,7 @@ namespace Game{
             float fade_factor = 0.f; // Fade factor - 1 is fully loaded - 0 is unloaded
             wi::vector<std::pair<wi::ecs::Entity, float>> fade_data; // Original object's transparency are stored here
 
-            wi::ecs::Entity FindEntityByName(std::string& name); // Since prefabs get duplicate names, we have to have a function to just search INSIDE the prefab data
+            wi::ecs::Entity FindEntityByName(std::string name); // Since prefabs get duplicate names, we have to have a function to just search INSIDE the prefab data
             void Enable(); // Enable all components from the prefab
             void Disable(); // Disable all components from the prefab
             void Unload(); // Remove all components from the prefab
@@ -147,6 +148,7 @@ namespace Game{
 
         // Load the scene file
         void Load(std::string file);
+        void CreatePrefab(wi::ecs::Entity entity);
 
         void RunScriptUpdateSystem(wi::jobsystem::context& ctx);
         void RunPrefabUpdateSystem(float dt, wi::jobsystem::context& ctx);
@@ -155,5 +157,9 @@ namespace Game{
         void Update(float dt);
     };
 
-    Scene* GetScene();
+    inline Scene& GetScene()
+    {
+        static Scene scene;
+        return scene;
+    }
 }

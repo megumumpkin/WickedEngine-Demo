@@ -42,7 +42,7 @@ namespace Game::Scripting
             wi::lua::FloatProperty stream_distance_multiplier;
             PropertyFunction(stream_distance_multiplier)
 
-            int FindEntityByName(lua_State *L);
+            // int FindEntityByName(lua_State *L);
             int Enable(lua_State *L);
             int Disable(lua_State *L);
             int Unload(lua_State *L);
@@ -83,7 +83,7 @@ namespace Game::Scripting
         private:
             std::unique_ptr<Game::Scene> owning;
         public:
-            Game::Scene* scene;
+            Game::Scene* scene = nullptr;
 
             static const char className[];
             static Luna<Scene_Bind>::FunctionType methods[];
@@ -125,6 +125,7 @@ namespace Game::Scripting
             int Entity_Disable(lua_State* L);
             int Entity_Enable(lua_State* L);
             int Entity_Clone(lua_State* L);
+            int Entity_GetParent(lua_State* L);
 
             int Load(lua_State* L);
         };

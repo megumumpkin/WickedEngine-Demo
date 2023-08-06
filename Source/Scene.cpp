@@ -1,30 +1,29 @@
 #include "Scene.h"
 #include "Filesystem.h"
+#include "Gameplay.h"
 
 #include <mutex>
 #include <chrono>
 #include <algorithm>
 
 namespace Game{
-    Scene* GetScene(){
-        static Scene scene;
-        return &scene;
-    }
+    wi::jobsystem::context stream_job;
+    std::mutex stream_mutex;
 
-    wi::ecs::Entity Scene::Prefab::FindEntityByName(std::string &name)
+    wi::ecs::Entity Scene::Prefab::FindEntityByName(std::string name)
     {
         wi::ecs::Entity get_entity = wi::ecs::INVALID_ENTITY;
         auto find_entity = entity_name_map.find(name);
         if(find_entity != entity_name_map.end())
-            return find_entity->second;
-        return wi::ecs::INVALID_ENTITY;
+            get_entity = find_entity->second;
+        return get_entity;
     }
     void Scene::Prefab::Enable()
     {
         for(auto& map_pair : remap)
         {
             auto& target_entity = map_pair.second;
-            GetScene()->Entity_Enable(target_entity);
+            GetScene().Entity_Enable(target_entity);
         }
         disabled = false;
     }
@@ -33,7 +32,7 @@ namespace Game{
         for(auto& map_pair : remap)
         {
             auto& target_entity = map_pair.second;
-            GetScene()->Entity_Disable(target_entity);
+            GetScene().Entity_Disable(target_entity);
         }
         disabled = true;
     }
@@ -42,25 +41,14 @@ namespace Game{
         for(auto& map_pair : remap)
         {
             auto& target_entity = map_pair.second;
-            GetScene()->wiscene.Entity_Remove(target_entity, false);
+            GetScene().wiscene.Entity_Remove(target_entity, false);
         }
         loaded = false;
     }
     Scene::Prefab::~Prefab()
     {
-        // Remove preview mesh from scene
-        if(GetScene()->wiscene.meshes.Contains(preview_object))
-        {
-            GetScene()->wiscene.Entity_Remove(preview_object, false);
-            preview_object = wi::ecs::INVALID_ENTITY;
-        }
-
-        // Stash remap data away
-        // GetScene()->prefab_remap_stash[tostash_prefabID] = remap;
-
-        // Remove all prefab's entities if it is still existing
-        if(loaded)
-            Unload();
+        // // Stash remap data away
+        // GetScene().prefab_remap_stash[tostash_prefabID] = remap;
     }
 
     void Scene::Component_Prefab::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri)
@@ -102,7 +90,7 @@ namespace Game{
 
     struct _internal_Scene_Serialize_DEPRECATED_PreviousFrameTransformComponent
 	{
-		void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri) { /*this never serialized any data*/ }
+		void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri) { /*this never serialize any data*/ }
 	};
     void _internal_Scene_Serialize(wi::scene::Scene& scene, wi::Archive& archive, wi::ecs::EntitySerializer& seri, wi::ecs::Entity root = wi::ecs::INVALID_ENTITY)
     {
@@ -241,13 +229,10 @@ namespace Game{
         return clone_entity;
     }
 
-    wi::jobsystem::context stream_job;
-    std::mutex stream_mutex;
-
     void _internal_Clone_Prefab(Scene::Archive& archive, wi::ecs::Entity clone_prefabID)
     {
-        Scene::Prefab* find_clone_prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
-        Scene::Prefab* find_prefab = GetScene()->prefabs.GetComponent(archive.prefabID);
+        Scene::Prefab* find_clone_prefab = GetScene().prefabs.GetComponent(clone_prefabID);
+        Scene::Prefab* find_prefab = GetScene().prefabs.GetComponent(archive.prefabID);
         if(find_clone_prefab != nullptr)
         {
             // Check if there is a stashed remap data
@@ -265,7 +250,7 @@ namespace Game{
             for(auto& map_pair : archive.remap)
             {
                 auto& origin_entity = map_pair.second;
-                auto clone_entity = GetScene()->Entity_Clone(origin_entity, seri, (find_clone_prefab->copy_mode == Scene::Prefab::CopyMode::DEEP_COPY) ? true : false, &(find_clone_prefab->remap));
+                auto clone_entity = GetScene().Entity_Clone(origin_entity, seri, (find_clone_prefab->copy_mode == Scene::Prefab::CopyMode::DEEP_COPY) ? true : false, &(find_clone_prefab->remap));
             }
             wi::jobsystem::Wait(seri.ctx);
 
@@ -273,17 +258,17 @@ namespace Game{
             for(auto& map_pair : find_clone_prefab->remap)
             {
                 // If it has no parent then we attach them to prefab
-                wi::scene::HierarchyComponent* original_hierarchy = GetScene()->wiscene.hierarchy.GetComponent(map_pair.first);
-                wi::scene::HierarchyComponent* hierarchy = GetScene()->wiscene.hierarchy.GetComponent(map_pair.second);
+                wi::scene::HierarchyComponent* original_hierarchy = GetScene().wiscene.hierarchy.GetComponent(map_pair.first);
+                wi::scene::HierarchyComponent* hierarchy = GetScene().wiscene.hierarchy.GetComponent(map_pair.second);
                 if((original_hierarchy != nullptr) && (hierarchy != nullptr))
                 {
                     if(original_hierarchy->parentID == archive.prefabID)
-                        GetScene()->wiscene.Component_Attach(map_pair.second, clone_prefabID, true);
+                        GetScene().wiscene.Component_Attach(map_pair.second, clone_prefabID, true);
                     else
-                        GetScene()->wiscene.Component_Attach(map_pair.second, find_clone_prefab->remap[original_hierarchy->parentID], true);
+                        GetScene().wiscene.Component_Attach(map_pair.second, find_clone_prefab->remap[original_hierarchy->parentID], true);
                 }
                 else
-                    GetScene()->wiscene.Component_Attach(map_pair.second, clone_prefabID, true);
+                    GetScene().wiscene.Component_Attach(map_pair.second, clone_prefabID, true);
             }
 
             // Clone object fade data
@@ -297,9 +282,16 @@ namespace Game{
                     wi::ecs::Entity object_remapped = find_clone_prefab->remap[fade_pair.first];
                     find_clone_prefab->fade_data[jobArgs.jobIndex] = {object_remapped, fade_pair.second};
                     // Set clone object's initial fade
-                    wi::scene::ObjectComponent* object = GetScene()->wiscene.objects.GetComponent(object_remapped);
+                    wi::scene::ObjectComponent* object = GetScene().wiscene.objects.GetComponent(object_remapped);
                     if(object != nullptr)
                         object->color.w = 0.f;
+                    
+                    // Also do other stuff
+                    Game::Scripting::Script* script = GetScene().scripts.GetComponent(object_remapped);
+                    if(script != nullptr)
+                    {
+                        script->done_init = false;
+                    }
                 });
                 wi::jobsystem::Wait(fade_data_ctx);
             }
@@ -329,6 +321,7 @@ namespace Game{
                     seri.remap = stream_data_ptr->remap;
 
                     stream_data_ptr->block = std::make_shared<Scene>();
+                    Gameplay::SceneInit(&stream_data_ptr->block->wiscene);
                     auto ar_stream = wi::Archive(stream_data_ptr->actual_file);
 
                     switch(stream_data_ptr->stream_type)
@@ -385,14 +378,14 @@ namespace Game{
     }
     void _internal_Finish_Stream(std::shared_ptr<Scene::StreamData> stream_callback)
     {
-        Scene::Archive& archive = GetScene()->scene_db[stream_callback->file];
+        Scene::Archive& archive = GetScene().scene_db[stream_callback->file];
         switch(stream_callback->stream_type)
         {
             case Scene::StreamData::StreamType::INIT:
             {
                 if(stream_callback->block != nullptr)
                 {
-                    GetScene()->wiscene.Merge(stream_callback->block->wiscene);
+                    GetScene().wiscene.Merge(stream_callback->block->wiscene);
                     archive.previewID = stream_callback->clone_prefabID;
                     archive.preview_transform = stream_callback->preview_transform;
                 }
@@ -403,10 +396,10 @@ namespace Game{
             {
                 archive.remap = stream_callback->remap;
 
-                GetScene()->wiscene.Merge(stream_callback->block->wiscene);
+                GetScene().wiscene.Merge(stream_callback->block->wiscene);
 
                 // Work on the prefab too if it exists
-                Scene::Prefab* find_prefab = GetScene()->prefabs.GetComponent(archive.prefabID);
+                Scene::Prefab* find_prefab = GetScene().prefabs.GetComponent(archive.prefabID);
                 if(find_prefab != nullptr)
                 {
                     find_prefab->remap = archive.remap;
@@ -415,7 +408,7 @@ namespace Game{
                     {
                         // If it has no parent then we attach them to prefab
                         bool set_parent = false;
-                        wi::scene::HierarchyComponent* hierarchy = GetScene()->wiscene.hierarchy.GetComponent(map_pair.second);
+                        wi::scene::HierarchyComponent* hierarchy = GetScene().wiscene.hierarchy.GetComponent(map_pair.second);
                         if(hierarchy != nullptr)
                         {
                             if(hierarchy->parentID == wi::ecs::INVALID_ENTITY)
@@ -424,14 +417,21 @@ namespace Game{
                         else
                             set_parent = true;
                         if(set_parent)
-                            GetScene()->wiscene.Component_Attach(map_pair.second, archive.prefabID, true);
+                            GetScene().wiscene.Component_Attach(map_pair.second, archive.prefabID, true);
 
                         // If prefab is a library then we need to disable the entity
                         if(find_prefab->copy_mode == Scene::Prefab::CopyMode::LIBRARY)
                         {
                             auto& target_entity = map_pair.second;
-                            GetScene()->Entity_Disable(target_entity);
+                            GetScene().Entity_Disable(target_entity);
                             find_prefab->disabled = true;
+                        }
+                        for(auto& map_pair : find_prefab->remap)
+                        {
+                            auto& target_entity = map_pair.second;
+                            wi::scene::NameComponent* name_get = GetScene().wiscene.names.GetComponent(target_entity);
+                            if(name_get != nullptr)
+                                find_prefab->entity_name_map[name_get->name] = target_entity;
                         }
                     }
                     // Store fade data
@@ -503,7 +503,7 @@ namespace Game{
 
         if((clone_prefabID == wi::ecs::INVALID_ENTITY) && (load_state == LoadState::LOADED)) // Re-enable prefab
         {
-            Prefab* prefab = GetScene()->prefabs.GetComponent(prefabID);
+            Prefab* prefab = GetScene().prefabs.GetComponent(prefabID);
             if(prefab != nullptr)
             {
                 if(prefab->disabled)
@@ -515,8 +515,8 @@ namespace Game{
     {
         if(clone_prefabID != wi::ecs::INVALID_ENTITY)
         {
-            Prefab* clone_prefab = GetScene()->prefabs.GetComponent(clone_prefabID);
-            Prefab* prefab = GetScene()->prefabs.GetComponent(prefabID);
+            Prefab* clone_prefab = GetScene().prefabs.GetComponent(clone_prefabID);
+            Prefab* prefab = GetScene().prefabs.GetComponent(prefabID);
             if(clone_prefab != nullptr)
             {
                 clone_prefab->Unload();
@@ -530,7 +530,7 @@ namespace Game{
         }
         if(clone_prefabID == wi::ecs::INVALID_ENTITY)
         {
-            Prefab* prefab = GetScene()->prefabs.GetComponent(prefabID);
+            Prefab* prefab = GetScene().prefabs.GetComponent(prefabID);
             if(prefab != nullptr)
             {
                 if(dependency_count > 0)
@@ -609,7 +609,8 @@ namespace Game{
         "wi::scene::Scene::expressions",
         "wi::scene::Scene::humanoids",
         "wi::scene::Scene::terrains",
-        "Game::Scene::Prefab"
+        "Game::Scene::Prefab",
+        "Game::Scene::Script"
     };
     wi::vector<std::string> shallow_clone_filter_list = { // Any that is commented out will not be cloned over!
         "wi::scene::Scene::names",
@@ -641,7 +642,8 @@ namespace Game{
         "wi::scene::Scene::expressions",
         "wi::scene::Scene::humanoids",
         "wi::scene::Scene::terrains",
-        "Game::Scene::Prefab"
+        "Game::Scene::Prefab",
+        "Game::Scene::Script"
     };
     bool Scene::Entity_Exists(wi::ecs::Entity entity)
     {
@@ -795,6 +797,7 @@ namespace Game{
             }
             wi::jobsystem::Wait(seri.ctx);
         }
+
         return clone_entity;
     }
 
@@ -839,7 +842,8 @@ namespace Game{
             lua_getglobal(L, "dofile");
             lua_pushstring(L, Filesystem::GetActualPath(script->file).c_str());
             lua_pushinteger(L, scriptID);
-            lua_pushstring(L, script->params.c_str());
+            std::string params_temp = "local function GetEntity() return " + std::to_string(scriptID) + "; end;"+script->params;
+            lua_pushstring(L, params_temp.c_str());
             lua_call(L, 3, 1);
             wi::ecs::Entity stub_PID = (wi::ecs::Entity)wi::lua::SGetLongLong(L, -1);
             lua_pop(L, 1);
@@ -906,13 +910,18 @@ namespace Game{
                         wi::primitive::AABB zone_check = archive.bounds;
                         wi::scene::TransformComponent transformator;
                         
-                        XMFLOAT3 zone_center = XMFLOAT3(((zone_check._max.x-zone_check._min.x)*0.5f)+zone_check._min.x,((zone_check._max.y-zone_check._min.y)*0.5f)+zone_check._min.y,((zone_check._max.z-zone_check._min.z)*0.5f)+zone_check._min.z);
+                        XMFLOAT3 zone_center = zone_check.getCenter();
                         transformator.Translate(XMFLOAT3(-zone_center.x, -zone_center.y, -zone_center.z));
                         transformator.UpdateTransform();
                         zone_check = zone_check.transform(transformator.world);
                         
                         transformator = wi::scene::TransformComponent();
                         transformator.Scale(XMFLOAT3(prefab.stream_distance_multiplier, prefab.stream_distance_multiplier, prefab.stream_distance_multiplier));
+                        transformator.UpdateTransform();
+                        zone_check = zone_check.transform(transformator.world);
+
+                        transformator = wi::scene::TransformComponent();
+                        transformator.Translate(XMFLOAT3(zone_center.x, zone_center.y, zone_center.z));
                         transformator.UpdateTransform();
                         zone_check = zone_check.transform(transformator.world);
                         
@@ -934,7 +943,7 @@ namespace Game{
                         wi::primitive::AABB zone_check = archive.bounds;
                         wi::scene::TransformComponent transformator;
                         
-                        XMFLOAT3 zone_center = XMFLOAT3(((zone_check._max.x-zone_check._min.x)*0.5f)+zone_check._min.x,((zone_check._max.y-zone_check._min.y)*0.5f)+zone_check._min.y,((zone_check._max.z-zone_check._min.z)*0.5f)+zone_check._min.z);
+                        XMFLOAT3 zone_center = zone_check.getCenter();
                         transformator.Translate(XMFLOAT3(-zone_center.x, -zone_center.y, -zone_center.z));
                         transformator.UpdateTransform();
                         zone_check = zone_check.transform(transformator.world);
@@ -943,13 +952,18 @@ namespace Game{
                         transformator.Scale(XMFLOAT3(prefab.stream_distance_multiplier, prefab.stream_distance_multiplier, prefab.stream_distance_multiplier));
                         transformator.UpdateTransform();
                         zone_check = zone_check.transform(transformator.world);
+
+                        transformator = wi::scene::TransformComponent();
+                        transformator.Translate(XMFLOAT3(zone_center.x, zone_center.y, zone_center.z));
+                        transformator.UpdateTransform();
+                        zone_check = zone_check.transform(transformator.world);
                         
                         wi::scene::TransformComponent* prefab_transform = wiscene.transforms.GetComponent(prefabID);
                         if(prefab_transform != nullptr)
                             transformator = *prefab_transform;
                         zone_check = zone_check.transform(transformator.world);
 
-                        is_loadable = ((zone_check.getRadius()/wi::math::Distance(zone_center,wi::scene::GetCamera().Eye)) > (stream_loader_screen_estate));
+                        is_loadable = ((zone_check.getRadius()/wi::math::Distance(zone_check.getCenter(),wi::scene::GetCamera().Eye)) > (stream_loader_screen_estate));
                         break;
                     }
                     default:

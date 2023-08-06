@@ -39,4 +39,10 @@ namespace Dev
         void Import_GLTF(const std::string& fileName, wi::scene::Scene& scene);
         void Export_GLTF(const std::string& filename, wi::scene::Scene& scene);
     }
+
+    namespace LiveUpdate
+    {
+        void Init();
+        void Update();
+    }
 };

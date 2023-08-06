@@ -20,7 +20,7 @@
             "target": "./Dev",
             "cwd": "${workspaceRoot}/build",
             "valuesFormatting": "parseText",
-            "arguments": "-t SCENE_IMPORT -i Tests/IOTest.assetsmith"
+            "arguments": "-t SCENE_IMPORT -i PlayerCharacter/PlayerCharacter_Build.assetsmith debugdevice gpu_Verbose"
         },
         {
             "name": "Debug Dev Scene Preview",
@@ -29,7 +29,16 @@
             "target": "./Dev",
             "cwd": "${workspaceRoot}/build",
             "valuesFormatting": "parseText",
-            "arguments": "-t SCENE_PREVIEW -i Tests/IOTest.wiscene"
+            "arguments": "-t SCENE_PREVIEW -i PlayerCharacter/PlayerCharacter_Build.wiscene"
+        },
+        {
+            "name": "Debug Dev TestMap01",
+            "type": "gdb",
+            "request": "launch",
+            "target": "./Dev",
+            "cwd": "${workspaceRoot}/build",
+            "valuesFormatting": "parseText",
+            "arguments": "-t SCENE_PREVIEW -i Tests/TestMap01.wiscene"
         },
     ]
 }

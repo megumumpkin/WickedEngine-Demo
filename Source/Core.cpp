@@ -2,21 +2,35 @@
 #include "Filesystem.h"
 #include "Scripting.h"
 #include "Scene.h"
+#include "Gameplay.h"
 
 #ifdef IS_DEV
 #include "Dev.h"
 #endif
 
 namespace Game{
+    RenderPipeline* renderPipeline_ptr;
+    RenderPipeline* GetRenderPipeline()
+    {
+        return renderPipeline_ptr;
+    }
+
     void App::Initialize()
     {
         wi::Application::Initialize();
 
         renderer.init(canvas);
         renderer.Load();
+        // renderer.setSceneUpdateEnabled(false);
         ActivatePath(&renderer);
+        renderPipeline_ptr = &renderer;
+
+#ifdef IS_DEV
+        Dev::LiveUpdate::Init();
+#endif
 
         Scripting::Init(dynamic_cast<wi::Application*>(this));
+        Gameplay::Init();
     }
 
     void App::Update(float dt)
@@ -30,18 +44,21 @@ namespace Game{
         else
         {
 #endif
-        GetScene()->PreUpdate(dt);
+        GetScene().PreUpdate(dt);
+        Gameplay::PreUpdate(dt*wi::renderer::GetGameSpeed());
         wi::Application::Update(dt);
-        GetScene()->Update(dt);
+        GetScene().Update(dt);
+        Gameplay::Update(dt*wi::renderer::GetGameSpeed());
 #ifdef IS_DEV
+        Dev::LiveUpdate::Update();
         }
 #endif
     }
 
-    // void App::FixedUpdate()
-    // {
-
-    // }
+    void App::FixedUpdate()
+    {
+        Gameplay::FixedUpdate();
+    }
 
     // void App::Render()
     // {

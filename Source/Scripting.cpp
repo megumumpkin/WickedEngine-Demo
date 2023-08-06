@@ -63,7 +63,7 @@ int Bind_DoFile(lua_State* L)
 wi::Application* app_get = nullptr;
 int Bind_GetAppRuntime(lua_State* L)
 {
-    Luna<wi::lua::Application_BindLua>::push(L, new wi::lua::Application_BindLua(app_get));
+    Luna<wi::lua::Application_BindLua>::push(L, app_get);
     return 1;
 }
 
