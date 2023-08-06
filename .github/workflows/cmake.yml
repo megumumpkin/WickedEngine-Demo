@@ -42,7 +42,8 @@ jobs:
         mkdir build
         cd build
         cmake .. -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$GITHUB_ACTION_PATH/"
-        make -j$(nproc)
+        cmake --build build
+        cmake --install build
         cd ../../../ && ls
 
     - name: Build Game and Dev Tool
