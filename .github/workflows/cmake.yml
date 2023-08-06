@@ -39,8 +39,6 @@ jobs:
         mkdir -p 'build/Install'
         git submodule update --init Library/reproc
         cd Library/reproc/
-        mkdir build
-        cd build
         cmake -B build -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$GITHUB_ACTION_PATH/"
         cmake --build build
         cmake --install build
