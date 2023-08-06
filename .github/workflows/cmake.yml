@@ -41,7 +41,7 @@ jobs:
         cd Library/reproc/
         mkdir build
         cd build
-        cmake .. -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$GITHUB_ACTION_PATH/"
+        cmake -B build -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$GITHUB_ACTION_PATH/"
         cmake --build build
         cmake --install build
         cd ../../../ && ls
