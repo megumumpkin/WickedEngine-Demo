@@ -39,9 +39,9 @@ jobs:
         mkdir -p 'build/Install'
         git submodule update --init Library/reproc
         cd Library/reproc/
-        cmake -B build -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$GITHUB_ACTION_PATH/"
+        cmake -B build -DREPROC++=ON -DCMAKE_BUILD_TYPE=Release
         cmake --build build
-        cmake --install build
+        cmake --install build --prefix "$GITHUB_ACTION_PATH/"
         cd ../../../ && ls
 
     - name: Build Game and Dev Tool
