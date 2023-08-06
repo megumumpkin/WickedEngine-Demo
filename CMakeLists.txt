@@ -144,7 +144,8 @@ if(NOT WIN32)
 		# Copy the shader library next to the executable
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LIB_DXCOMPILER_LOCATION}" "${CMAKE_CURRENT_BINARY_DIR}"
 		# COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Source/Shader/*.hlsl" "${CMAKE_CURRENT_BINARY_DIR}/Data/Shader/"
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Library/WickedEngine/WickedEngine/shaders/*" "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shader/"
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Library/WickedEngine/build/WickedEngine/libWickedEngine_Linux.so"
+  		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Library/WickedEngine/WickedEngine/shaders/*" "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shader/"
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Library/WickedEngine/WickedEngine/shaders/compressonator/*" "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shader/compressonator/"
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Library/WickedEngine/WickedEngine/shaders/ffx-fsr/*" "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shader/ffx-fsr/"
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/Library/WickedEngine/WickedEngine/shaders/ffx-fsr2/*" "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shader/ffx-fsr2/"
