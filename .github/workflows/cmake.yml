@@ -50,7 +50,7 @@ jobs:
       run: |
         mkdir -p 'Data/Shader'
         mkdir -p 'Data/Content'
-        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . 
+        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/build/cmake . -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS="-fPIC"
         cmake --build build -j$(nproc)
 
     - name: Prepare Package
