@@ -93,7 +93,7 @@ jobs:
         cd Library/reproc/
         cmake -B build -DREPROC++=ON
         cmake --build build --config Release
-        cmake --install build --prefix "${GITHUB_WORKSPACE}/build/Install"
+        cmake --install build --prefix "$env:GITHUB_WORKSPACE/build/Install"
 
     - name: Build Library (efsw)
       run: |
@@ -101,7 +101,7 @@ jobs:
 
     - name: Build Game and Dev Tool
       run: |
-        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake -DCMAKE_PREFIX_PATH=$CMAKE_CURRENT_SOURCE_DIR/build/Install
+        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake
         cmake --build build --config Release
 
     - name: Prepare Package
