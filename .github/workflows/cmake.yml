@@ -101,7 +101,7 @@ jobs:
 
     - name: Build Game and Dev Tool
       run: |
-        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake -DCMAKE_PREFIX_PATH=build/Install
+        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake -DCMAKE_PREFIX_PATH=$CMAKE_CURRENT_SOURCE_DIR/build/Install
         cmake --build build --config Release
 
     - name: Prepare Package
