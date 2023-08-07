@@ -4044,177 +4044,177 @@ void Import_Mixamo_Bone(LoaderState& state, Entity armatureEntity, Entity boneEn
 	}
 }
 
-template<typename T>
-inline void _ExportHelper_valuetobuf(const T& input, tinygltf::Buffer& buffer_builder, size_t& buf_i)
-{
-	const size_t _right = buf_i + sizeof(input);
-	if (_right > buffer_builder.data.size())
-	{
-		buffer_builder.data.resize(_right);
-	}
-	*(T*)(buffer_builder.data.data() + buf_i) = input;
-	buf_i = _right;
-}
+// template<typename T>
+// inline void _ExportHelper_valuetobuf(const T& input, tinygltf::Buffer& buffer_builder, size_t& buf_i)
+// {
+// 	const size_t _right = buf_i + sizeof(input);
+// 	if (_right > buffer_builder.data.size())
+// 	{
+// 		buffer_builder.data.resize(_right);
+// 	}
+// 	*(T*)(buffer_builder.data.data() + buf_i) = input;
+// 	buf_i = _right;
+// }
 
-inline tinygltf::Value _ExportHelper_tovalue(float input)
-{
-	return tinygltf::Value(input);
-}
+// inline tinygltf::Value _ExportHelper_tovalue(float input)
+// {
+// 	return tinygltf::Value(input);
+// }
 
-inline tinygltf::Value _ExportHelper_tovalue(XMFLOAT3 input)
-{
-	auto value_builder = tinygltf::Value(tinygltf::Value::Array({
-		tinygltf::Value(input.x), tinygltf::Value(input.y), tinygltf::Value(input.z)
-	}));
-	return value_builder;
-}
+// inline tinygltf::Value _ExportHelper_tovalue(XMFLOAT3 input)
+// {
+// 	auto value_builder = tinygltf::Value(tinygltf::Value::Array({
+// 		tinygltf::Value(input.x), tinygltf::Value(input.y), tinygltf::Value(input.z)
+// 	}));
+// 	return value_builder;
+// }
 
-inline tinygltf::Value _ExportHelper_tovalue(XMFLOAT4 input)
-{
-	auto value_builder = tinygltf::Value(tinygltf::Value::Array({
-		tinygltf::Value(input.x), tinygltf::Value(input.y), tinygltf::Value(input.z), tinygltf::Value(input.w)
-	}));
-	return value_builder;
-}
+// inline tinygltf::Value _ExportHelper_tovalue(XMFLOAT4 input)
+// {
+// 	auto value_builder = tinygltf::Value(tinygltf::Value::Array({
+// 		tinygltf::Value(input.x), tinygltf::Value(input.y), tinygltf::Value(input.z), tinygltf::Value(input.w)
+// 	}));
+// 	return value_builder;
+// }
 
-wi::vector<std::string> original_texture_extension_iterator = 
-{
-	"png",
-	"jpg",
-	"jpeg",
-};
+// wi::vector<std::string> original_texture_extension_iterator = 
+// {
+// 	"png",
+// 	"jpg",
+// 	"jpeg",
+// };
 
-inline std::string _ExportHelper_GetOriginalTexture(std::string texture_file)
-{
-	for(auto& ext : original_texture_extension_iterator)
-	{
-		std::string target_file = wi::helper::ReplaceExtension(texture_file, ext);
-		wi::backlog::post(target_file);
-		if (wi::helper::FileExists(target_file))
-		{
-			return target_file;
-		}
-	}
+// inline std::string _ExportHelper_GetOriginalTexture(std::string texture_file)
+// {
+// 	for(auto& ext : original_texture_extension_iterator)
+// 	{
+// 		std::string target_file = wi::helper::ReplaceExtension(texture_file, ext);
+// 		wi::backlog::post(target_file);
+// 		if (wi::helper::FileExists(target_file))
+// 		{
+// 			return target_file;
+// 		}
+// 	}
 
-	return texture_file;
-}
+// 	return texture_file;
+// }
 
-inline tinygltf::TextureInfo _ExportHelper_StoreMaterialTexture(LoaderState& state, const std::string& gltf_dir, const MaterialComponent& material, MaterialComponent::TEXTURESLOT slot)
-{
-	const MaterialComponent::TextureMap& textureSlot = material.textures[slot];
+// inline tinygltf::TextureInfo _ExportHelper_StoreMaterialTexture(LoaderState& state, const std::string& gltf_dir, const MaterialComponent& material, MaterialComponent::TEXTURESLOT slot)
+// {
+// 	const MaterialComponent::TextureMap& textureSlot = material.textures[slot];
 
-	std::string texture_file = textureSlot.name;
+// 	std::string texture_file = textureSlot.name;
 
-	tinygltf::TextureInfo textureinfo_builder;
-	int texture_index = -1;
-	auto find_texture_id = state.textureMap.find(texture_file);
+// 	tinygltf::TextureInfo textureinfo_builder;
+// 	int texture_index = -1;
+// 	auto find_texture_id = state.textureMap.find(texture_file);
 
-	if(find_texture_id == state.textureMap.end())
-	{
-		std::string mime_type;
-		std::string src_extension = wi::helper::toUpper(wi::helper::GetExtensionFromFileName(texture_file));
-		if (src_extension == "PNG")
-		{
-			mime_type = "image/png";
-		}
-		else if (src_extension == "JPG" || src_extension == "JPEG")
-		{
-			mime_type = "image/jpeg";
-		}
-		else if (src_extension == "BMP")
-		{
-			mime_type = "image/bmp";
-		}
-		else if (src_extension == "GIF")
-		{
-			mime_type = "image/gif";
-		}
+// 	if(find_texture_id == state.textureMap.end())
+// 	{
+// 		std::string mime_type;
+// 		std::string src_extension = wi::helper::toUpper(wi::helper::GetExtensionFromFileName(texture_file));
+// 		if (src_extension == "PNG")
+// 		{
+// 			mime_type = "image/png";
+// 		}
+// 		else if (src_extension == "JPG" || src_extension == "JPEG")
+// 		{
+// 			mime_type = "image/jpeg";
+// 		}
+// 		else if (src_extension == "BMP")
+// 		{
+// 			mime_type = "image/bmp";
+// 		}
+// 		else if (src_extension == "GIF")
+// 		{
+// 			mime_type = "image/gif";
+// 		}
 
-		int image_bufferView_index = 0;
+// 		int image_bufferView_index = 0;
 
-		tinygltf::Buffer buffer_builder;
-		int buffer_index = (int)state.gltfModel.buffers.size();
-		wi::vector<uint8_t> texturedata;
-		size_t buffer_size = 0;
-		if (!textureSlot.resource.GetFileData().empty() && !mime_type.empty())
-		{
-			// If texture file data is available and gltf compatible, simply save it to the gltf as-is:
-			buffer_builder.data = textureSlot.resource.GetFileData();
-			buffer_size = buffer_builder.data.size();
-		}
-		else
-		{
-			// If the texture file data is not available or it is block compressed, download it (and optionally decompress) from GPU:
-			Texture tex = textureSlot.resource.GetTexture();
-			if (IsFormatBlockCompressed(tex.desc.format))
-			{
-				// Decompress block compressed texture on GPU:
-				const XMFLOAT4 texMulAdd = textureSlot.uvset == 0 ? material.texMulAdd : XMFLOAT4(1, 1, 0, 0);
-				TextureDesc desc;
-				desc.format = Format::R8G8B8A8_UNORM;
-				desc.bind_flags = BindFlag::UNORDERED_ACCESS;
-				desc.width = uint32_t(tex.desc.width * texMulAdd.x);
-				desc.height = uint32_t(tex.desc.height * texMulAdd.y);
-				desc.mip_levels = 1;
-				Texture tex_decompressed;
-				GraphicsDevice* device = GetDevice();
-				device->CreateTexture(&desc, nullptr, &tex_decompressed);
-				CommandList cmd = device->BeginCommandList();
-				device->CreateSubresource(&tex_decompressed, SubresourceType::UAV, 0, 1, 0, 1);
-				wi::renderer::CopyTexture2D(
-					tex_decompressed, 0, 0, 0,
-					tex, 0, int(texMulAdd.z * tex.desc.width), int(texMulAdd.w * tex.desc.height),
-					cmd,
-					wi::renderer::BORDEREXPAND_DISABLE,
-					IsFormatSRGB(tex.desc.format)
-				); // copy that supports format conversion / decompression
-				tex = tex_decompressed;
-			}
-			if (wi::helper::saveTextureToMemory(tex, texturedata))
-			{
-				wi::vector<uint8_t> filedata;
-				if (wi::helper::saveTextureToMemoryFile(texturedata, tex.desc, "PNG", filedata))
-				{
-					buffer_size = filedata.size();
-					buffer_builder.data = std::move(filedata);
-					mime_type = "image/png";
-				}
-			}
-		}
-		state.gltfModel.buffers.push_back(buffer_builder);
+// 		tinygltf::Buffer buffer_builder;
+// 		int buffer_index = (int)state.gltfModel.buffers.size();
+// 		wi::vector<uint8_t> texturedata;
+// 		size_t buffer_size = 0;
+// 		if (!textureSlot.resource.GetFileData().empty() && !mime_type.empty())
+// 		{
+// 			// If texture file data is available and gltf compatible, simply save it to the gltf as-is:
+// 			buffer_builder.data = textureSlot.resource.GetFileData();
+// 			buffer_size = buffer_builder.data.size();
+// 		}
+// 		else
+// 		{
+// 			// If the texture file data is not available or it is block compressed, download it (and optionally decompress) from GPU:
+// 			Texture tex = textureSlot.resource.GetTexture();
+// 			if (IsFormatBlockCompressed(tex.desc.format))
+// 			{
+// 				// Decompress block compressed texture on GPU:
+// 				const XMFLOAT4 texMulAdd = textureSlot.uvset == 0 ? material.texMulAdd : XMFLOAT4(1, 1, 0, 0);
+// 				TextureDesc desc;
+// 				desc.format = Format::R8G8B8A8_UNORM;
+// 				desc.bind_flags = BindFlag::UNORDERED_ACCESS;
+// 				desc.width = uint32_t(tex.desc.width * texMulAdd.x);
+// 				desc.height = uint32_t(tex.desc.height * texMulAdd.y);
+// 				desc.mip_levels = 1;
+// 				Texture tex_decompressed;
+// 				GraphicsDevice* device = GetDevice();
+// 				device->CreateTexture(&desc, nullptr, &tex_decompressed);
+// 				CommandList cmd = device->BeginCommandList();
+// 				device->CreateSubresource(&tex_decompressed, SubresourceType::UAV, 0, 1, 0, 1);
+// 				wi::renderer::CopyTexture2D(
+// 					tex_decompressed, 0, 0, 0,
+// 					tex, 0, int(texMulAdd.z * tex.desc.width), int(texMulAdd.w * tex.desc.height),
+// 					cmd,
+// 					wi::renderer::BORDEREXPAND_DISABLE,
+// 					IsFormatSRGB(tex.desc.format)
+// 				); // copy that supports format conversion / decompression
+// 				tex = tex_decompressed;
+// 			}
+// 			if (wi::helper::saveTextureToMemory(tex, texturedata))
+// 			{
+// 				wi::vector<uint8_t> filedata;
+// 				if (wi::helper::saveTextureToMemoryFile(texturedata, tex.desc, "PNG", filedata))
+// 				{
+// 					buffer_size = filedata.size();
+// 					buffer_builder.data = std::move(filedata);
+// 					mime_type = "image/png";
+// 				}
+// 			}
+// 		}
+// 		state.gltfModel.buffers.push_back(buffer_builder);
 			
-		tinygltf::BufferView bufferView_builder;
-		image_bufferView_index = (int)state.gltfModel.bufferViews.size();
-		bufferView_builder.buffer = buffer_index;
-		bufferView_builder.byteLength = buffer_size;
-		state.gltfModel.bufferViews.push_back(bufferView_builder);
+// 		tinygltf::BufferView bufferView_builder;
+// 		image_bufferView_index = (int)state.gltfModel.bufferViews.size();
+// 		bufferView_builder.buffer = buffer_index;
+// 		bufferView_builder.byteLength = buffer_size;
+// 		state.gltfModel.bufferViews.push_back(bufferView_builder);
 
-		tinygltf::Image image_builder;
-		//image_builder.uri = texture_file;
-		image_builder.bufferView = image_bufferView_index;
-		image_builder.mimeType = mime_type;
+// 		tinygltf::Image image_builder;
+// 		//image_builder.uri = texture_file;
+// 		image_builder.bufferView = image_bufferView_index;
+// 		image_builder.mimeType = mime_type;
 
-		int image_index = (int)state.gltfModel.images.size();
-		wi::helper::MakePathRelative(gltf_dir, texture_file);
-		state.gltfModel.images.push_back(image_builder);
+// 		int image_index = (int)state.gltfModel.images.size();
+// 		wi::helper::MakePathRelative(gltf_dir, texture_file);
+// 		state.gltfModel.images.push_back(image_builder);
 
-		tinygltf::Texture texture_builder;
-		texture_index = (int)state.gltfModel.textures.size();
-		texture_builder.source = image_index;
-		state.gltfModel.textures.push_back(texture_builder);
+// 		tinygltf::Texture texture_builder;
+// 		texture_index = (int)state.gltfModel.textures.size();
+// 		texture_builder.source = image_index;
+// 		state.gltfModel.textures.push_back(texture_builder);
 
-		state.textureMap[texture_file] = texture_index;
-	}
-	else
-	{
-		texture_index = find_texture_id->second;
-	}
+// 		state.textureMap[texture_file] = texture_index;
+// 	}
+// 	else
+// 	{
+// 		texture_index = find_texture_id->second;
+// 	}
 
-	textureinfo_builder.index = texture_index;
-	textureinfo_builder.texCoord = (int)textureSlot.uvset;
+// 	textureinfo_builder.index = texture_index;
+// 	textureinfo_builder.texCoord = (int)textureSlot.uvset;
 
-	return textureinfo_builder;
-}
+// 	return textureinfo_builder;
+// }
 
 void Dev::IO::Export_GLTF(const std::string& filename, wi::scene::Scene& scene)
 {
