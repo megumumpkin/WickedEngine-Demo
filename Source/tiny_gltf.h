@@ -63,6 +63,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <fstream>
 
 #ifndef TINYGLTF_USE_CPP14
 #include <functional>
