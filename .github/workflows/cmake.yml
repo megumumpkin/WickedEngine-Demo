@@ -110,6 +110,7 @@ jobs:
         move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
         move "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
         move "Library\WickedEngine\WickedEngine\dxil.dll" "dxil.dll"
+        move "build\Library\efsw\Release\efsw.dll" "efsw.dll"
         move "build\Release\Dev.exe" "Dev.exe"
         move "build\Release\Game.exe" "Game.exe"
 
