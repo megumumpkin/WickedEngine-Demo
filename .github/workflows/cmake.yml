@@ -101,7 +101,7 @@ jobs:
 
     - name: Build Game and Dev Tool
       run: |
-        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake
+        cmake -B build -DWickedEngine_DIR=Library/WickedEngine/Build/cmake -Dreproc++_DIR=${GITHUB_WORKSPACE}/build/Install/lib/cmake/reproc++
         cmake --build build --config Release
 
     - name: Prepare Package

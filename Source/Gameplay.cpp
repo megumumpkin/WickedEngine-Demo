@@ -81,7 +81,7 @@ namespace Gameplay
     {
         gameplay_hooks.clear();
 #ifdef _WIN32
-        FreeLibrary((HINSTANCE)gameplay_lib)
+        FreeLibrary((HINSTANCE)gameplay_lib);
 #else
         dlclose(gameplay_lib);
 #endif
