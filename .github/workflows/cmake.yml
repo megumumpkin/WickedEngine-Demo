@@ -83,7 +83,7 @@ jobs:
         cd Library\WickedEngine\
         mkdir build
         cd build
-        cmake .. -DWICKED_DYNAMIC_LIBRARY=ON
+        cmake ..
         cmake --build . --target WickedEngine_Windows --config Release
 
     - name: Build Library (reproc++)
@@ -108,7 +108,6 @@ jobs:
       run: |
         mkdir -p 'Data\Content'
         move "Library\WickedEngine\WickedEngine\shaders" "Data\Shader"
-        move "Library\WickedEngine\build\WickedEngine\WickedEngine_Windows.dll" "WickedEngine_Windows.dll"
         move "Library\WickedEngine\WickedEngine\dxcompiler.dll" "dxcompiler.dll"
         move "Library\WickedEngine\WickedEngine\dxil.dll" "dxil.dll"
         move "build\Release\Dev.exe" "Dev.exe"
