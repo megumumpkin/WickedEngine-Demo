@@ -57,6 +57,8 @@ jobs:
       run: |
         mv 'build/libWickedEngine_Linux.so' './'
         mv 'build/libdxcompiler.so' './'
+        mv 'build/libGameplay.so' './'
+        mv 'build/libGameplay_DEV.so' './'
         mv 'build/Dev' './'
         mv 'build/Game' './'
 
@@ -68,8 +70,11 @@ jobs:
           Data/
           libWickedEngine_Linux.so
           libdxcompiler.so
+          libefsw.so
           Dev
           Game
+          libGameplay.so
+          libGameplay_DEV.so
   
   Windows:
     runs-on: windows-latest
@@ -120,11 +125,13 @@ jobs:
         name: Binary (Windows)
         path: |
           Data\
-          WickedEngine_Windows.dll
           dxcompiler.dll
           dxil.dll
+          efsw.dll
           Dev.exe
           Game.exe
+          Gameplay.dll
+          Gameplay_DEV.dll
 
         
       
