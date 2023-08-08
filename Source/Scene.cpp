@@ -119,78 +119,6 @@ namespace Game{
 			// New scene serialization path with component library:
 			scene.componentLibrary.Serialize(archive, seri);
 		}
-		else
-		{
-			// Old serialization path with hard coded component types:
-			scene.names.Serialize(archive, seri);
-			scene.layers.Serialize(archive, seri);
-			scene.transforms.Serialize(archive, seri);
-			if (archive.GetVersion() < 75)
-			{
-				wi::ecs::ComponentManager<_internal_Scene_Serialize_DEPRECATED_PreviousFrameTransformComponent> prev_transforms;
-				prev_transforms.Serialize(archive, seri);
-			}
-			scene.hierarchy.Serialize(archive, seri);
-			scene.materials.Serialize(archive, seri);
-			scene.meshes.Serialize(archive, seri);
-			scene.impostors.Serialize(archive, seri);
-			scene.objects.Serialize(archive, seri);
-			wi::ecs::ComponentManager<wi::primitive::AABB> aabbs_tmp; // no longer needed from serializer
-			aabbs_tmp.Serialize(archive, seri);
-			scene.rigidbodies.Serialize(archive, seri);
-			scene.softbodies.Serialize(archive, seri);
-			scene.armatures.Serialize(archive, seri);
-			scene.lights.Serialize(archive, seri);
-			aabbs_tmp.Serialize(archive, seri);
-			scene.cameras.Serialize(archive, seri);
-			scene.probes.Serialize(archive, seri);
-			aabbs_tmp.Serialize(archive, seri);
-			scene.forces.Serialize(archive, seri);
-			scene.decals.Serialize(archive, seri);
-			aabbs_tmp.Serialize(archive, seri);
-			scene.animations.Serialize(archive, seri);
-			scene.emitters.Serialize(archive, seri);
-			scene.hairs.Serialize(archive, seri);
-			scene.weathers.Serialize(archive, seri);
-			if (archive.GetVersion() >= 30)
-			{
-				scene.sounds.Serialize(archive, seri);
-			}
-			if (archive.GetVersion() >= 37)
-			{
-				scene.inverse_kinematics.Serialize(archive, seri);
-			}
-			if (archive.GetVersion() >= 38)
-			{
-				scene.springs.Serialize(archive, seri);
-			}
-			if (archive.GetVersion() >= 46)
-			{
-				scene.animation_datas.Serialize(archive, seri);
-			}
-
-			if (archive.GetVersion() < 46)
-			{
-				// Fixing the animation import from archive that didn't have separate animation data components:
-				for (size_t i = 0; i < scene.animations.GetCount(); ++i)
-				{
-					wi::scene::AnimationComponent& animation = scene.animations[i];
-					for (const wi::scene::AnimationComponent::AnimationChannel& channel : animation.channels)
-					{
-						assert(channel.samplerIndex < (int)animation.samplers.size());
-						wi::scene::AnimationComponent::AnimationSampler& sampler = animation.samplers[channel.samplerIndex];
-						if (sampler.data == wi::ecs::INVALID_ENTITY)
-						{
-							// backwards-compatibility mode
-							sampler.data = wi::ecs::CreateEntity();
-							scene.animation_datas.Create(sampler.data) = sampler.backwards_compatibility_data;
-							sampler.backwards_compatibility_data.keyframe_times.clear();
-							sampler.backwards_compatibility_data.keyframe_data.clear();
-						}
-					}
-				}
-			}
-		}
 
 		// Additional data serializations:
 		if (archive.GetVersion() >= 85)
@@ -210,8 +138,22 @@ namespace Game{
                 }
             }
         }
-
-		wi::backlog::post("Scene serialize took " + std::to_string(timer.elapsed_seconds()) + " sec");
+		// wi::backlog::post("Scene serialize took " + std::to_string(timer.elapsed_seconds()) + " sec");
+    }
+    void _internal_Scene_Merge(wi::scene::Scene& target, wi::scene::Scene& other)
+    {
+        wi::vector<std::string> entry_str;
+        for (auto& entry : target.componentLibrary.entries)
+		{
+			// entry.second.component_manager->Merge(*other.componentLibrary.entries[entry.first].component_manager);
+            entry_str.push_back(entry.first);
+        }
+        wi::jobsystem::context merge_ctx;
+        wi::jobsystem::Dispatch(merge_ctx, entry_str.size(), 1, [&](wi::jobsystem::JobArgs jobArgs){
+            target.componentLibrary.entries[entry_str[jobArgs.jobIndex]]
+                .component_manager->Merge(*other.componentLibrary.entries[entry_str[jobArgs.jobIndex]].component_manager);
+        });
+        wi::jobsystem::Wait(merge_ctx);
     }
 
     wi::ecs::Entity _internal_ecs_clone_entity(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri)
@@ -385,7 +327,8 @@ namespace Game{
             {
                 if(stream_callback->block != nullptr)
                 {
-                    GetScene().wiscene.Merge(stream_callback->block->wiscene);
+                    // GetScene().wiscene.Merge(stream_callback->block->wiscene);
+                    _internal_Scene_Merge(Game::GetScene().wiscene, stream_callback->block->wiscene);
                     archive.previewID = stream_callback->clone_prefabID;
                     archive.preview_transform = stream_callback->preview_transform;
                 }
@@ -396,7 +339,8 @@ namespace Game{
             {
                 archive.remap = stream_callback->remap;
 
-                GetScene().wiscene.Merge(stream_callback->block->wiscene);
+                // GetScene().wiscene.Merge(stream_callback->block->wiscene);
+                _internal_Scene_Merge(Game::GetScene().wiscene, stream_callback->block->wiscene);
 
                 // Work on the prefab too if it exists
                 Scene::Prefab* find_prefab = GetScene().prefabs.GetComponent(archive.prefabID);
@@ -461,12 +405,6 @@ namespace Game{
             wi::Archive ar_bounds = wi::Archive(wi::helper::ReplaceExtension(stream_data_init->actual_file, "bounds"));
             bounds.Serialize(ar_bounds, seri);
         }
-
-        // Stream preview data
-        if(!wi::jobsystem::IsBusy(stream_job))
-        {
-            _internal_Run_Stream_Job(GetStreamJobData());
-        }
     }
     void Scene::Archive::Load(wi::ecs::Entity clone_prefabID)
     {
@@ -485,14 +423,6 @@ namespace Game{
             wi::backlog::post(stream_data_init->actual_file);
             stream_data_init->remap = remap;
             stream_data_init->is_prefab = (prefabID != wi::ecs::INVALID_ENTITY);
-
-            auto stream_job_data = GetStreamJobData();
-
-            //re-run stream job if the job does not exist
-            if(!wi::jobsystem::IsBusy(stream_job))
-            {
-                _internal_Run_Stream_Job(GetStreamJobData());
-            }
         }
 
         if((clone_prefabID != wi::ecs::INVALID_ENTITY) && (load_state == LoadState::LOADED))
@@ -974,7 +904,7 @@ namespace Game{
                 if((wiscene.meshes.Contains(archive.previewID)) && (prefab.preview_object == wi::ecs::INVALID_ENTITY)) // Create preview object
                     stream_enlist_job.preview_create_list.push_back({prefabID,{archive.previewID, &archive.preview_transform}});
 
-                if(is_loadable && (!prefab.loaded) && (prefab.fade_factor <= 0.f)) // Load
+                if(is_loadable && (!prefab.loaded) /*&& (prefab.fade_factor <= 0.f)*/) // Load
                 {
                     prefab.tostash_prefabID = prefabID;
                     if(archive.load_state == Archive::LoadState::UNLOADED)
@@ -1115,7 +1045,12 @@ namespace Game{
 
     void Scene::Update(float dt)
     {
-        wi::jobsystem::context update_ctx;
-        std::scoped_lock stream_lock(stream_mutex);
+        // wi::jobsystem::context update_ctx;
+        // std::scoped_lock stream_lock(stream_mutex);
+        if(!wi::jobsystem::IsBusy(stream_job))
+        {
+            if((GetStreamJobData()->stream_queue.size() > 0))
+                _internal_Run_Stream_Job(GetStreamJobData());
+        }
     }
 }

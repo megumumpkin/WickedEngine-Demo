@@ -1746,36 +1746,6 @@ void Gameplay::Player::Hook_Update(float dt)
         // Weapons check
         if(_internal_::Runtime_State::scenedata_ready)
         {
-            for(auto& player_gunstr_pair : Defines::GunStrings)
-            {
-                auto find_gun = _internal_::Guns.find(player_gunstr_pair.first);
-                if(find_gun == _internal_::Guns.end())
-                {
-                    wi::ecs::Entity prefabID = wi::ecs::CreateEntity();
-                    
-                    wi::scene::TransformComponent& transform = Game::GetScene().wiscene.transforms.Create(prefabID);
-                    transform.RotateRollPitchYaw(XMFLOAT3(-XM_PI/2.f,XM_PI,XM_PI));
-
-                    Game::Scene::Prefab& prefab = Game::GetScene().prefabs.Create(prefabID);
-                    prefab.file = Defines::FilesystemPaths::Resource_Guns+player_gunstr_pair.second+"/"+player_gunstr_pair.second+".wiscene";
-                    prefab.stream_mode = Game::Scene::Prefab::StreamMode::DIRECT;
-
-                    _internal_::Guns[player_gunstr_pair.first] = prefabID;
-
-                    _internal_::Runtime_State::scenedata_ready = false;
-                }
-                else
-                {
-                    Game::Scene::Prefab* prefab = Game::GetScene().prefabs.GetComponent(find_gun->second);
-                    if(!prefab->loaded)
-                        _internal_::Runtime_State::scenedata_ready = false;
-                    else
-                    {
-                        Game::GetScene().wiscene.Component_Attach(find_gun->second,_internal_::Runtime_State::weapon_hold_r_entity,true);
-                    }
-                }
-            }
-
             for(auto& player_swordstr_pair : Defines::SwordStrings)
             {
                 auto find_sword = _internal_::Swords.find(player_swordstr_pair.first);
@@ -1785,10 +1755,12 @@ void Gameplay::Player::Hook_Update(float dt)
                     
                     wi::scene::TransformComponent& transform = Game::GetScene().wiscene.transforms.Create(prefabID);
                     transform.RotateRollPitchYaw(XMFLOAT3(-XM_PI/2.f,XM_PI,XM_PI));
+                    Game::GetScene().wiscene.Component_Attach(prefabID,_internal_::Runtime_State::weapon_hold_l_entity,true);
 
                     Game::Scene::Prefab& prefab = Game::GetScene().prefabs.Create(prefabID);
                     prefab.file = Defines::FilesystemPaths::Resource_Swords+player_swordstr_pair.second+"/"+player_swordstr_pair.second+".wiscene";
                     prefab.stream_mode = Game::Scene::Prefab::StreamMode::DIRECT;
+                    // prefab.fade_factor = 0.9f;
 
                     _internal_::Swords[player_swordstr_pair.first] = prefabID;
 
@@ -1799,10 +1771,34 @@ void Gameplay::Player::Hook_Update(float dt)
                     Game::Scene::Prefab* prefab = Game::GetScene().prefabs.GetComponent(find_sword->second);
                     if(!prefab->loaded)
                         _internal_::Runtime_State::scenedata_ready = false;
-                    else
-                    {
-                        Game::GetScene().wiscene.Component_Attach(find_sword->second,_internal_::Runtime_State::weapon_hold_l_entity,true);
-                    }
+                }
+            }
+
+            for(auto& player_gunstr_pair : Defines::GunStrings)
+            {
+                auto find_gun = _internal_::Guns.find(player_gunstr_pair.first);
+                if(find_gun == _internal_::Guns.end())
+                {
+                    wi::ecs::Entity prefabID = wi::ecs::CreateEntity();
+                    
+                    wi::scene::TransformComponent& transform = Game::GetScene().wiscene.transforms.Create(prefabID);
+                    transform.RotateRollPitchYaw(XMFLOAT3(-XM_PI/2.f,XM_PI,XM_PI));
+                    Game::GetScene().wiscene.Component_Attach(prefabID,_internal_::Runtime_State::weapon_hold_l_entity,true);
+
+                    Game::Scene::Prefab& prefab = Game::GetScene().prefabs.Create(prefabID);
+                    prefab.file = Defines::FilesystemPaths::Resource_Guns+player_gunstr_pair.second+"/"+player_gunstr_pair.second+".wiscene";
+                    prefab.stream_mode = Game::Scene::Prefab::StreamMode::DIRECT;
+                    // prefab.fade_factor = 0.9f;
+
+                    _internal_::Guns[player_gunstr_pair.first] = prefabID;
+
+                    _internal_::Runtime_State::scenedata_ready = false;
+                }
+                else
+                {
+                    Game::Scene::Prefab* prefab = Game::GetScene().prefabs.GetComponent(find_gun->second);
+                    if(!prefab->loaded)
+                        _internal_::Runtime_State::scenedata_ready = false;
                 }
             }
         }
@@ -1827,7 +1823,7 @@ void Gameplay::Player::Hook_Update(float dt)
             wi::ecs::Entity animplayer_gunshoot_entity = prefab->FindEntityByName(Defines::AnimationStrings[Defines::AnimationEnum::Player_Anim_GunShoot]);
             uint32_t animplayer_gunshoot_index = Game::GetScene().wiscene.animations.GetIndex(animplayer_gunshoot_entity);
             Game::GetScene().wiscene.animations.MoveItem(animplayer_gunshoot_index, Game::GetScene().wiscene.animations.GetCount()-1);
-        
+
             // Recheck again
             for(auto& player_animationstr_pair : Defines::AnimationStrings)
             {

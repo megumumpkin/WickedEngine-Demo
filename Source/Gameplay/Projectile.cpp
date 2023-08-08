@@ -193,7 +193,7 @@ void Gameplay::Projectile::Hook_Update(float dt)
                 Game::Scene::Prefab& prefab = Game::GetScene().prefabs.Create(projectileID);
                 prefab.file = program->prefab;
                 prefab.stream_mode = Game::Scene::Prefab::StreamMode::DIRECT;
-                prefab.fade_factor = 0.f;
+                prefab.fade_factor = 0.9f;
             }
             for(size_t i = 0; i < std::min(projectile_dispatch_data.relive_requests.size(), new_count); ++i)
             {

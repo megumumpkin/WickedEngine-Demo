@@ -6,15 +6,13 @@ namespace Game{
     {
         scene = &(GetScene().wiscene);
 
-        wi::renderer::SetVXGIEnabled(true);
-        // this->setVXGIResolveFullResolutionEnabled(true);
-        // wi::renderer::SetGIBoost(1.3f);
-        for(int i = 0; i < 6; ++i)
-        {
-            float size = (i < 2) ? 0.75f :
-                (i < 4) ? 0.5f : 0.25f;
-            scene->vxgi.clipmaps[0].voxelsize = size;
-        }
+        // wi::renderer::SetVXGIEnabled(true);
+        // for(int i = 0; i < 6; ++i)
+        // {
+        //     float size = (i < 2) ? 0.75f :
+        //         (i < 4) ? 0.5f : 0.25f;
+        //     scene->vxgi.clipmaps[0].voxelsize = size;
+        // }
 
         wi::RenderPath3D::Load();
     }

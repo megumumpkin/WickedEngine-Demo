@@ -5,6 +5,9 @@
 #include <iostream>
 #include <sstream>
 #include <iterator>
+#include <filesystem>
+
+#include <reproc++/run.hpp>
 
 Dev::CommandData* Dev::GetCommandData()
 {
@@ -138,158 +141,188 @@ void _DEV_scene_import()
             std::string gltf_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input) + "/model.gltf";
             Dev::IO::Import_GLTF(gltf_file, Game::GetScene().wiscene);
 
+            wi::backlog::post("GLTF Conversion :"+gltf_file);
+
+            cycle++;
             break;
         }
         case 1: // PHASE 2 - Transform the whole scene to be centered - Update Texture Assets - Extract preview mesh of the scene
         {
-            // Extract scene boundary
-            {
-                std::string bounds_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input);
-                bounds_file = wi::helper::ReplaceExtension(bounds_file, "bounds");
-                wi::ecs::EntitySerializer seri;
-                wi::Archive ar_bounds = wi::Archive(bounds_file, false);
-                Game::GetScene().wiscene.bounds.Serialize(ar_bounds, seri);
-            }
+            std::string bounds_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input);
+            bounds_file = wi::helper::ReplaceExtension(bounds_file, "bounds");
+            wi::ecs::EntitySerializer seri;
+            wi::Archive ar_bounds = wi::Archive(bounds_file, false);
+            Game::GetScene().wiscene.bounds.Serialize(ar_bounds, seri);
 
-            // Make texture paths relative to wiscene file
-            {
-                // Update lens flare and material textures only!
-                // Rename extension to ktx2 (conversion is done before this through Blender)
-                for(int i = 0; i < Game::GetScene().wiscene.materials.GetCount(); ++i)
-                {
-                    wi::scene::MaterialComponent& material = Game::GetScene().wiscene.materials[i];
-                    for(int i = 0; i < wi::scene::MaterialComponent::TEXTURESLOT_COUNT; ++i)
-                    {
-                        if(material.textures[i].name != "")
-                        {
-                            // Convert textures here and now, but check first
-                            std::string root_path = wi::helper::GetDirectoryFromPath(Game::Filesystem::GetActualPath(Dev::GetCommandData()->input));
-                            
-                            // std::string texture_file = material.textures[i].name.substr(3,material.textures[i].name.length()-3);
-                            std::string texture_file = material.textures[i].name.substr(root_path.length(), material.textures[i].name.length()-root_path.length());
-                            std::string actual_texture_file = root_path + texture_file;
-                            
-                            // std::string texture_ktx2 = wi::helper::ReplaceExtension(texture_file, (i == wi::scene::MaterialComponent::NORMALMAP) ? wi::helper::GetExtensionFromFileName(texture_file) : "ktx2");
-                            // std::string actual_texture_ktx2 = root_path + texture_ktx2;
+            wi::backlog::post("Streaming Bounds File Generated: "+bounds_file);
+            wi::backlog::post("Now Processing Textures");
 
-                            // bool update = false;
-                            // if(wi::helper::FileExists(actual_texture_ktx2))
-                            // {
-                            //     if(std::filesystem::last_write_time(actual_texture_ktx2) < std::filesystem::last_write_time(actual_texture_file))
-                            //         update = true;
-                            // }
-                            // else
-                            //     update = true;
-
-                            // if(texture_file == texture_ktx2)
-                            //     update = false;
-
-                            // if(update)
-                            // {
-                            //     auto& resource = material.textures[i].resource;
-                            //     // wi::helper::saveTextureToFile(*std::static_pointer_cast<wi::graphics::Texture>(material.textures[i].GetGPUResource()->internal_state),texture_ktx2);
-                            //     if(resource.IsValid() && resource.GetTexture().IsTexture())
-                            //     {
-                            //         auto& texture = resource.GetTexture();
-                            //         wi::vector<uint8_t> filedata;
-                            //         if(wi::helper::saveTextureToMemory(resource.GetTexture(), filedata))
-                            //         {
-                            //             resource.SetFileData(std::move(filedata));
-
-                            //             wi::vector<uint8_t> filedata_compressed;
-                            //             wi::helper::saveTextureToMemoryFile(resource.GetFileData(), resource.GetTexture().desc, "KTX2", filedata_compressed);
-                                        
-                            //             wi::helper::FileWrite(actual_texture_ktx2, filedata_compressed.data(), filedata_compressed.size());
-                            //         }
-                            //     }
-                            // }
-
-                            // material.textures[i].name = texture_ktx2;
-                            material.textures[i].name = texture_file;
-                        }
-
-                    }
-                }
-            }
-
-            // Extract preview mesh
-            {
-                wi::unordered_set<wi::ecs::Entity> entity_to_remove;
-                // Find name prefix PREVIEW_
-                for(int i = 0; i < Game::GetScene().wiscene.objects.GetCount(); ++i)
-                {
-                    auto entity = Game::GetScene().wiscene.objects.GetEntity(i);
-                    auto name = Game::GetScene().wiscene.names.GetComponent(entity);
-                    wi::scene::ObjectComponent& object = Game::GetScene().wiscene.objects[i];
-                    if(name != nullptr)
-                    {
-                        if(name->name.substr(0,8) == "PREVIEW_")
-                        {
-                            wi::scene::TransformComponent* transform = Game::GetScene().wiscene.transforms.GetComponent(entity);
-                            wi::scene::MeshComponent* mesh = Game::GetScene().wiscene.meshes.GetComponent(object.meshID);
-                            if((transform != nullptr) && (mesh != nullptr))
-                            {
-                                // Rename the mesh entity name to a format that is known
-                                auto mesh_name = Game::GetScene().wiscene.names.GetComponent(object.meshID);
-                                if(mesh_name == nullptr)
-                                {
-                                    auto& new_mesh_name = Game::GetScene().wiscene.names.Create(object.meshID);
-                                    mesh_name = Game::GetScene().wiscene.names.GetComponent(object.meshID);
-                                }
-                                mesh_name->name = "PREVIEW_"+wi::helper::RemoveExtension(wi::helper::GetFileNameFromPath(Dev::GetCommandData()->input));
-
-                                // Transfer material to the same entity as mesh
-                                if(mesh->subsets[0].materialID != object.meshID)
-                                {
-                                    if(Game::GetScene().wiscene.materials.Contains(mesh->subsets[0].materialID))
-                                    {
-                                        wi::ecs::EntitySerializer seri;
-                                        wi::Archive ar_copy_material;
-                                        Game::GetScene().wiscene.materials.Component_Serialize(mesh->subsets[0].materialID, ar_copy_material, seri);
-                                        
-                                        ar_copy_material.SetReadModeAndResetPos(true);
-                                        Game::GetScene().wiscene.materials.Component_Serialize(object.meshID, ar_copy_material, seri);
-                                        mesh->subsets[0].materialID = object.meshID;
-                                        
-                                        entity_to_remove.insert(mesh->subsets[0].materialID);
-                                    }
-                                };
-
-                                // Save this mesh entity to archive
-                                {
-                                    wi::ecs::EntitySerializer seri;
-                                    std::string preview_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input);
-                                    preview_file = wi::helper::ReplaceExtension(preview_file, "preview");
-                                    wi::Archive ar_prev_mesh = wi::Archive(preview_file, false);
-                                    // Store object offset position
-                                    transform->Serialize(ar_prev_mesh, seri);
-                                    // Store mesh
-                                    Game::GetScene().wiscene.Entity_Serialize(
-                                            ar_prev_mesh,
-                                            seri,
-                                            object.meshID,
-                                            wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES
-                                        );
-                                    wi::jobsystem::Wait(seri.ctx);
-                                }
-
-                                entity_to_remove.insert(object.meshID);
-                            }
-
-                            entity_to_remove.insert(entity);
-
-                            break;
-                        }
-                    }
-                }
-                for(auto& entity : entity_to_remove)
-                {
-                    Game::GetScene().wiscene.Entity_Remove(entity,false);
-                }
-            }
+            cycle++;
             break;
         }
-        case 2: // PHASE 3 - Save to Wiscene and Quit
+        case 2:
+        // Make texture paths relative to wiscene file
+        {
+            // Update lens flare and material textures only!
+            // Rename extension to ktx2 (conversion is done before this through Blender)
+
+            wi::jobsystem::context convert_ctx;
+            for(int i = 0; i < Game::GetScene().wiscene.materials.GetCount(); ++i)
+            {
+                wi::scene::MaterialComponent& material = Game::GetScene().wiscene.materials[i];
+                for(int j = 0; j < wi::scene::MaterialComponent::TEXTURESLOT_COUNT; ++j)
+                {
+                    if(material.textures[j].name != "")
+                    {
+                        // wi::backlog::post("Processing Texture: "+material.textures[j].name);
+                        // Convert textures here and now, but check first
+                        std::string root_path = wi::helper::GetDirectoryFromPath(Game::Filesystem::GetActualPath(Dev::GetCommandData()->input));
+                        
+                        // std::string texture_file = material.textures[i].name.substr(3,material.textures[i].name.length()-3);
+                        // std::string texture_file = material.textures[j].name.substr(root_path.length(), material.textures[i].name.length()-root_path.length());
+                        std::string texture_file = std::filesystem::relative(material.textures[j].name, root_path).generic_string();
+                        std::string actual_texture_file = root_path + texture_file;
+                        
+                        std::string texture_ktx2 = wi::helper::ReplaceExtension(texture_file, "ktx2");
+                        std::string actual_texture_ktx2 = root_path + texture_ktx2;
+
+                        bool update = false;
+                        if(wi::helper::FileExists(actual_texture_ktx2))
+                        {
+                            if(std::filesystem::last_write_time(actual_texture_ktx2) < std::filesystem::last_write_time(actual_texture_file))
+                                update = true;
+                        }
+                        else
+                            update = true;
+
+                        if(texture_file == texture_ktx2)
+                            update = false;
+
+                        if(update)
+                        {
+                            wi::vector<std::string> args = {
+                                "toktx",
+                                "--genmipmap",
+                                "--assign_oetf",(j == wi::scene::MaterialComponent::BASECOLORMAP) ? "srgb" : "linear",
+                                // "--encode","astc",
+                                // "--astc_blk_d","6x6",
+                                // "--astc_quality","80",
+                                "--encode","uastc",
+                                "--uastc_quality","0",
+                                "--zcmp","15",
+                                "--t2",
+                                actual_texture_ktx2,
+                                actual_texture_file};
+                            auto process = reproc::process();
+                            reproc::options shexec_options;
+                            reproc::stop_actions shexec_options_stop = {
+                                { reproc::stop::terminate, reproc::milliseconds(5000) },
+                                { reproc::stop::kill, reproc::milliseconds(2000) },
+                                {}
+                            };
+                            shexec_options.stop = shexec_options_stop;
+                            process.start(args, shexec_options);
+                            wi::jobsystem::Execute(convert_ctx, [&](wi::jobsystem::JobArgs jobArgs){
+                                reproc::drain(process, reproc::sink::null, reproc::sink::null);
+                                process.stop(shexec_options.stop);
+                            });
+                            wi::jobsystem::Wait(convert_ctx);
+                        }
+
+                        material.textures[j].name = texture_ktx2;
+                        // wi::backlog::post("Processed Name: "+material.textures[j].name);
+                    }
+
+                }
+            }
+            cycle++;
+            break;
+        }
+        case 3:
+        // Extract preview mesh
+        {
+            wi::backlog::post("Processing Textures Done");
+
+            wi::unordered_set<wi::ecs::Entity> entity_to_remove;
+            // Find name prefix PREVIEW_
+            for(int i = 0; i < Game::GetScene().wiscene.objects.GetCount(); ++i)
+            {
+                auto entity = Game::GetScene().wiscene.objects.GetEntity(i);
+                auto name = Game::GetScene().wiscene.names.GetComponent(entity);
+                wi::scene::ObjectComponent& object = Game::GetScene().wiscene.objects[i];
+                if(name != nullptr)
+                {
+                    if(name->name.substr(0,8) == "PREVIEW_")
+                    {
+                        wi::scene::TransformComponent* transform = Game::GetScene().wiscene.transforms.GetComponent(entity);
+                        wi::scene::MeshComponent* mesh = Game::GetScene().wiscene.meshes.GetComponent(object.meshID);
+                        if((transform != nullptr) && (mesh != nullptr))
+                        {
+                            // Rename the mesh entity name to a format that is known
+                            auto mesh_name = Game::GetScene().wiscene.names.GetComponent(object.meshID);
+                            if(mesh_name == nullptr)
+                            {
+                                auto& new_mesh_name = Game::GetScene().wiscene.names.Create(object.meshID);
+                                mesh_name = Game::GetScene().wiscene.names.GetComponent(object.meshID);
+                            }
+                            mesh_name->name = "PREVIEW_"+wi::helper::RemoveExtension(wi::helper::GetFileNameFromPath(Dev::GetCommandData()->input));
+
+                            // Transfer material to the same entity as mesh
+                            if(mesh->subsets[0].materialID != object.meshID)
+                            {
+                                if(Game::GetScene().wiscene.materials.Contains(mesh->subsets[0].materialID))
+                                {
+                                    wi::ecs::EntitySerializer seri;
+                                    wi::Archive ar_copy_material;
+                                    Game::GetScene().wiscene.materials.Component_Serialize(mesh->subsets[0].materialID, ar_copy_material, seri);
+                                    
+                                    ar_copy_material.SetReadModeAndResetPos(true);
+                                    Game::GetScene().wiscene.materials.Component_Serialize(object.meshID, ar_copy_material, seri);
+                                    mesh->subsets[0].materialID = object.meshID;
+                                    
+                                    entity_to_remove.insert(mesh->subsets[0].materialID);
+                                }
+                            };
+
+                            // Save this mesh entity to archive
+                            {
+                                wi::ecs::EntitySerializer seri;
+                                std::string preview_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input);
+                                preview_file = wi::helper::ReplaceExtension(preview_file, "preview");
+                                wi::Archive ar_prev_mesh = wi::Archive(preview_file, false);
+                                // Store object offset position
+                                transform->Serialize(ar_prev_mesh, seri);
+                                // Store mesh
+                                Game::GetScene().wiscene.Entity_Serialize(
+                                        ar_prev_mesh,
+                                        seri,
+                                        object.meshID,
+                                        wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES
+                                    );
+                                wi::jobsystem::Wait(seri.ctx);
+                            }
+
+                            entity_to_remove.insert(object.meshID);
+                        }
+
+                        entity_to_remove.insert(entity);
+
+                        break;
+                    }
+                }
+            }
+            for(auto& entity : entity_to_remove)
+            {
+                Game::GetScene().wiscene.Entity_Remove(entity,false);
+            }
+
+            wi::backlog::post("Preview Mesh Generation Done (if any is included)");
+
+            cycle++;
+            break;
+        }
+        
+        case 4: // PHASE 3 - Save to Wiscene and Quit
         {
             std::string wiscene_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input);
             wiscene_file = wi::helper::ReplaceExtension(wiscene_file, "wiscene");
@@ -297,16 +330,18 @@ void _DEV_scene_import()
             wi::Archive scene_save = wi::Archive(wiscene_file, false);
             Game::GetScene().wiscene.Serialize(scene_save);
 
+            wi::backlog::post("Wiscene Conversion Done: "+wiscene_file);
+            wi::backlog::post("You can close this window now");
+
+            cycle++;
             break;
         }
-        // case 3:
+        // case 5:
         // {
         //     wi::platform::Exit();
         //     break;
         // }
     }
-
-    cycle = (cycle < 3) ? cycle+1 : cycle;
 }
 
 bool USE_DEV_CAMERA = false;
