@@ -59,6 +59,7 @@ jobs:
         mv 'build/libdxcompiler.so' './'
         mv 'build/libGameplay.so' './'
         mv 'build/libGameplay_DEV.so' './'
+        mv 'build/Library/efsw/libefsw.so' './'
         mv 'build/Dev' './'
         mv 'build/Game' './'
 
@@ -118,6 +119,8 @@ jobs:
         move "build\Library\efsw\Release\efsw.dll" "efsw.dll"
         move "build\Release\Dev.exe" "Dev.exe"
         move "build\Release\Game.exe" "Game.exe"
+        move "build\Release\Gameplay.dll" "Gameplay.dll"
+        move "build\Release\Gameplay_DEV.dll" "Gameplay_DEV.dll"
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
