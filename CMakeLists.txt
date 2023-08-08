@@ -85,7 +85,7 @@ if (WIN32)
 	add_library(Gameplay SHARED ${GAMEPLAY_FILES})
 	target_link_libraries(Gameplay PUBLIC
 	 	WickedEngine::WickedEngine_Windows
-		Game
+		Game.exe
 	)
 
 	list (APPEND DEV_FILES
@@ -107,7 +107,7 @@ if (WIN32)
 	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
 	target_link_libraries(Gameplay_DEV PUBLIC
 	 	WickedEngine::WickedEngine_Windows
-		Dev
+		Dev.exe
 	)
 else()
 	list (APPEND SOURCE_FILES Source/main_Linux.cpp)
