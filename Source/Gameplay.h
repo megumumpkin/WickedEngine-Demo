@@ -24,3 +24,6 @@ namespace Gameplay
     void FixedUpdate();
     void Deinit();
 }
+
+extern "C" void Add_Hook_Gameplay(std::string key, std::unique_ptr<Gameplay::GameplayHook>& hook);
+extern "C" void Add_Hook_Scene(std::function<void(wi::scene::Scene*)> hook);

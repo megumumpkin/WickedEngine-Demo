@@ -87,3 +87,12 @@ namespace Gameplay
 #endif
     }
 }
+
+extern "C" void Add_Hook_Gameplay(std::string key, std::unique_ptr<Gameplay::GameplayHook> &hook)
+{
+    Gameplay::gameplay_hooks[key] = std::move(hook);
+}
+extern "C" void Add_Hook_Scene(std::function<void(wi::scene::Scene*)> hook)
+{
+    Gameplay::scene_init_hooks.push_back(hook);
+}

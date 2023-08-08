@@ -29,7 +29,10 @@ void Init_Scene(wi::scene::Scene* scene, bool set_root = false)
 void Gameplay::ComponentHook::Hook_Init()
 {
     Init_Scene(&Game::GetScene().wiscene, true);
-    Gameplay::scene_init_hooks.push_back([](wi::scene::Scene* scene){
+    // Gameplay::scene_init_hooks.push_back([](wi::scene::Scene* scene){
+    //     Init_Scene(scene);
+    // });
+    Add_Hook_Scene([](wi::scene::Scene* scene){
         Init_Scene(scene);
     });
     Gameplay::Scripting::Component::Bind();
