@@ -106,7 +106,7 @@ if (WIN32)
 
 	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
 	target_link_libraries(Gameplay_DEV PUBLIC
-	 	WickedEngine::WickedEngine_Linux
+	 	WickedEngine::WickedEngine_Windows
 		Dev
 	)
 else()
