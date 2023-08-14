@@ -62,7 +62,8 @@ void Gameplay::Projectile::Hook_PreUpdate(float dt)
                         std::scoped_lock sync (data_sync);
                         projectiles_dead.insert(projectileID);
                         hitdata->communicationType = Gameplay::Component::HitData::CommunicationType::DISABLED;
-                        prefab->Disable();
+                        if(!prefab->disabled)
+                            prefab->Disable();
                     }
                 }
             }

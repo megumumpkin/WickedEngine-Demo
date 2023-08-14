@@ -6,6 +6,12 @@
 namespace Game{
     struct Scene
     {
+        struct FadeData
+        {
+            float object = 0.f;
+            float light = 0.f;
+            float material = 0.f;
+        };
         // Scene streaming structures
         struct Archive
         {
@@ -14,9 +20,14 @@ namespace Game{
             // |- scene.preview  -> a single entity that stores the preview data
             // |- scene.area  -> a file that stores a float, about a scene boundary
 
+            bool is_root = false;
+            
+            wi::ecs::Entity archiveID = wi::ecs::INVALID_ENTITY; // Also has preview of the scene
             std::string file; // File name of the wiscene file
-            wi::ecs::Entity prefabID = wi::ecs::INVALID_ENTITY; // Target prefab if exists
+            wi::unordered_set<wi::ecs::Entity> entities;
             wi::unordered_map<uint64_t, wi::ecs::Entity> remap; // Remap data for the serialized file
+            wi::unordered_map<wi::ecs::Entity, FadeData> fade_data; // Fade data
+            wi::unordered_map<std::string, wi::ecs::Entity> entity_name_map; // For fast entity searching
             uint32_t dependency_count = 0; // Prefab dependency counter, useful for determining wheter to load or unload from disk
 
             // Scene streaming extradata
@@ -24,7 +35,6 @@ namespace Game{
             wi::primitive::AABB bounds;
             // Preview data
             wi::scene::TransformComponent preview_transform;
-            wi::ecs::Entity previewID; // Preview of the scene, single entity
 
             // Streaming data
             enum class LoadState
@@ -37,27 +47,29 @@ namespace Game{
             LoadState load_state = LoadState::UNINITIALIZED; // Check loading progress of streaming
 
             void Init(); // Initialize archive before anything - for prefab only
-            void Load(wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY);
-            void Unload(wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY);
+            void Load(wi::ecs::Entity prefabID = wi::ecs::INVALID_ENTITY);
+            void Unload(wi::ecs::Entity prefabID = wi::ecs::INVALID_ENTITY);
         };
         struct StreamData
         {
             enum class StreamType
             {
                 INIT,
+                ROOT,
                 FULL
             };
             StreamType stream_type;
             std::string file; // File mapping for archive
             std::string actual_file; // Actual file path for loading the scene file
+            wi::ecs::Entity archiveID;
+            wi::unordered_set<wi::ecs::Entity> entities;
             wi::unordered_map<uint64_t, wi::ecs::Entity> remap;
-            wi::ecs::Entity clone_prefabID = wi::ecs::INVALID_ENTITY; // Used also by preview for entity ID
+            wi::unordered_map<std::string, wi::ecs::Entity> entity_name_map;
             std::shared_ptr<Scene> block; // Scene file where the serialization happens
 
             // Prefab specific data
-            bool is_prefab = false;
             wi::scene::TransformComponent preview_transform;
-            wi::vector<std::pair<wi::ecs::Entity, float>> fade_data;
+            wi::unordered_map<wi::ecs::Entity, FadeData> fade_data;
         };
         struct StreamJob
         {
@@ -85,6 +97,7 @@ namespace Game{
             float stream_distance_multiplier = 1.f;
 
             // Runtime data
+            wi::unordered_set<wi::ecs::Entity> entities;
             wi::unordered_map<uint64_t, wi::ecs::Entity> remap; // Remap data for the serialized file, also used for entity listing
             wi::unordered_map<std::string, wi::ecs::Entity> entity_name_map; // For fast entity searching
             uint32_t safe_delete_counter = 0;
@@ -94,7 +107,7 @@ namespace Game{
             // Fade management
             wi::ecs::Entity preview_object; // Object for preview
             float fade_factor = 0.f; // Fade factor - 1 is fully loaded - 0 is unloaded
-            wi::vector<std::pair<wi::ecs::Entity, float>> fade_data; // Original object's transparency are stored here
+            wi::vector<std::pair<wi::ecs::Entity, FadeData>> fade_data; // Original object's transparency are stored here
 
             wi::ecs::Entity FindEntityByName(std::string name); // Since prefabs get duplicate names, we have to have a function to just search INSIDE the prefab data
             void Enable(); // Enable all components from the prefab
@@ -105,7 +118,7 @@ namespace Game{
         };
         struct Inactive
         {
-            wi::vector<uint8_t> inactive_storage;
+            wi::Archive inactive_storage;
         };
 
         // Component data attached to scene
@@ -115,7 +128,7 @@ namespace Game{
         };
         struct Component_Inactive : public Inactive
         {
-            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri){};
+            void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri);
         };
         struct Component_Script : public Scripting::Script
         {

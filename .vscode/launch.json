@@ -20,7 +20,7 @@
             "target": "./Dev",
             "cwd": "${workspaceRoot}/build",
             "valuesFormatting": "parseText",
-            "arguments": "-t SCENE_IMPORT -i PlayerCharacter/PlayerCharacter.assetsmith"
+            "arguments": "-t SCENE_IMPORT -i Props/Environment/Foliages/Tree1_Tree1_Branch.assetsmith"
         },
         {
             "name": "Debug Dev Scene Preview",
@@ -29,7 +29,7 @@
             "target": "./Dev",
             "cwd": "${workspaceRoot}/build",
             "valuesFormatting": "parseText",
-            "arguments": "-t SCENE_PREVIEW -i PlayerCharacter/PlayerCharacter.wiscene"
+            "arguments": "-t SCENE_PREVIEW -i Props/Environment/Foliages/Tree1.wiscene"
         },
         {
             "name": "Debug Dev TestMap01",

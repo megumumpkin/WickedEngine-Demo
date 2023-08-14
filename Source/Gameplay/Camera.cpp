@@ -79,7 +79,7 @@ void Gameplay::Camera::Hook_Init()
 
 void Gameplay::Camera::Hook_Update(float dt)
 {
-    if(_internal_::core_focus != wi::ecs::INVALID_ENTITY && Gameplay::GetGameplayAgencyControl())
+    if(Game::GetScene().wiscene.transforms.Contains(_internal_::core_focus) && Gameplay::GetGameplayAgencyControl())
     {
         wi::scene::CameraComponent& camera = wi::scene::GetCamera();
         _internal_::camera_transform = wi::scene::TransformComponent();
