@@ -11,6 +11,7 @@ namespace Game{
             float object = 0.f;
             float light = 0.f;
             float material = 0.f;
+            float prefab = 0.f;
         };
         // Scene streaming structures
         struct Archive
@@ -22,24 +23,26 @@ namespace Game{
 
             bool is_root = false;
             
-            wi::ecs::Entity archiveID = wi::ecs::INVALID_ENTITY; // Also has preview of the scene
+            wi::ecs::Entity archiveID = wi::ecs::INVALID_ENTITY; // Root reference for cloning
             std::string file; // File name of the wiscene file
-            wi::unordered_set<wi::ecs::Entity> entities;
+            wi::unordered_set<wi::ecs::Entity> prefabs; // Sub prefab data
+            wi::unordered_set<wi::ecs::Entity> entities; // Entity data
             wi::unordered_map<uint64_t, wi::ecs::Entity> remap; // Remap data for the serialized file
             wi::unordered_map<wi::ecs::Entity, FadeData> fade_data; // Fade data
             wi::unordered_map<std::string, wi::ecs::Entity> entity_name_map; // For fast entity searching
+
             uint32_t dependency_count = 0; // Prefab dependency counter, useful for determining wheter to load or unload from disk
 
             // Scene streaming extradata
-            // Boundary data
-            wi::primitive::AABB bounds;
-            // Preview data
-            wi::scene::TransformComponent preview_transform;
+            wi::primitive::AABB bounds; // Boundary data
+            // bool has_preview = false; // Has the LOD tiers data loaded or not?
+            wi::unordered_map<size_t, wi::ecs::Entity> lod_tiers; // LOD tiers data
 
             // Streaming data
             enum class LoadState
             {
                 UNINITIALIZED,
+                INITIALIZING,
                 UNLOADED,
                 LOADING,
                 LOADED
@@ -49,33 +52,8 @@ namespace Game{
             void Init(); // Initialize archive before anything - for prefab only
             void Load(wi::ecs::Entity prefabID = wi::ecs::INVALID_ENTITY);
             void Unload(wi::ecs::Entity prefabID = wi::ecs::INVALID_ENTITY);
+            void CreateLODTier(wi::ecs::Entity prefabID);
         };
-        struct StreamData
-        {
-            enum class StreamType
-            {
-                INIT,
-                ROOT,
-                FULL
-            };
-            StreamType stream_type;
-            std::string file; // File mapping for archive
-            std::string actual_file; // Actual file path for loading the scene file
-            wi::ecs::Entity archiveID;
-            wi::unordered_set<wi::ecs::Entity> entities;
-            wi::unordered_map<uint64_t, wi::ecs::Entity> remap;
-            wi::unordered_map<std::string, wi::ecs::Entity> entity_name_map;
-            std::shared_ptr<Scene> block; // Scene file where the serialization happens
-
-            // Prefab specific data
-            wi::scene::TransformComponent preview_transform;
-            wi::unordered_map<wi::ecs::Entity, FadeData> fade_data;
-        };
-        struct StreamJob
-        {
-            wi::vector<std::shared_ptr<StreamData>> stream_queue;
-        };
-
         struct Prefab
         {
             std::string file; // A key to the archive file
@@ -97,16 +75,21 @@ namespace Game{
             float stream_distance_multiplier = 1.f;
 
             // Runtime data
+            wi::unordered_set<wi::ecs::Entity> prefabs;
             wi::unordered_set<wi::ecs::Entity> entities;
             wi::unordered_map<uint64_t, wi::ecs::Entity> remap; // Remap data for the serialized file, also used for entity listing
             wi::unordered_map<std::string, wi::ecs::Entity> entity_name_map; // For fast entity searching
-            uint32_t safe_delete_counter = 0;
             bool loaded = false; // Has the prefab been loaded or not?
             bool disabled = false;
 
             // Fade management
-            wi::ecs::Entity preview_object; // Object for preview
+            // LOD preview data
+            wi::unordered_map<size_t, wi::ecs::Entity> lod_tiers;
+            wi::unordered_map<size_t, Scene::Prefab::StreamMode> lod_tier_stream_modes;
+            // -- LOD preview data
             float fade_factor = 0.f; // Fade factor - 1 is fully loaded - 0 is unloaded
+            float fade_factor_diff = 0.f; // Previous fade factor, to increase performance
+            bool fade_manual_active = false;
             wi::vector<std::pair<wi::ecs::Entity, FadeData>> fade_data; // Original object's transparency are stored here
 
             wi::ecs::Entity FindEntityByName(std::string name); // Since prefabs get duplicate names, we have to have a function to just search INSIDE the prefab data

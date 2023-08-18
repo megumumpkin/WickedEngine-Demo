@@ -36,6 +36,7 @@ namespace Dev
 
     namespace IO
     {
+        extern wi::vector<std::string> importdata_lodtier;
         void Import_GLTF(const std::string& fileName, wi::scene::Scene& scene);
         void Export_GLTF(const std::string& filename, wi::scene::Scene& scene);
     }

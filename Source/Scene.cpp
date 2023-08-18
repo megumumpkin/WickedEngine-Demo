@@ -9,6 +9,52 @@
 namespace Game{
     wi::jobsystem::context stream_job;
     std::mutex stream_mutex;
+    struct _internal_Stream_Task
+    {
+        enum class STREAM_STATE
+        {
+            FREE,
+            PENDING,
+            INPROGRESS,
+            DONE
+        };
+        STREAM_STATE stream_state = STREAM_STATE::FREE;
+        enum class STREAM_TYPE
+        {
+            ROOT,
+            INIT,
+            FULL
+        };
+        STREAM_TYPE stream_type = STREAM_TYPE::INIT;
+
+        bool return_callback = false;
+
+        wi::ecs::Entity archiveID;
+        std::string file;
+        std::string actual_file;
+        Scene scene;
+        wi::unordered_set<wi::ecs::Entity> prefabs;
+        wi::unordered_set<wi::ecs::Entity> entities;
+        wi::unordered_map<uint64_t, wi::ecs::Entity> remap;
+        wi::unordered_map<wi::ecs::Entity, Scene::FadeData> fade_data;
+        wi::unordered_map<std::string, wi::ecs::Entity> entity_name_map;
+        wi::unordered_map<size_t, wi::ecs::Entity> lod_tiers;
+
+        void Clear()
+        {
+            stream_state = STREAM_STATE::FREE;
+            stream_type = STREAM_TYPE::INIT;
+            file.clear();
+            actual_file.clear();
+            entities.clear();
+            remap.clear();
+            fade_data.clear();
+            entity_name_map.clear();
+            lod_tiers.clear();
+            prefabs.clear();
+        }
+    };
+    _internal_Stream_Task stream_task;
 
     wi::ecs::Entity Scene::Prefab::FindEntityByName(std::string name)
     {
@@ -20,27 +66,24 @@ namespace Game{
     }
     void Scene::Prefab::Enable()
     {
-        for(auto& map_pair : remap)
+        for(auto& target_entity : entities)
         {
-            auto& target_entity = map_pair.second;
             GetScene().Entity_Enable(target_entity);
         }
         disabled = false;
     }
     void Scene::Prefab::Disable()
     {
-        for(auto& map_pair : remap)
+        for(auto& target_entity : entities)
         {
-            auto& target_entity = map_pair.second;
             GetScene().Entity_Disable(target_entity);
         }
         disabled = true;
     }
     void Scene::Prefab::Unload()
     {
-        for(auto& map_pair : remap)
+        for(auto& target_entity : entities)
         {
-            auto& target_entity = map_pair.second;
             GetScene().wiscene.Entity_Remove(target_entity, false);
         }
         loaded = false;
@@ -82,6 +125,7 @@ namespace Game{
             inactive_storage.WriteData(data);
             archive << data;
         }
+        data.clear();
     }
     void Scene::Component_Script::Serialize(wi::Archive &archive, wi::ecs::EntitySerializer &seri)
     {
@@ -97,16 +141,6 @@ namespace Game{
         }
     }
 
-    std::shared_ptr<Scene::StreamJob> GetStreamJobData() // Pointer to stream job
-    {
-        static std::shared_ptr<Scene::StreamJob> stream_data = std::make_shared<Scene::StreamJob>();
-        return stream_data;
-    }
-
-    struct _internal_Scene_Serialize_DEPRECATED_PreviousFrameTransformComponent
-	{
-		void Serialize(wi::Archive& archive, wi::ecs::EntitySerializer& seri) { /*this never serialize any data*/ }
-	};
     void _internal_Scene_Serialize(wi::scene::Scene& scene, wi::Archive& archive, wi::ecs::EntitySerializer& seri, wi::ecs::Entity root = wi::ecs::INVALID_ENTITY)
     {
         wi::Timer timer;
@@ -155,36 +189,6 @@ namespace Game{
         }
 		// wi::backlog::post("Scene serialize took " + std::to_string(timer.elapsed_seconds()) + " sec");
     }
-    // void _internal_Scene_Merge(wi::scene::Scene& target, wi::scene::Scene& other)
-    // {
-    //     wi::vector<std::string> entry_str;
-    //     for (auto& entry : target.componentLibrary.entries)
-	// 	{
-	// 		// entry.second.component_manager->Merge(*other.componentLibrary.entries[entry.first].component_manager);
-    //         entry_str.push_back(entry.first);
-    //     }
-    //     wi::jobsystem::context merge_ctx;
-    //     wi::jobsystem::Dispatch(merge_ctx, entry_str.size(), 1, [&](wi::jobsystem::JobArgs jobArgs){
-    //         target.componentLibrary.entries[entry_str[jobArgs.jobIndex]]
-    //             .component_manager->Merge(*other.componentLibrary.entries[entry_str[jobArgs.jobIndex]].component_manager);
-    //     });
-    //     wi::jobsystem::Wait(merge_ctx);
-    // }
-
-    wi::ecs::Entity _internal_ecs_clone_entity(wi::ecs::Entity entity, wi::ecs::EntitySerializer& seri)
-    {
-        wi::ecs::Entity clone_entity = wi::ecs::INVALID_ENTITY;
-        if(seri.remap.find(entity) != seri.remap.end())
-        {
-            clone_entity = seri.remap[entity];
-        }
-        else
-        {
-            clone_entity = wi::ecs::CreateEntity();
-            seri.remap[entity] = clone_entity;
-        }
-        return clone_entity;
-    }
 
     void _internal_Clone_Prefab(Scene::Archive& archive, wi::ecs::Entity clone_prefabID)
     {
@@ -201,70 +205,56 @@ namespace Game{
             // Check if there is a stashed remap data
             // TODO
 
+            Scene::Prefab::CopyMode copy_mode = find_clone_prefab->copy_mode;
+            // // DEBUG
+            // copy_mode = Scene::Prefab::CopyMode::DEEP_COPY;
+
             wi::ecs::EntitySerializer seri;
 
-            // Deep Copy Init
-            if(find_clone_prefab->copy_mode == Scene::Prefab::CopyMode::DEEP_COPY)
-            {
-                for(auto origin_entity : archive.entities)
-                {
-                    if(find_clone_prefab->remap.find(origin_entity) == find_clone_prefab->remap.end())
-                        find_clone_prefab->remap[origin_entity] = wi::ecs::CreateEntity();
-                }
-            }
-
-            // Clone
-            Scene::Prefab::CopyMode copy_mode = find_clone_prefab->copy_mode;
+            // Clone            
             wi::unordered_set<wi::ecs::Entity> clone_entities;
             wi::unordered_map<uint64_t, wi::ecs::Entity> clone_remap;
+
+            clone_remap[archive.archiveID] = clone_prefabID; 
             clone_remap.insert(find_clone_prefab->remap.begin(), find_clone_prefab->remap.end());
+
             for(auto origin_entity : archive.entities)
             {
                 auto clone_entity = GetScene().Entity_Clone(origin_entity, seri, (copy_mode == Scene::Prefab::CopyMode::DEEP_COPY) ? true : false, &clone_remap);
                 clone_entities.insert(clone_entity);
             }
             wi::jobsystem::Wait(seri.ctx);
+
             find_clone_prefab = GetScene().prefabs.GetComponent(clone_prefabID);
             find_clone_prefab->entities.insert(clone_entities.begin(),clone_entities.end());
             find_clone_prefab->remap.insert(clone_remap.begin(),clone_remap.end());
 
             wi::unordered_set<wi::ecs::Entity> springs_root_list;
 		    wi::unordered_map<wi::ecs::Entity,wi::vector<wi::ecs::Entity>> springs_hierarchy_list;
-            for(auto origin_entity : archive.entities)
+            for(auto clone_entity : clone_entities)
             {
-                // If it has no parent then we attach them to prefab
-                wi::scene::HierarchyComponent* original_hierarchy = GetScene().wiscene.hierarchy.GetComponent(origin_entity);
-                wi::scene::HierarchyComponent* hierarchy = GetScene().wiscene.hierarchy.GetComponent(clone_remap[origin_entity]);
-                if((original_hierarchy != nullptr) && (hierarchy != nullptr))
-                {
-                    if(original_hierarchy->parentID == archive.archiveID)
-                        GetScene().wiscene.Component_Attach(clone_remap[origin_entity], clone_prefabID, true);
-                    else
-                        GetScene().wiscene.Component_Attach(clone_remap[origin_entity], clone_remap[original_hierarchy->parentID], true);
-                }
-
                 //Springs
-                if(GetScene().wiscene.springs.Contains(clone_remap[origin_entity]))
+                if(GetScene().wiscene.springs.Contains(clone_entity))
                 {
+                    auto hierarchy = GetScene().wiscene.hierarchy.GetComponent(clone_entity);
                     bool has_parent = false;
                     if(hierarchy != nullptr)
                     {
                         if(GetScene().wiscene.springs.Contains(hierarchy->parentID))
                         {
-                            springs_hierarchy_list[hierarchy->parentID].push_back(clone_remap[origin_entity]);
+                            springs_hierarchy_list[hierarchy->parentID].push_back(clone_entity);
                             has_parent = true;
                         }
                     }
 
                     if(!has_parent)
                     {
-                        springs_root_list.insert(clone_remap[origin_entity]);
+                        springs_root_list.insert(clone_entity);
                     }
                 }
             }
 
             // Spring reprocess
-            std::atomic<size_t> r_idx = 0;
             wi::unordered_set<wi::ecs::Entity> reorder_done;
             for(auto& root : springs_root_list)
             {
@@ -274,9 +264,8 @@ namespace Game{
                         if (reorder_done.find(target) == reorder_done.end()){
                             size_t idx = GetScene().wiscene.springs.GetIndex(target);
                             GetScene().wiscene.springs[idx].Reset(true);
-                            GetScene().wiscene.springs.MoveItem(idx, r_idx);
+                            GetScene().wiscene.springs.MoveItem(idx, GetScene().wiscene.springs.GetCount()-1);
                             reorder_done.insert(target);
-                            r_idx.fetch_add(1);
                         }
 
                         auto find_hierarchy = springs_hierarchy_list.find(target);
@@ -285,7 +274,6 @@ namespace Game{
                             for(auto& hierarchy_child : find_hierarchy->second)
                             {
                                 reorder_fn(hierarchy_child);
-                                // wi::backlog::post("[MURAMASA] child of "+ std::to_string(target) +" > "+std::to_string(state.scene->springs.GetIndex(target)));
                             }
                         }
                     };
@@ -296,9 +284,30 @@ namespace Game{
             // Transfer data from archive
             if(find_archive != GetScene().scene_db.end())
             {
+                for(auto& prefabID : find_archive->second.prefabs)
+                {
+                    find_clone_prefab->prefabs.insert(clone_remap[prefabID]);
+                }
                 for(auto& fade_pair : find_archive->second.fade_data)
                 {
                     find_clone_prefab->fade_data.push_back({clone_remap[fade_pair.first], fade_pair.second});
+                
+                    wi::ecs::Entity fade_init_entity = clone_remap[fade_pair.first];
+                    wi::scene::ObjectComponent* object = GetScene().wiscene.objects.GetComponent(fade_init_entity);
+                    if(object != nullptr)
+                    {
+                        object->color.w = 0.f;
+                    }
+                    wi::scene::LightComponent* light = GetScene().wiscene.lights.GetComponent(fade_init_entity);
+                    if(light != nullptr)
+                    {
+                        light->intensity = 0.f;
+                    }
+                    wi::scene::MaterialComponent* material = GetScene().wiscene.materials.GetComponent(fade_init_entity);
+                    if(material != nullptr)
+                    {
+                        material->baseColor.w = 0.f;
+                    }
                 }
                 for(auto& name_pair : find_archive->second.entity_name_map)
                 {
@@ -309,143 +318,157 @@ namespace Game{
             find_clone_prefab->loaded = true;
         }
     }
-    wi::vector<std::shared_ptr<Scene::StreamData>> stream_callbacks;
-    void _internal_Run_Stream_Job(std::shared_ptr<Scene::StreamJob> stream_job_data)
+    void _internal_Run_Stream_Job()
     {
-        wi::jobsystem::Execute(stream_job, [stream_job_data](wi::jobsystem::JobArgs jobargs){
-            size_t it = 0;
-            size_t it_end = 0;
-            it_end = stream_job_data->stream_queue.size();
-            while(it < it_end)
+        wi::jobsystem::Execute(stream_job, [](wi::jobsystem::JobArgs jobargs){
             {
-                bool return_callback = false;
+                std::scoped_lock init_sync (stream_mutex);
+                stream_task.stream_state = _internal_Stream_Task::STREAM_STATE::INPROGRESS;
+            }
 
-                auto stream_data_ptr = stream_job_data->stream_queue.at(it);
+            bool return_callback = false;
 
-                if(stream_data_ptr->stream_type == Scene::StreamData::StreamType::INIT)
-                    return_callback = true;
+            if(stream_task.stream_type == _internal_Stream_Task::STREAM_TYPE::INIT)
+                return_callback = true;
 
-                if(wi::helper::FileExists(stream_data_ptr->actual_file))
+            if(wi::helper::FileExists(stream_task.actual_file))
+            {
+                wi::ecs::EntitySerializer seri;
+                seri.remap = stream_task.remap;
+
+                Gameplay::SceneInit(&(stream_task.scene.wiscene));
+                auto ar_stream = wi::Archive(stream_task.actual_file,true);
+
+                if(stream_task.stream_type == _internal_Stream_Task::STREAM_TYPE::INIT)
                 {
-                    wi::ecs::EntitySerializer seri;
-                    seri.remap = stream_data_ptr->remap;
-
-                    stream_data_ptr->block = std::make_shared<Scene>();
-                    Gameplay::SceneInit(&stream_data_ptr->block->wiscene);
-                    auto ar_stream = wi::Archive(stream_data_ptr->actual_file);
-
-                    if(stream_data_ptr->stream_type == Scene::StreamData::StreamType::INIT)
+                    size_t count = 0;
+                    ar_stream >> count;
+                    for(int it = 0; it < count; ++it)
                     {
-                        stream_data_ptr->preview_transform.Serialize(ar_stream, seri);
-                        stream_data_ptr->block->wiscene.componentLibrary.Entity_Serialize(stream_data_ptr->archiveID, ar_stream, seri);
+                        wi::ecs::Entity tier_prefabID = wi::ecs::INVALID_ENTITY;
+                        if(it < stream_task.lod_tiers.size())
+                            tier_prefabID = stream_task.lod_tiers[it];
+                        else
+                            tier_prefabID = wi::ecs::CreateEntity();
+
+                        stream_task.scene.wiscene.componentLibrary.Entity_Serialize(tier_prefabID, ar_stream, seri);
                         wi::jobsystem::Wait(seri.ctx);
+
+                        // Store datas
+                        stream_task.lod_tiers.insert({it, tier_prefabID});
+                        stream_task.scene.Entity_Disable(tier_prefabID);
                     }
-                    else
+                }
+                else
+                {
+                    _internal_Scene_Serialize(stream_task.scene.wiscene, ar_stream, seri, wi::ecs::INVALID_ENTITY);
+                    wi::jobsystem::Wait(seri.ctx);
+
+                    if(stream_task.stream_type == _internal_Stream_Task::STREAM_TYPE::FULL)
                     {
-                        _internal_Scene_Serialize(stream_data_ptr->block->wiscene, ar_stream, seri, wi::ecs::INVALID_ENTITY);
-                        wi::jobsystem::Wait(seri.ctx);
+                        stream_task.scene.wiscene.FindAllEntities(stream_task.entities);
 
-                        if(stream_data_ptr->stream_type == Scene::StreamData::StreamType::FULL)
+                        for(auto& entity : stream_task.entities)
                         {
-                            stream_data_ptr->block->wiscene.FindAllEntities(stream_data_ptr->entities);
+                            if(stream_task.scene.prefabs.Contains(entity))
+                                stream_task.prefabs.insert(entity);
 
-                            for(auto& entity : stream_data_ptr->entities)
+                            wi::scene::NameComponent* name = stream_task.scene.wiscene.names.GetComponent(entity);
+                            if(name != nullptr)
+                                stream_task.entity_name_map.insert({name->name, entity});
+
+                            Scene::FadeData fade_data;
+                            wi::scene::ObjectComponent* object = stream_task.scene.wiscene.objects.GetComponent(entity);
+                            if(object != nullptr)
                             {
-                                wi::scene::NameComponent* name = stream_data_ptr->block->wiscene.names.GetComponent(entity);
-                                if(name != nullptr)
-                                    stream_data_ptr->entity_name_map.insert({name->name, entity});
-
-                                Scene::FadeData fade_data;
-                                wi::scene::ObjectComponent* object = stream_data_ptr->block->wiscene.objects.GetComponent(entity);
-                                if(object != nullptr)
-                                {
-                                    fade_data.object = object->color.w;
-                                }
-                                wi::scene::LightComponent* light = stream_data_ptr->block->wiscene.lights.GetComponent(entity);
-                                if(light != nullptr)
-                                {
-                                    fade_data.light = light->intensity;
-                                }
-                                wi::scene::MaterialComponent* material = stream_data_ptr->block->wiscene.materials.GetComponent(entity);
-                                if(material != nullptr)
-                                {
-                                    fade_data.material = material->baseColor.w;
-                                }
-                                stream_data_ptr->fade_data.insert({entity, fade_data});
-
-                                bool do_parent = false;
-                                wi::scene::HierarchyComponent* hier = stream_data_ptr->block->wiscene.hierarchy.GetComponent(entity);
-                                if(hier != nullptr)
-                                {
-                                    if(hier->parentID == wi::ecs::INVALID_ENTITY)
-                                        do_parent = true;
-                                }
-                                else
-                                    do_parent = true;
-                                if(do_parent)
-                                    stream_data_ptr->block->wiscene.Component_Attach(entity, stream_data_ptr->archiveID);
-
-                                // Store datas
-                                stream_data_ptr->block->Entity_Disable(entity);
+                                fade_data.object = object->color.w;
                             }
+                            wi::scene::LightComponent* light = stream_task.scene.wiscene.lights.GetComponent(entity);
+                            if(light != nullptr)
+                            {
+                                fade_data.light = light->intensity;
+                            }
+                            wi::scene::MaterialComponent* material = stream_task.scene.wiscene.materials.GetComponent(entity);
+                            if(material != nullptr)
+                            {
+                                fade_data.material = material->baseColor.w;
+                            }
+                            stream_task.fade_data.insert({entity, fade_data});
+
+                            bool do_parent = false;
+                            wi::scene::HierarchyComponent* hier = stream_task.scene.wiscene.hierarchy.GetComponent(entity);
+                            if(hier != nullptr)
+                            {
+                                if(hier->parentID == wi::ecs::INVALID_ENTITY)
+                                    do_parent = true;
+                            }
+                            else
+                                do_parent = true;
+                            if(do_parent)
+                                stream_task.scene.wiscene.Component_Attach(entity, stream_task.archiveID);
+
+                            // Store datas
+                            stream_task.scene.Entity_Disable(entity);
                         }
                     }
-
-                    stream_data_ptr->remap = seri.remap;
-                    return_callback = true;
                 }
 
-                std::scoped_lock scene_sync(stream_mutex);
-
-                if(return_callback)
-                    stream_callbacks.push_back(stream_data_ptr);
-
-                it++;
-                it_end = stream_job_data->stream_queue.size();
+                stream_task.remap = seri.remap;
+                return_callback = true;
             }
-            stream_job_data->stream_queue.clear();
+
+            std::scoped_lock done_sync (stream_mutex);
+            stream_task.return_callback = return_callback;
+            stream_task.stream_state = _internal_Stream_Task::STREAM_STATE::DONE;
         });
     }
-    void _internal_Finish_Stream(std::shared_ptr<Scene::StreamData> stream_callback)
+    void _internal_Finish_Stream()
     {
-        Scene::Archive& archive = GetScene().scene_db[stream_callback->file];
-        if(stream_callback->stream_type == Scene::StreamData::StreamType::INIT)
+        Scene::Archive& archive = GetScene().scene_db[stream_task.file];
+        if(stream_task.stream_type == _internal_Stream_Task::STREAM_TYPE::INIT)
         {
-            if(stream_callback->block != nullptr)
+            if(stream_task.lod_tiers.size() > 0)
             {
-                GetScene().wiscene.Merge(stream_callback->block->wiscene);
-                archive.preview_transform = stream_callback->preview_transform;
+                GetScene().wiscene.Merge(stream_task.scene.wiscene);
+                for(size_t it = 0; it < stream_task.lod_tiers.size(); ++it)
+                {
+                    archive.lod_tiers[it] = stream_task.lod_tiers[it];
+                }
             }
             archive.load_state = Scene::Archive::LoadState::UNLOADED;
         }
         else
         {
-            GetScene().wiscene.Merge(stream_callback->block->wiscene);
-            archive.remap = stream_callback->remap;
-            if(stream_callback->stream_type == Scene::StreamData::StreamType::FULL)
+            GetScene().wiscene.Merge(stream_task.scene.wiscene);
+            archive.remap = stream_task.remap;
+            if(stream_task.stream_type == _internal_Stream_Task::STREAM_TYPE::FULL)
             {
-                archive.fade_data.insert(stream_callback->fade_data.begin(),stream_callback->fade_data.end());
-                archive.entity_name_map.insert(stream_callback->entity_name_map.begin(),stream_callback->entity_name_map.end());
-                archive.entities.insert(stream_callback->entities.begin(), stream_callback->entities.end());
+                archive.fade_data.insert(stream_task.fade_data.begin(),stream_task.fade_data.end());
+                archive.entity_name_map.insert(stream_task.entity_name_map.begin(),stream_task.entity_name_map.end());
+                archive.entities.insert(stream_task.entities.begin(), stream_task.entities.end());
+                archive.prefabs.insert(stream_task.prefabs.begin(), stream_task.prefabs.end());
             }
             archive.load_state = Scene::Archive::LoadState::LOADED;
         }
+        stream_task.Clear();
     }
     void Scene::Archive::Init()
     {
         archiveID = wi::ecs::CreateEntity();
 
-        // Add data to stream job
-        GetStreamJobData()->stream_queue.push_back(std::make_shared<StreamData>());
-        StreamData* stream_data_init = GetStreamJobData()->stream_queue.back().get();
-        stream_data_init->stream_type = StreamData::StreamType::INIT;
-        stream_data_init->file = file;
-        stream_data_init->actual_file = Filesystem::GetActualPath(wi::helper::ReplaceExtension(file, "preview"));
-        stream_data_init->archiveID = archiveID;
+        std::string preview_actual_file = Filesystem::GetActualPath(wi::helper::ReplaceExtension(file, "preview"));
 
         wi::ecs::EntitySerializer seri;
-        wi::Archive ar_bounds = wi::Archive(wi::helper::ReplaceExtension(stream_data_init->actual_file, "bounds"));
+        wi::Archive ar_bounds = wi::Archive(wi::helper::ReplaceExtension(preview_actual_file, "bounds"));
         bounds.Serialize(ar_bounds, seri);
+
+        stream_task.stream_type = _internal_Stream_Task::STREAM_TYPE::INIT;
+        stream_task.archiveID = archiveID;
+        stream_task.file = file;
+        stream_task.actual_file = preview_actual_file;
+        stream_task.remap.insert(remap.begin(), remap.end());
+
+        load_state = LoadState::INITIALIZING;
     }
     void Scene::Archive::Load(wi::ecs::Entity prefabID)
     {   
@@ -456,62 +479,95 @@ namespace Game{
             _internal_Clone_Prefab(*this, prefabID);
         }
 
-        if(load_state == LoadState::UNLOADED)
+        if(stream_task.stream_state == _internal_Stream_Task::STREAM_STATE::FREE)
         {
-            // Check if there is a stashed remap data
+            if(load_state == LoadState::UNLOADED)
+            {
+                // Check if there is a stashed remap data
+                Prefab* prefab = GetScene().prefabs.GetComponent(prefabID);
 
-            // Add data to stream job
-            GetStreamJobData()->stream_queue.push_back(std::make_shared<StreamData>());
-            StreamData* stream_data_init = GetStreamJobData()->stream_queue.back().get();
-            stream_data_init->stream_type = (is_root) ? StreamData::StreamType::ROOT : StreamData::StreamType::FULL;
-            stream_data_init->file = file;
-            stream_data_init->actual_file = Filesystem::GetActualPath(file);
-            stream_data_init->archiveID = archiveID;
-            stream_data_init->remap = remap;
+                // Add data to stream task
+                stream_task.stream_type = (is_root) ? _internal_Stream_Task::STREAM_TYPE::ROOT : _internal_Stream_Task::STREAM_TYPE::FULL;
+                stream_task.archiveID = archiveID;
+                stream_task.file = file;
+                stream_task.actual_file = Filesystem::GetActualPath(file);
+                stream_task.remap.insert(remap.begin(), remap.end());
 
-            load_state = LoadState::LOADING;
-        }
+                load_state = LoadState::LOADING;
+            }
 
-        if(load_state == LoadState::UNINITIALIZED)
-        {
-            Init();
+            if(load_state == LoadState::UNINITIALIZED)
+            {
+                Init();
+            }
+            stream_task.stream_state = _internal_Stream_Task::STREAM_STATE::PENDING;
         }
     }
-    void Scene::Archive::Unload(wi::ecs::Entity clone_prefabID)
+    void Scene::Archive::Unload(wi::ecs::Entity prefabID)
     {
-        // if(clone_prefabID != wi::ecs::INVALID_ENTITY)
-        // {
-        //     Prefab* clone_prefab = GetScene().prefabs.GetComponent(clone_prefabID);
-        //     Prefab* prefab = GetScene().prefabs.GetComponent(prefabID);
-        //     if(clone_prefab != nullptr)
-        //     {
-        //         clone_prefab->Unload();
-        //         dependency_count = std::max(dependency_count-1, uint32_t(0));
-        //     }
-        //     if((prefab->copy_mode == Prefab::CopyMode::LIBRARY) && (dependency_count == 0))
-        //     {
-        //         prefab->Unload();
-        //         load_state = LoadState::UNLOADED;   
-        //     }
-        // }
-        // if(clone_prefabID == wi::ecs::INVALID_ENTITY)
-        // {
-        //     Prefab* prefab = GetScene().prefabs.GetComponent(prefabID);
-        //     if(prefab != nullptr)
-        //     {
-        //         if(dependency_count > 0)
-        //         {
-        //             if(!prefab->disabled) 
-        //                 prefab->Disable();
-        //         }
-        //         else
-        //         {
-        //             prefab->Unload();
-        //             load_state = LoadState::UNLOADED;
-        //         }
-                    
-        //     }
-        // }
+        if(prefabID != wi::ecs::INVALID_ENTITY)
+        {
+            Prefab* prefab = GetScene().prefabs.GetComponent(prefabID);
+            if(prefab != nullptr)
+            {
+                // Delete subtier data first!
+                for(auto sub_prefabID : prefab->prefabs)
+                {
+                    Prefab* sub_prefab = GetScene().prefabs.GetComponent(sub_prefabID);
+
+                    if(sub_prefab->loaded)
+                        sub_prefab->Unload();
+
+                    for(auto& sub_tier_pair : sub_prefab->lod_tiers)
+                    {
+                        wi::ecs::Entity sub_tier_prefabID = sub_tier_pair.second;
+                        Prefab* sub_tier_prefab = GetScene().prefabs.GetComponent(sub_tier_prefabID);
+
+                        sub_tier_prefab->Unload();
+                        GetScene().wiscene.Entity_Remove(sub_tier_prefabID, false);;
+                    }
+                }
+
+                prefab->Unload();
+                dependency_count = std::max(dependency_count-1, uint32_t(0));
+            }
+        }
+    }
+    void Scene::Archive::CreateLODTier(wi::ecs::Entity prefabID)
+    {
+        if(prefabID != wi::ecs::INVALID_ENTITY)
+        {
+            wi::unordered_map<uint64_t, wi::ecs::Entity> remap;
+
+            Prefab* prefab = GetScene().prefabs.GetComponent(prefabID);
+            if(prefab != nullptr)
+            {
+                remap.insert(prefab->remap.begin(), prefab->remap.end());
+            }
+
+            wi::ecs::EntitySerializer seri;
+            
+            wi::unordered_map<size_t, wi::ecs::Entity> cp_lod_tiers;
+            wi::unordered_map<size_t, Scene::Prefab::StreamMode> cp_lod_tier_stream_modes;
+            for(auto tier_pair : lod_tiers)
+            {
+                wi::ecs::Entity clone_prefabID = GetScene().Entity_Clone(tier_pair.second, seri, true, &remap);
+                cp_lod_tiers.insert({tier_pair.first, clone_prefabID});
+                
+                Prefab* clone_prefab = GetScene().prefabs.GetComponent(clone_prefabID);
+                cp_lod_tier_stream_modes.insert({tier_pair.first, clone_prefab->stream_mode});
+                clone_prefab->stream_mode = Prefab::StreamMode::MANUAL;
+
+                GetScene().wiscene.Component_Attach(clone_prefabID, prefabID, true);
+            }
+
+            prefab = GetScene().prefabs.GetComponent(prefabID);
+            if(prefab != nullptr)
+            {
+                prefab->lod_tiers.insert(cp_lod_tiers.begin(), cp_lod_tiers.end());
+                prefab->lod_tier_stream_modes.insert(cp_lod_tier_stream_modes.begin(), cp_lod_tier_stream_modes.end());
+            }
+        }
     }
 
     wi::vector<std::string> storage_filter_list = { // Any that is commented out will not be cloned over!
@@ -546,6 +602,39 @@ namespace Game{
         "wi::scene::Scene::terrains",
         "Game::Scene::Prefab",
         "Game::Scene::Script"
+    };
+    wi::vector<std::string> shallow_filter_list = { // Any that is commented out will not be cloned over!
+        "wi::scene::Scene::names",
+        "wi::scene::Scene::layers",
+        "wi::scene::Scene::transforms",
+        "wi::scene::Scene::hierarchy",
+        "wi::scene::Scene::materials"
+        // "wi::scene::Scene::meshes",
+        // "wi::scene::Scene::impostors",
+        // "wi::scene::Scene::objects",
+        // "wi::scene::Scene::rigidbodies",
+        // "wi::scene::Scene::softbodies",
+        // "wi::scene::Scene::armatures",
+        // "wi::scene::Scene::lights",
+        // "wi::scene::Scene::cameras",
+        // "wi::scene::Scene::probes",
+        // "wi::scene::Scene::forces",
+        // "wi::scene::Scene::decals",
+        // "wi::scene::Scene::animations",
+        // "wi::scene::Scene::animation_datas",
+        // "wi::scene::Scene::emitters",
+        // "wi::scene::Scene::hairs",
+        // "wi::scene::Scene::weathers",
+        // "wi::scene::Scene::sounds",
+        // "wi::scene::Scene::inverse_kinematics",
+        // "wi::scene::Scene::springs",
+        // "wi::scene::Scene::colliders",
+        // "wi::scene::Scene::scripts",
+        // "wi::scene::Scene::expressions",
+        // "wi::scene::Scene::humanoids",
+        // "wi::scene::Scene::terrains",
+        // "Game::Scene::Prefab",
+        // "Game::Scene::Script"
     };
     bool Scene::Entity_Exists(wi::ecs::Entity entity)
     {
@@ -626,13 +715,27 @@ namespace Game{
 
         if(clone_seri != nullptr)
             seri.remap.insert(clone_seri->begin(), clone_seri->end());
-        bool temp_remap = seri.allow_remap;
-        if(!deep_copy)
-            seri.allow_remap = false;
+        seri.allow_remap = deep_copy;
         
         ar_copy.SetReadModeAndResetPos(false);
-        GetScene().wiscene.componentLibrary.Entity_Serialize(entity, ar_copy, seri);
-        wi::jobsystem::Wait(seri.ctx);
+        if(deep_copy)
+        {
+            GetScene().wiscene.componentLibrary.Entity_Serialize(entity, ar_copy, seri);
+            wi::jobsystem::Wait(seri.ctx);
+        }
+        else
+        {
+            seri.allow_remap = true;
+            for(auto& componentID : shallow_filter_list)
+            {
+                auto compmgr = wiscene.componentLibrary.entries[componentID].component_manager.get();
+                auto& compver = wiscene.componentLibrary.entries[componentID].version;
+                seri.version = compver;
+                compmgr->Component_Serialize(entity, ar_copy, seri);
+            }
+            wi::jobsystem::Wait(seri.ctx);
+            seri.allow_remap = false;
+        }
 
         wi::ecs::Entity clone_entity = wi::ecs::INVALID_ENTITY;
         if(clone_seri != nullptr)
@@ -646,16 +749,29 @@ namespace Game{
         
 
         ar_copy.SetReadModeAndResetPos(true);
-        GetScene().wiscene.componentLibrary.Entity_Serialize(clone_entity, ar_copy, seri);
-        wi::jobsystem::Wait(seri.ctx);
+        if(deep_copy)
+        {
+            GetScene().wiscene.componentLibrary.Entity_Serialize(clone_entity, ar_copy, seri);
+            wi::jobsystem::Wait(seri.ctx);
+        }
+        else
+        {
+            seri.allow_remap = true;
+            for(auto& componentID : shallow_filter_list)
+            {
+                auto compmgr = wiscene.componentLibrary.entries[componentID].component_manager.get();
+                auto& compver = wiscene.componentLibrary.entries[componentID].version;
+                seri.version = compver;
+                compmgr->Component_Serialize(clone_entity, ar_copy, seri);
+            }
+            wi::jobsystem::Wait(seri.ctx);
+            seri.allow_remap = false;
+        }
 
         if(clone_seri != nullptr)
         {
             clone_seri->insert({entity,clone_entity});
-            if(deep_copy)
-            {
-                clone_seri->insert(seri.remap.begin(), seri.remap.end());
-            }
+            clone_seri->insert(seri.remap.begin(), seri.remap.end());
         }
 
         auto inactive = inactives.GetComponent(entity);
@@ -699,7 +815,7 @@ namespace Game{
     void Scene::RunScriptUpdateSystem(wi::jobsystem::context &ctx)
     {
         _internal_ScriptUpdateSystem_enlist_job script_enlist_job;
-        wi::jobsystem::Dispatch(ctx, scripts.GetCount(), 255, [this, &script_enlist_job](wi::jobsystem::JobArgs jobArgs){
+        wi::jobsystem::Dispatch(ctx, scripts.GetCount(), 1, [this, &script_enlist_job](wi::jobsystem::JobArgs jobArgs){
             bool do_load = false;
 
             auto scriptID = scripts.GetEntity(jobArgs.jobIndex);
@@ -728,241 +844,286 @@ namespace Game{
             script->done_init = true;
         }
     }
-    struct _internal_PrefabUpdateSystem_stream_enlist_job
+
+    struct _internal_PrefabUpdateSystem_enlist_job
     {
-        float dt;
-        wi::vector<std::pair<wi::ecs::Entity,Scene::FadeData>> fade_update_list;
-        wi::vector<std::pair<wi::ecs::Entity,std::pair<wi::ecs::Entity, wi::scene::TransformComponent>>> preview_create_list;
-        wi::unordered_map<wi::ecs::Entity, std::string> load_list;
-        wi::unordered_map<wi::ecs::Entity, std::string> unload_list;
-        wi::unordered_map<std::string, wi::ecs::Entity> library_create_list;
+        bool prealloc_done = false;
         std::mutex stream_list_mutex;
-    };
-    void Scene::RunPrefabUpdateSystem(float dt, wi::jobsystem::context& ctx)
-    {
-        // Finish load callback
-        for(auto stream_callback : stream_callbacks)
+        
+        bool load_occupied = false;
+        wi::ecs::Entity loadID = wi::ecs::INVALID_ENTITY;
+        std::string load_file;
+
+        wi::unordered_map<wi::ecs::Entity, std::string> unload_queue;
+        wi::unordered_map<wi::ecs::Entity, std::string> clone_queue;
+
+        wi::unordered_map<wi::ecs::Entity, std::string> lodtier_queue;
+
+        void Clear()
         {
-            _internal_Finish_Stream(stream_callback);
+            load_occupied = false;
+            loadID = wi::ecs::INVALID_ENTITY;
+            clone_queue.clear();
+            unload_queue.clear();
+            lodtier_queue.clear();
         }
-        stream_callbacks.clear();
+    };
+    _internal_PrefabUpdateSystem_enlist_job prefab_enlist_job;
+    bool _internal_CheckArchiveReady(Scene& scene, wi::ecs::Entity prefabID, Scene::Prefab& prefab)
+    {
+        auto find_archive = scene.scene_db.find(prefab.file);
 
-        // Stream prefabs
-        _internal_PrefabUpdateSystem_stream_enlist_job stream_enlist_job;
-        stream_enlist_job.dt = dt;
-        wi::jobsystem::Dispatch(ctx, prefabs.GetCount(), 255, [this, &stream_enlist_job](wi::jobsystem::JobArgs jobArgs){
-            bool do_init = false;
-            bool do_stream = false;
+        bool archive_ready = true;
+        if(find_archive == scene.scene_db.end()) // Create archive first
+        {
+            std::scoped_lock stream_list_sync (prefab_enlist_job.stream_list_mutex);
             
-            auto prefabID = prefabs.GetEntity(jobArgs.jobIndex);
-            Prefab& prefab = prefabs[jobArgs.jobIndex];
-
-            auto find_archive = scene_db.find(prefab.file);
-
-            bool archive_ready = true;
-            if(find_archive == scene_db.end()) // Create archive first
+            if(!prefab_enlist_job.load_occupied)
             {
-                scene_db[prefab.file] = {};
-                Archive& archive = scene_db[prefab.file];
+                scene.scene_db[prefab.file] = Scene::Archive();
+                Scene::Archive& archive = scene.scene_db[prefab.file];
                 archive.file = prefab.file;
-                stream_enlist_job.load_list[prefabID] = prefab.file;
+
+                prefab_enlist_job.loadID = prefabID;
+                prefab_enlist_job.load_file = prefab.file;
+                prefab_enlist_job.load_occupied = true;
+            }
+
+            archive_ready = false;
+        }
+        if(archive_ready)
+        {
+            if(find_archive->second.load_state == Scene::Archive::LoadState::UNLOADED)
+            {
+                std::scoped_lock stream_list_sync (prefab_enlist_job.stream_list_mutex);
+                
+                if(!prefab_enlist_job.load_occupied)
+                {
+                    prefab_enlist_job.loadID = prefabID;
+                    prefab_enlist_job.load_file = prefab.file;
+                    prefab_enlist_job.load_occupied = true;
+                }
+
                 archive_ready = false;
             }
-            if(archive_ready)
-            {
-                if(find_archive->second.load_state == Archive::LoadState::UNLOADED)
-                {
-                    stream_enlist_job.load_list[wi::ecs::INVALID_ENTITY] = prefab.file;
-                    archive_ready = false;
-                }
-            }
+        }
 
-            // Determine whether to load or not
-            if(archive_ready)
-            {
-                Archive& archive = find_archive->second;
-
-                // Is loadable check START
-                bool is_loadable = false;
-                switch(prefab.stream_mode)
-                {
-                    case Prefab::StreamMode::DIRECT:
-                    {
-                        is_loadable = true;
-                        break;
-                    }
-                    case Prefab::StreamMode::DISTANCE:
-                    {
-                        // Calculate by zone distance
-                        wi::primitive::AABB zone_check = archive.bounds;
-                        wi::scene::TransformComponent transformator;
-                        
-                        XMFLOAT3 zone_center = zone_check.getCenter();
-                        transformator.Translate(XMFLOAT3(-zone_center.x, -zone_center.y, -zone_center.z));
-                        transformator.UpdateTransform();
-                        zone_check = zone_check.transform(transformator.world);
-                        
-                        transformator = wi::scene::TransformComponent();
-                        transformator.Scale(XMFLOAT3(prefab.stream_distance_multiplier, prefab.stream_distance_multiplier, prefab.stream_distance_multiplier));
-                        transformator.UpdateTransform();
-                        zone_check = zone_check.transform(transformator.world);
-
-                        transformator = wi::scene::TransformComponent();
-                        transformator.Translate(XMFLOAT3(zone_center.x, zone_center.y, zone_center.z));
-                        transformator.UpdateTransform();
-                        zone_check = zone_check.transform(transformator.world);
-                        
-                        wi::scene::TransformComponent* prefab_transform = wiscene.transforms.GetComponent(prefabID);
-                        if(prefab_transform != nullptr)
-                            transformator = *prefab_transform;
-                        zone_check = zone_check.transform(transformator.world);
-
-                        is_loadable = zone_check.intersects(
-                            wi::primitive::Sphere(
-                                XMFLOAT3(stream_loader_bounds.x, stream_loader_bounds.y, stream_loader_bounds.z),
-                                stream_loader_bounds.w)
-                        );
-                        break;
-                    }
-                    case Prefab::StreamMode::SCREEN_ESTATE:
-                    {
-                        // Calculate by zone estate
-                        wi::primitive::AABB zone_check = archive.bounds;
-                        wi::scene::TransformComponent transformator;
-                        
-                        XMFLOAT3 zone_center = zone_check.getCenter();
-                        transformator.Translate(XMFLOAT3(-zone_center.x, -zone_center.y, -zone_center.z));
-                        transformator.UpdateTransform();
-                        zone_check = zone_check.transform(transformator.world);
-                        
-                        transformator = wi::scene::TransformComponent();
-                        transformator.Scale(XMFLOAT3(prefab.stream_distance_multiplier, prefab.stream_distance_multiplier, prefab.stream_distance_multiplier));
-                        transformator.UpdateTransform();
-                        zone_check = zone_check.transform(transformator.world);
-
-                        transformator = wi::scene::TransformComponent();
-                        transformator.Translate(XMFLOAT3(zone_center.x, zone_center.y, zone_center.z));
-                        transformator.UpdateTransform();
-                        zone_check = zone_check.transform(transformator.world);
-                        
-                        wi::scene::TransformComponent* prefab_transform = wiscene.transforms.GetComponent(prefabID);
-                        if(prefab_transform != nullptr)
-                            transformator = *prefab_transform;
-                        zone_check = zone_check.transform(transformator.world);
-
-                        is_loadable = ((zone_check.getRadius()/wi::math::Distance(zone_check.getCenter(),wi::scene::GetCamera().Eye)) > (stream_loader_screen_estate));
-                        break;
-                    }
-                    default:
-                        break;
-                }
-                // Is loadable check END
-
-                // Create preview object
-                if((wiscene.meshes.Contains(archive.archiveID)) && (prefab.preview_object == wi::ecs::INVALID_ENTITY))
-                {
-                    std::scoped_lock stream_list_sync (stream_enlist_job.stream_list_mutex);
-                    stream_enlist_job.preview_create_list.push_back({prefabID,{archive.archiveID, archive.preview_transform}});
-                } 
-
-                prefab.fade_factor = wi::math::Clamp(
-                    prefab.fade_factor+((is_loadable) ? 1.0:-1.0)*stream_enlist_job.dt*GetScene().stream_transition_speed,
-                    0.f, 1.f);
-
-                if(prefab.fade_factor > 0.f)
-                {
-                    if( (!prefab.loaded) &&
-                        (archive.load_state == Archive::LoadState::LOADED) ) // Clone, but only after streaming
-                    {
-                        std::scoped_lock stream_list_sync (stream_enlist_job.stream_list_mutex);
-                        stream_enlist_job.load_list[prefabID] = archive.file;
-                    }
-
-                    std::scoped_lock stream_list_sync(stream_enlist_job.stream_list_mutex);
-                    
-                    if(prefab.preview_object != wi::ecs::INVALID_ENTITY)
-                    {
-                        FadeData result;
-                        result.object = 1.f-prefab.fade_factor;
-                        result.light = 1.f;
-                        result.material = 1.f;
-                        stream_enlist_job.fade_update_list.push_back({prefab.preview_object, result});
-                    }
-
-                    for(auto& fade_object : prefab.fade_data)
-                    {
-                        FadeData result;
-                        result.object = fade_object.second.object * prefab.fade_factor;
-                        result.light = fade_object.second.light * prefab.fade_factor;
-                        result.material = fade_object.second.material * prefab.fade_factor;
-                        stream_enlist_job.fade_update_list.push_back({fade_object.first, result});
-                    }
-                }
-                else
-                {
-                    if( (prefab.loaded) &&
-                        (archive.load_state == Archive::LoadState::LOADED) )
-                    {
-                        std::scoped_lock stream_list_sync (stream_enlist_job.stream_list_mutex);
-                        stream_enlist_job.unload_list[prefabID] = archive.file;
-                    }
-                }
-            }
-        });
-        wi::jobsystem::Wait(ctx);
-
-        // Preview object creation
-        for(auto& preview_create_pair : stream_enlist_job.preview_create_list)
+        return archive_ready;
+    }
+    bool _internal_CheckPrefabLoadable(Scene::Prefab::StreamMode stream_mode, wi::ecs::Entity prefabID, Scene::Prefab& prefab, Scene& scene, Scene::Archive& archive)
+    {
+        bool is_loadable = false;
+        switch(stream_mode)
         {
-            Prefab* prefab = prefabs.GetComponent(preview_create_pair.first);
-            if(prefab != nullptr)
+            case Game::Scene::Prefab::StreamMode::DIRECT:
             {
-                prefab->preview_object = wiscene.Entity_CreateObject("PREVIEW_OBJECT");
-
-                wi::scene::TransformComponent* transform = wiscene.transforms.GetComponent(prefab->preview_object);
-                transform->translation_local = preview_create_pair.second.second.translation_local;
-                transform->rotation_local = preview_create_pair.second.second.rotation_local;
-                transform->scale_local = preview_create_pair.second.second.scale_local;
-                transform->UpdateTransform();
-                wiscene.Component_Attach(prefab->preview_object, preview_create_pair.first, true);
+                is_loadable = true;
+                break;
+            }
+            case Game::Scene::Prefab::StreamMode::DISTANCE:
+            {
+                // Calculate by zone distance
+                wi::primitive::AABB zone_check = archive.bounds;
+                wi::scene::TransformComponent transformator;
                 
-                wi::scene::ObjectComponent* object = wiscene.objects.GetComponent(prefab->preview_object);
-                object->meshID = preview_create_pair.second.first;
+                XMFLOAT3 zone_center = zone_check.getCenter();
+                transformator.Translate(XMFLOAT3(-zone_center.x, -zone_center.y, -zone_center.z));
+                transformator.UpdateTransform();
+                zone_check = zone_check.transform(transformator.world);
+                
+                transformator = wi::scene::TransformComponent();
+                transformator.Scale(XMFLOAT3(prefab.stream_distance_multiplier, prefab.stream_distance_multiplier, prefab.stream_distance_multiplier));
+                transformator.UpdateTransform();
+                zone_check = zone_check.transform(transformator.world);
+
+                transformator = wi::scene::TransformComponent();
+                transformator.Translate(XMFLOAT3(zone_center.x, zone_center.y, zone_center.z));
+                transformator.UpdateTransform();
+                zone_check = zone_check.transform(transformator.world);
+                
+                wi::scene::TransformComponent* prefab_transform = scene.wiscene.transforms.GetComponent(prefabID);
+                if(prefab_transform != nullptr)
+                    transformator = *prefab_transform;
+                zone_check = zone_check.transform(transformator.world);
+
+                is_loadable = zone_check.intersects(
+                    wi::primitive::Sphere(
+                        XMFLOAT3(scene.stream_loader_bounds.x, scene.stream_loader_bounds.y, scene.stream_loader_bounds.z),
+                        scene.stream_loader_bounds.w)
+                );
+                break;
             }
+            case Game::Scene::Prefab::StreamMode::SCREEN_ESTATE:
+            {
+                // Calculate by zone estate
+                wi::primitive::AABB zone_check = archive.bounds;
+                wi::scene::TransformComponent transformator;
+                
+                XMFLOAT3 zone_center = zone_check.getCenter();
+                transformator.Translate(XMFLOAT3(-zone_center.x, -zone_center.y, -zone_center.z));
+                transformator.UpdateTransform();
+                zone_check = zone_check.transform(transformator.world);
+                
+                transformator = wi::scene::TransformComponent();
+                transformator.Scale(XMFLOAT3(prefab.stream_distance_multiplier, prefab.stream_distance_multiplier, prefab.stream_distance_multiplier));
+                transformator.UpdateTransform();
+                zone_check = zone_check.transform(transformator.world);
+
+                transformator = wi::scene::TransformComponent();
+                transformator.Translate(XMFLOAT3(zone_center.x, zone_center.y, zone_center.z));
+                transformator.UpdateTransform();
+                zone_check = zone_check.transform(transformator.world);
+                
+                wi::scene::TransformComponent* prefab_transform = scene.wiscene.transforms.GetComponent(prefabID);
+                if(prefab_transform != nullptr)
+                    transformator = *prefab_transform;
+                zone_check = zone_check.transform(transformator.world);
+
+                is_loadable = ((zone_check.getRadius()/wi::math::Distance(zone_check.getCenter(),wi::scene::GetCamera().Eye)) > (scene.stream_loader_screen_estate));
+                break;
+            }
+            case Game::Scene::Prefab::StreamMode::MANUAL:
+            {
+                is_loadable = prefab.fade_manual_active;
+                break;
+            }
+            default:
+                break;
         }
 
-        // Fade management
-        wi::jobsystem::Dispatch(ctx, uint32_t(stream_enlist_job.fade_update_list.size()), 255, [this, &stream_enlist_job](wi::jobsystem::JobArgs jobArgs){
-            auto& fade_pair = stream_enlist_job.fade_update_list[jobArgs.jobIndex];
-            wi::scene::ObjectComponent* object = wiscene.objects.GetComponent(fade_pair.first);
-            if(object != nullptr)
-                object->color.w = fade_pair.second.object;
+        return is_loadable;
+    }
+    void Scene::RunPrefabUpdateSystem(float dt, wi::jobsystem::context& ctx)
+    {
+        if(stream_task.stream_state == _internal_Stream_Task::STREAM_STATE::DONE)
+            _internal_Finish_Stream();
 
-            wi::scene::LightComponent* light = wiscene.lights.GetComponent(fade_pair.first);
-            if(light != nullptr)
-                light->intensity = fade_pair.second.light;
-            
-            wi::scene::MaterialComponent* material = wiscene.materials.GetComponent(fade_pair.first);
-            if(material != nullptr)
-                material->baseColor.w = fade_pair.second.material;
+        wi::jobsystem::Dispatch(ctx, prefabs.GetCount(), 1, [this, dt](wi::jobsystem::JobArgs jobArgs){
+            size_t prefab_idx = jobArgs.jobIndex;
+            wi::ecs::Entity prefabID = prefabs.GetEntity(prefab_idx);
+
+            Prefab* prefab = prefabs.GetComponent(prefabID);
+            bool archive_ready = _internal_CheckArchiveReady(*this, prefabID, *prefab);
+
+            if(archive_ready)
+            {
+                Archive& archive = scene_db.find(prefab->file)->second;
+                bool is_loadable = _internal_CheckPrefabLoadable(prefab->stream_mode, prefabID, *prefab, *this, archive);
+
+                if(prefab->lod_tiers.size() > 0)
+                {
+                    bool tier_do_load = false;
+                    size_t target_idx = 0;
+                    for(size_t idx = 0; idx < prefab->lod_tiers.size(); ++idx)
+                    {
+                        size_t r_idx = prefab->lod_tiers.size()-idx-1;
+
+                        wi::ecs::Entity tier_prefabID = prefab->lod_tiers[r_idx];
+                        Prefab* tier_prefab = prefabs.GetComponent(tier_prefabID);
+                        tier_prefab->fade_manual_active = false;
+
+                        bool is_tier_loadable = false;
+                        bool tier_archive_ready = _internal_CheckArchiveReady(*this, tier_prefabID, *tier_prefab);
+                        if(tier_archive_ready)
+                        {
+                            Archive& tier_archive = scene_db.find(tier_prefab->file)->second;
+                            is_tier_loadable = _internal_CheckPrefabLoadable(prefab->lod_tier_stream_modes[r_idx], tier_prefabID, *tier_prefab, *this, tier_archive);
+                        }
+                        if(!is_tier_loadable)
+                            break;
+
+                        tier_do_load = is_tier_loadable;
+                        target_idx = r_idx;
+                    }
+
+                    Prefab* tier_prefab = prefabs.GetComponent(prefab->lod_tiers[target_idx]);
+                    tier_prefab->fade_manual_active = (target_idx == 0) ? !is_loadable : tier_do_load;
+                    is_loadable = (target_idx == 0) ? is_loadable : false;
+                }
+
+                if( (prefab->lod_tiers.size() == 0)
+                    &&(archive.lod_tiers.size() > 0)
+                    &&(prefab_enlist_job.lodtier_queue.size() < 32))
+                {
+                    std::scoped_lock stream_list_sync (prefab_enlist_job.stream_list_mutex);
+                    prefab_enlist_job.lodtier_queue.insert({prefabID, prefab->file});
+                }
+                
+                prefab->fade_factor = wi::math::Clamp(prefab->fade_factor + (((is_loadable) ? +dt : -dt)*stream_transition_speed),0.f,1.f);
+
+                if( (prefab->loaded)
+                    &&(prefab->fade_factor_diff != prefab->fade_factor))
+                {
+                    for(auto& fade_pair : prefab->fade_data)
+                    {
+                        wi::ecs::Entity fade_entity = fade_pair.first;
+                        FadeData& fade_data = fade_pair.second;
+
+                        wi::scene::ObjectComponent* object = wiscene.objects.GetComponent(fade_entity);
+                        if(object != nullptr)
+                        {
+                            object->color.w = fade_data.object*prefab->fade_factor;
+                        }
+
+                        wi::scene::MaterialComponent* material = wiscene.materials.GetComponent(fade_entity);
+                        if(material != nullptr)
+                        {
+                            material->baseColor.w = fade_data.material*prefab->fade_factor;
+                        }
+
+                        wi::scene::LightComponent* light = wiscene.lights.GetComponent(fade_entity);
+                        if(light != nullptr)
+                        {
+                            light->intensity = fade_data.light*prefab->fade_factor;
+                        }
+                    }
+                    prefab->fade_factor_diff = prefab->fade_factor;
+                }
+
+                if( (!prefab->loaded)
+                    &&(prefab->fade_factor > 0.f) 
+                    &&(prefab_enlist_job.clone_queue.size() < 255) )
+                {                    
+                    std::scoped_lock stream_list_sync (prefab_enlist_job.stream_list_mutex);
+                    prefab_enlist_job.clone_queue.insert({prefabID, prefab->file});
+                    prefab->fade_factor = 0.f;
+                }
+                if( (prefab->loaded)
+                    &&(prefab->fade_factor == 0.f)
+                    &&(prefab_enlist_job.unload_queue.size() < 255) )
+                {                    
+                    std::scoped_lock stream_list_sync (prefab_enlist_job.stream_list_mutex);
+                    prefab_enlist_job.unload_queue.insert({prefabID, prefab->file});
+                }
+            }
         });
         wi::jobsystem::Wait(ctx);
 
-        // Process loads
-        for(auto& load_pair : stream_enlist_job.load_list)
+        for(auto& queue_pair : prefab_enlist_job.unload_queue)
         {
-            Archive& archive = scene_db[load_pair.second];
-            archive.Load(load_pair.first);
+            Archive& archive = scene_db.find(queue_pair.second)->second;
+            archive.Unload(queue_pair.first);
         }
-        stream_enlist_job.load_list.clear();
 
-        // Process unloads
-        for(auto& unload_pair : stream_enlist_job.unload_list)
+        if(prefab_enlist_job.load_occupied)
         {
-            Archive& archive = scene_db[unload_pair.second];
-            archive.Unload(unload_pair.first);
+            Archive& archive = scene_db.find(prefab_enlist_job.load_file)->second;
+            archive.Load(prefab_enlist_job.loadID);
         }
-        stream_enlist_job.unload_list.clear();
+
+        for(auto& queue_pair : prefab_enlist_job.clone_queue)
+        {
+            Archive& archive = scene_db.find(queue_pair.second)->second;
+            archive.Load(queue_pair.first);
+        }
+
+        for(auto& queue_pair : prefab_enlist_job.lodtier_queue)
+        {
+            Archive& archive = scene_db.find(queue_pair.second)->second;
+            archive.CreateLODTier(queue_pair.first);
+        }
+
+        prefab_enlist_job.Clear();
     }
 
     void Scene::PreUpdate(float dt)
@@ -982,8 +1143,11 @@ namespace Game{
         // std::scoped_lock stream_lock(stream_mutex);
         if(!wi::jobsystem::IsBusy(stream_job))
         {
-            if((GetStreamJobData()->stream_queue.size() > 0))
-                _internal_Run_Stream_Job(GetStreamJobData());
+            if(stream_task.stream_state == _internal_Stream_Task::STREAM_STATE::PENDING)
+            {
+                stream_task.stream_state == _internal_Stream_Task::STREAM_STATE::INPROGRESS;
+                _internal_Run_Stream_Job();
+            }
         }
     }
 }

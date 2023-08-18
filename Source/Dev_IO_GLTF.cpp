@@ -2544,6 +2544,16 @@ void Import_Extension_MURAMASA_assetsmith(LoaderState& state)
 				}
 			}
 		}
+
+		// Transfer tier data (if exist)
+		if(gltf_extension_extdata.Has("prefab_tiers"))
+		{
+			tinygltf::Value gltf_prefab_tiers = gltf_extension_extdata.Get("prefab_tiers");
+			for(size_t tier_idx = 0; tier_idx < gltf_prefab_tiers.ArrayLen(); ++tier_idx)
+			{
+				Dev::IO::importdata_lodtier.push_back(gltf_prefab_tiers.Get(tier_idx).Get<std::string>());
+			}
+		}
 	}
 
 	for(size_t animID = 0; animID < state.gltfModel.animations.size(); ++animID)

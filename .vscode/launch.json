@@ -20,7 +20,7 @@
             "target": "./Dev",
             "cwd": "${workspaceRoot}/build",
             "valuesFormatting": "parseText",
-            "arguments": "-t SCENE_IMPORT -i Props/Environment/Foliages/Tree1_Tree1_Branch.assetsmith"
+            "arguments": "-t SCENE_IMPORT -i Props/Environment/Foliages/Tree1_Tree1_Twig.assetsmith"
         },
         {
             "name": "Debug Dev Scene Preview",

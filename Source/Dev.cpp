@@ -129,6 +129,8 @@ bool Dev::ReadCMD(const wchar_t* win_args)
     return _internal_ReadCMD(args);
 }
 
+wi::vector<std::string> Dev::IO::importdata_lodtier;
+
 void _DEV_scene_import()
 {
     static uint32_t cycle = 0;
@@ -166,6 +168,8 @@ void _DEV_scene_import()
             // Update lens flare and material textures only!
             // Rename extension to ktx2 (conversion is done before this through Blender)
 
+            std::string root_path = wi::helper::GetDirectoryFromPath(Game::Filesystem::GetActualPath(Dev::GetCommandData()->input));
+            
             wi::jobsystem::context convert_ctx;
             for(int i = 0; i < Game::GetScene().wiscene.materials.GetCount(); ++i)
             {
@@ -176,15 +180,12 @@ void _DEV_scene_import()
                     {
                         // wi::backlog::post("Processing Texture: "+material.textures[j].name);
                         // Convert textures here and now, but check first
-                        std::string root_path = wi::helper::GetDirectoryFromPath(Game::Filesystem::GetActualPath(Dev::GetCommandData()->input));
-                        
-                        // std::string texture_file = material.textures[i].name.substr(3,material.textures[i].name.length()-3);
-                        // std::string texture_file = material.textures[j].name.substr(root_path.length(), material.textures[i].name.length()-root_path.length());
-                        std::string texture_file = std::filesystem::relative(material.textures[j].name, root_path).generic_string();
-                        std::string actual_texture_file = root_path + texture_file;
+                        std::string texture_file = material.textures[j].name.substr(3,material.textures[j].name.length()-3);
+                        texture_file = material.textures[j].name.substr(root_path.length(), material.textures[j].name.length()-root_path.length());
+                        std::string actual_texture_file = std::filesystem::absolute(root_path).append(texture_file).lexically_normal().generic_string();
                         
                         std::string texture_ktx2 = wi::helper::ReplaceExtension(texture_file, "ktx2");
-                        std::string actual_texture_ktx2 = root_path + texture_ktx2;
+                        std::string actual_texture_ktx2 = wi::helper::ReplaceExtension(actual_texture_file, "ktx2");
 
                         bool update = false;
                         if(wi::helper::FileExists(actual_texture_ktx2))
@@ -243,80 +244,25 @@ void _DEV_scene_import()
         {
             wi::backlog::post("Processing Textures Done");
 
-            wi::unordered_set<wi::ecs::Entity> entity_to_remove;
-            // Find name prefix PREVIEW_
-            for(int i = 0; i < Game::GetScene().wiscene.objects.GetCount(); ++i)
+            std::string preview_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input);
+            preview_file = wi::helper::ReplaceExtension(preview_file, "preview");
+            wi::Archive ar_preview = wi::Archive(preview_file, false);
+
+            wi::ecs::EntitySerializer seri;
+            seri.allow_remap = false;
+
+            ar_preview << Dev::IO::importdata_lodtier.size();
+            for(auto lodtier_str : Dev::IO::importdata_lodtier)
             {
-                auto entity = Game::GetScene().wiscene.objects.GetEntity(i);
-                auto name = Game::GetScene().wiscene.names.GetComponent(entity);
-                wi::scene::ObjectComponent& object = Game::GetScene().wiscene.objects[i];
-                if(name != nullptr)
-                {
-                    if(name->name.substr(0,8) == "PREVIEW_")
-                    {
-                        wi::scene::TransformComponent* transform = Game::GetScene().wiscene.transforms.GetComponent(entity);
-                        wi::scene::MeshComponent* mesh = Game::GetScene().wiscene.meshes.GetComponent(object.meshID);
-                        if((transform != nullptr) && (mesh != nullptr))
-                        {
-                            // Rename the mesh entity name to a format that is known
-                            auto mesh_name = Game::GetScene().wiscene.names.GetComponent(object.meshID);
-                            if(mesh_name == nullptr)
-                            {
-                                auto& new_mesh_name = Game::GetScene().wiscene.names.Create(object.meshID);
-                                mesh_name = Game::GetScene().wiscene.names.GetComponent(object.meshID);
-                            }
-                            mesh_name->name = "PREVIEW_"+wi::helper::RemoveExtension(wi::helper::GetFileNameFromPath(Dev::GetCommandData()->input));
+                wi::ecs::Entity prefabID = Game::GetScene().wiscene.Entity_FindByName(lodtier_str);
 
-                            // Transfer material to the same entity as mesh
-                            if(mesh->subsets[0].materialID != object.meshID)
-                            {
-                                if(Game::GetScene().wiscene.materials.Contains(mesh->subsets[0].materialID))
-                                {
-                                    wi::ecs::EntitySerializer seri;
-                                    wi::Archive ar_copy_material;
-                                    Game::GetScene().wiscene.materials.Component_Serialize(mesh->subsets[0].materialID, ar_copy_material, seri);
-                                    
-                                    ar_copy_material.SetReadModeAndResetPos(true);
-                                    Game::GetScene().wiscene.materials.Component_Serialize(object.meshID, ar_copy_material, seri);
-                                    mesh->subsets[0].materialID = object.meshID;
-                                    
-                                    entity_to_remove.insert(mesh->subsets[0].materialID);
-                                }
-                            };
-
-                            // Save this mesh entity to archive
-                            {
-                                wi::ecs::EntitySerializer seri;
-                                std::string preview_file = Game::Filesystem::GetActualPath(Dev::GetCommandData()->input);
-                                preview_file = wi::helper::ReplaceExtension(preview_file, "preview");
-                                wi::Archive ar_prev_mesh = wi::Archive(preview_file, false);
-                                // Store object offset position
-                                transform->Serialize(ar_prev_mesh, seri);
-                                // Store mesh
-                                Game::GetScene().wiscene.Entity_Serialize(
-                                        ar_prev_mesh,
-                                        seri,
-                                        object.meshID,
-                                        wi::scene::Scene::EntitySerializeFlags::KEEP_INTERNAL_ENTITY_REFERENCES
-                                    );
-                                wi::jobsystem::Wait(seri.ctx);
-                            }
-
-                            entity_to_remove.insert(object.meshID);
-                        }
-
-                        entity_to_remove.insert(entity);
-
-                        break;
-                    }
-                }
-            }
-            for(auto& entity : entity_to_remove)
-            {
-                Game::GetScene().wiscene.Entity_Remove(entity,false);
+                Game::GetScene().wiscene.componentLibrary.Entity_Serialize(prefabID, ar_preview, seri);
+                wi::jobsystem::Wait(seri.ctx);
+                
+                Game::GetScene().wiscene.Entity_Remove(prefabID);
             }
 
-            wi::backlog::post("Preview Mesh Generation Done (if any is included)");
+            wi::backlog::post("Processing LOD Tier Data Done!");
 
             cycle++;
             break;
@@ -331,7 +277,7 @@ void _DEV_scene_import()
             Game::GetScene().wiscene.Serialize(scene_save);
 
             wi::backlog::post("Wiscene Conversion Done: "+wiscene_file);
-            wi::backlog::post("You can close this window now");
+            wi::backlog::post("[<-- ! -->] You can close this window now [<-- ! -->]");
 
             cycle++;
             break;
