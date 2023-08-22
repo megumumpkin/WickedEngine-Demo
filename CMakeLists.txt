@@ -84,6 +84,10 @@ if (WIN32)
 	)
 
 	add_library(Gameplay SHARED ${GAMEPLAY_FILES})
+ 	set_target_properties(Gameplay PROPERTIES
+		ENABLE_EXPORTS 1
+  		WINDOWS_EXPORT_ALL_SYMBOLS 1
+	)
 	target_link_libraries(Gameplay PUBLIC
 	 	WickedEngine::WickedEngine_Windows
 		Game
@@ -107,6 +111,10 @@ if (WIN32)
 	)
 
 	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
+ 	set_target_properties(Gameplay_DEV PROPERTIES
+		ENABLE_EXPORTS 1
+  		WINDOWS_EXPORT_ALL_SYMBOLS 1
+	)
 	target_link_libraries(Gameplay_DEV PUBLIC
 	 	WickedEngine::WickedEngine_Windows
 		Dev
