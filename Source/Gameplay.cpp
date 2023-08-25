@@ -29,14 +29,12 @@ namespace Gameplay
         // Load library
 #ifdef _WIN32
         auto lib_str = library_name+".dll";
-        Gameplay_Hook();
 #else
         auto lib_str = "./lib"+library_name+".so";
-// #endif
+#endif
         gameplay_lib = wiLoadLibrary(lib_str.c_str());
         lib_hook_t lib_hook = (lib_hook_t)wiGetProcAddress(gameplay_lib, "Gameplay_Hook");
         lib_hook();
-#endif
 
         // Init all hooks
         for(auto& gameplay_hook : gameplay_hooks)
@@ -84,7 +82,7 @@ namespace Gameplay
     {
         gameplay_hooks.clear();
 #ifdef _WIN32
-        // FreeLibrary((HINSTANCE)gameplay_lib);
+        FreeLibrary((HINSTANCE)gameplay_lib);
 #else
         dlclose(gameplay_lib);
 #endif
