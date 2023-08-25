@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/build/Install")
 set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build/Install")
@@ -77,17 +78,12 @@ if (WIN32)
 	add_executable(Game WIN32 ${SOURCE_FILES})
 	set_target_properties(Game PROPERTIES
 		ENABLE_EXPORTS 1
-  		WINDOWS_EXPORT_ALL_SYMBOLS 1
 	)
 	target_link_libraries(Game PUBLIC
 	 	WickedEngine::WickedEngine_Windows
 	)
 
 	add_library(Gameplay SHARED ${GAMEPLAY_FILES})
- 	set_target_properties(Gameplay PROPERTIES
-		ENABLE_EXPORTS 1
-  		WINDOWS_EXPORT_ALL_SYMBOLS 1
-	)
 	target_link_libraries(Gameplay PUBLIC
 	 	WickedEngine::WickedEngine_Windows
 		Game
@@ -101,7 +97,6 @@ if (WIN32)
 	add_executable(Dev WIN32 ${DEV_FILES})
 	set_target_properties(Dev PROPERTIES
 		ENABLE_EXPORTS 1
-  		WINDOWS_EXPORT_ALL_SYMBOLS 1
 	)
 	target_compile_definitions(Dev PUBLIC IS_DEV=1)
 	target_link_libraries(Dev PUBLIC
@@ -111,10 +106,6 @@ if (WIN32)
 	)
 
 	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
- 	set_target_properties(Gameplay_DEV PROPERTIES
-		ENABLE_EXPORTS 1
-  		WINDOWS_EXPORT_ALL_SYMBOLS 1
-	)
 	target_link_libraries(Gameplay_DEV PUBLIC
 	 	WickedEngine::WickedEngine_Windows
 		Dev
