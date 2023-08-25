@@ -204,7 +204,7 @@ void _DEV_scene_import()
                         {
                             wi::vector<std::string> args = {
 #ifdef _WIN32
-                                wi::helper::GetCurrentPath()+"/Tools/KTX-Software/win32/bin/toktx.exe",
+                                wi::helper::GetCurrentPath()+"/Tools/KTX-Software/windows/bin/toktx.exe",
 #else
                                 wi::helper::GetCurrentPath()+"/Tools/KTX-Software/linux/bin/toktx",
 #endif // _WIN32
