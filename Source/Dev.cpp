@@ -3,6 +3,7 @@
 #include "Scene.h"
 
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <iterator>
 #include <filesystem>
@@ -202,12 +203,13 @@ void _DEV_scene_import()
                         if(update)
                         {
                             wi::vector<std::string> args = {
-                                "toktx",
+#ifdef _WIN32
+                                wi::helper::GetCurrentPath()+"/Tools/KTX-Software/win32/bin/toktx.exe",
+#else
+                                wi::helper::GetCurrentPath()+"/Tools/KTX-Software/linux/bin/toktx",
+#endif // _WIN32
                                 "--genmipmap",
                                 "--assign_oetf",(j == wi::scene::MaterialComponent::BASECOLORMAP) ? "srgb" : "linear",
-                                // "--encode","astc",
-                                // "--astc_blk_d","6x6",
-                                // "--astc_quality","80",
                                 "--encode","uastc",
                                 "--uastc_quality","0",
                                 "--zcmp","15",
@@ -222,6 +224,11 @@ void _DEV_scene_import()
                                 {}
                             };
                             shexec_options.stop = shexec_options_stop;
+#ifndef _WIN32
+                            static std::map<std::string, std::string> shexec_env_map = {{"LD_LIBRARY_PATH",wi::helper::GetCurrentPath()+"/Tools/KTX-Software/linux/lib"}};
+                            shexec_options.env.extra = reproc::env(shexec_env_map);
+                            shexec_options.env.behavior = reproc::env::extend;
+#endif // _WIN32
                             process.start(args, shexec_options);
                             wi::jobsystem::Execute(convert_ctx, [&](wi::jobsystem::JobArgs jobArgs){
                                 reproc::drain(process, reproc::sink::null, reproc::sink::null);
