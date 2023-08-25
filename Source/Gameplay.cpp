@@ -6,8 +6,7 @@
 #include <iostream>
 
 #ifdef _WIN32
-// HINSTANCE gameplay_lib = NULL;
-#include "Gameplay/Hook.h"
+HINSTANCE gameplay_lib = NULL;
 #else
 void* gameplay_lib = NULL;
 #endif
