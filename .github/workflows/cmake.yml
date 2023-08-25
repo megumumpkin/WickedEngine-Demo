@@ -68,6 +68,8 @@ jobs:
       with:
         name: Binary (Linux - Ubuntu)
         path: |
+          Tools/KTX-Software/linux
+          Tools/KTX-Software/version.txt
           Data/
           libWickedEngine_Linux.so
           libdxcompiler.so
@@ -127,6 +129,8 @@ jobs:
       with:
         name: Binary (Windows)
         path: |
+          Tools\KTX-Software\windows
+          Tools\KTX-Software\version.txt
           Data\
           dxcompiler.dll
           dxil.dll
