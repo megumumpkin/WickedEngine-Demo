@@ -10,8 +10,11 @@
 #include <iostream>
 
 Game::Scene* scene;
-
+#ifdef _WIN32
+void Gameplay_Hook()
+#else
 extern "C" void Gameplay_Hook()
+#endif
 {
     // Gameplay::gameplay_hooks["Gameplay::Component"] = std::make_unique<Gameplay::ComponentHook>();
     // Gameplay::gameplay_hooks["Gameplay::Player"] = std::make_unique<Gameplay::Player>();

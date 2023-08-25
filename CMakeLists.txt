@@ -75,19 +75,20 @@ if (WIN32)
 		Source/main_Windows.h
 		Source/TemplateWindows.rc
 	)
+	list (APPEND SOURCE_FILES ${GAMEPLAY_FILES})
 	add_executable(Game WIN32 ${SOURCE_FILES})
-	set_target_properties(Game PROPERTIES
-		ENABLE_EXPORTS 1
-	)
+#	set_target_properties(Game PROPERTIES
+#		ENABLE_EXPORTS 1
+#	)
 	target_link_libraries(Game PUBLIC
 	 	WickedEngine::WickedEngine_Windows
 	)
 
-	add_library(Gameplay SHARED ${GAMEPLAY_FILES})
-	target_link_libraries(Gameplay PUBLIC
-	 	WickedEngine::WickedEngine_Windows
-		Game
-	)
+#	add_library(Gameplay SHARED ${GAMEPLAY_FILES})
+#	target_link_libraries(Gameplay PUBLIC
+#	 	WickedEngine::WickedEngine_Windows
+#		Game
+#	)
 
 	list (APPEND DEV_FILES
 		Source/main_Windows.cpp
@@ -95,9 +96,9 @@ if (WIN32)
 		Source/TemplateWindows.rc
 	)
 	add_executable(Dev WIN32 ${DEV_FILES})
-	set_target_properties(Dev PROPERTIES
-		ENABLE_EXPORTS 1
-	)
+#	set_target_properties(Dev PROPERTIES
+#		ENABLE_EXPORTS 1
+#	)
 	target_compile_definitions(Dev PUBLIC IS_DEV=1)
 	target_link_libraries(Dev PUBLIC
 	 	WickedEngine::WickedEngine_Windows
@@ -105,11 +106,11 @@ if (WIN32)
 		reproc++
 	)
 
-	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
-	target_link_libraries(Gameplay_DEV PUBLIC
-	 	WickedEngine::WickedEngine_Windows
-		Dev
-	)
+#	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
+#	target_link_libraries(Gameplay_DEV PUBLIC
+#	 	WickedEngine::WickedEngine_Windows
+#		Dev
+#	)
 else()
 	list (APPEND SOURCE_FILES Source/main_Linux.cpp)
 	add_executable(Game ${SOURCE_FILES})
