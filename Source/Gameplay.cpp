@@ -9,8 +9,8 @@
 // HINSTANCE gameplay_lib = NULL;
 #include "Gameplay/Hook.h"
 #else
-// void* gameplay_lib = NULL;
-#include "Gameplay/Hook.h"
+void* gameplay_lib = NULL;
+// #include "Gameplay/Hook.h"
 #endif
 
 namespace Gameplay
@@ -34,10 +34,9 @@ namespace Gameplay
 #else
         auto lib_str = "./lib"+library_name+".so";
 // #endif
-        // gameplay_lib = wiLoadLibrary(lib_str.c_str());
-        // lib_hook_t lib_hook = (lib_hook_t)wiGetProcAddress(gameplay_lib, "Gameplay_Hook");
-        // lib_hook();
-        Gameplay_Hook();
+        gameplay_lib = wiLoadLibrary(lib_str.c_str());
+        lib_hook_t lib_hook = (lib_hook_t)wiGetProcAddress(gameplay_lib, "Gameplay_Hook");
+        lib_hook();
 # endif
         
         // Init all hooks
@@ -88,7 +87,7 @@ namespace Gameplay
 #ifdef _WIN32
         // FreeLibrary((HINSTANCE)gameplay_lib);
 #else
-        // dlclose(gameplay_lib);
+        dlclose(gameplay_lib);
 #endif
     }
 }

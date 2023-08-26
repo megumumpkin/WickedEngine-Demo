@@ -115,7 +115,7 @@ if (WIN32)
 #	)
 else()
 	list (APPEND SOURCE_FILES Source/main_Linux.cpp)
-	list (APPEND SOURCE_FILES ${GAMEPLAY_FILES})
+	#list (APPEND SOURCE_FILES ${GAMEPLAY_FILES})
 	add_executable(Game ${SOURCE_FILES})
 	set_target_properties(Game PROPERTIES
 		ENABLE_EXPORTS 1
@@ -124,14 +124,14 @@ else()
 	 	WickedEngine::WickedEngine_Linux
 	)
 
-#	add_library(Gameplay SHARED ${GAMEPLAY_FILES})
-#	target_link_libraries(Gameplay PUBLIC
-#	 	WickedEngine::WickedEngine_Linux
-#		Game
-#	)
+	add_library(Gameplay SHARED ${GAMEPLAY_FILES})
+	target_link_libraries(Gameplay PUBLIC
+	 	WickedEngine::WickedEngine_Linux
+		Game
+	)
 
 	list (APPEND DEV_FILES Source/main_Linux.cpp)
-	list (APPEND DEV_FILES ${GAMEPLAY_FILES})
+	#list (APPEND DEV_FILES ${GAMEPLAY_FILES})
 	add_executable(Dev ${DEV_FILES})
 	set_target_properties(Dev PROPERTIES
 		ENABLE_EXPORTS 1
@@ -143,11 +143,11 @@ else()
 		reproc++
 	)
 
-#	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
-#	target_link_libraries(Gameplay_DEV PUBLIC
-#	 	WickedEngine::WickedEngine_Linux
-#		Dev
-#	)
+	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
+	target_link_libraries(Gameplay_DEV PUBLIC
+	 	WickedEngine::WickedEngine_Linux
+		Dev
+	)
 endif ()
 
 

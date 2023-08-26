@@ -11,8 +11,7 @@
 
 Game::Scene* scene;
 
-// extern "C" void Gameplay_Hook()
-void Gameplay_Hook()
+extern "C" void Gameplay_Hook()
 {
     // Gameplay::gameplay_hooks["Gameplay::Component"] = std::make_unique<Gameplay::ComponentHook>();
     // Gameplay::gameplay_hooks["Gameplay::Player"] = std::make_unique<Gameplay::Player>();
