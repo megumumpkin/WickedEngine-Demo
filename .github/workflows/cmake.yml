@@ -91,6 +91,8 @@ jobs:
         cd Library\WickedEngine\
         mkdir build
         cd build
+        cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        cmake --build . --target WickedEngine_Windows --config Release
         cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DWICKED_DYNAMIC_LIBRARY=ON
         cmake --build . --target WickedEngine_Windows --config Release
 
