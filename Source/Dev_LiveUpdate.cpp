@@ -131,7 +131,7 @@ void Dev::LiveUpdate::Update()
             gameplaysrc_update_queue_count++;
     }
     file_changes.clear();
-
+#ifndef _WIN32
     // For gamecode changes we need to queue a build process
     int gameplaysrc_build_process_status = 0;
     std::error_code gameplaysrc_build_process_ec;
@@ -175,4 +175,5 @@ void Dev::LiveUpdate::Update()
 
         gameplaylib_liveupdate.query_reload = false;
     }
+#endif
 }
