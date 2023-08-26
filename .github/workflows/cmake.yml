@@ -91,8 +91,8 @@ jobs:
         cd Library\WickedEngine\
         mkdir build
         cd build
-        cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DWICKED_DYNAMIC_LIBRARY=ON -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON
-        cmake --build . --target WickedEngine_Windows --config Release --prefix "$env:GITHUB_WORKSPACE/build/Install"
+        cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DWICKED_DYNAMIC_LIBRARY=OFF -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON
+        cmake --build . --target WickedEngine_Windows --config Release
 
     - name: Build Library (reproc++)
       run: |
