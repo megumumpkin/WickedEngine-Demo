@@ -91,9 +91,7 @@ jobs:
         cd Library\WickedEngine\
         mkdir build
         cd build
-        cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-        cmake --build . --target WickedEngine_Windows --config Release
-        cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DWICKED_DYNAMIC_LIBRARY=ON
+        cmake .. -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DWICKED_DYNAMIC_LIBRARY=ON -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON
         cmake --build . --target WickedEngine_Windows --config Release
 
     - name: Build Library (reproc++)
@@ -101,7 +99,7 @@ jobs:
         mkdir -p 'build/Install'
         git submodule update --init Library/reproc
         cd Library/reproc/
-        cmake -B build -DREPROC++=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        cmake -B build -DREPROC++=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON
         cmake --build build --config Release
         cmake --install build --prefix "$env:GITHUB_WORKSPACE/build/Install"
 
@@ -111,7 +109,7 @@ jobs:
 
     - name: Build Game and Dev Tool
       run: |
-        cmake -B build -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DWickedEngine_DIR=Library/WickedEngine/Build/cmake
+        cmake -B build -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DWickedEngine_DIR=Library/WickedEngine/Build/cmake -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON
         cmake --build build --config Release
 
     - name: Prepare Package
