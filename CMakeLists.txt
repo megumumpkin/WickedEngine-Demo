@@ -106,11 +106,11 @@ if (WIN32)
 		reproc++
 	)
 
-#	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
-#	target_link_libraries(Gameplay_DEV PUBLIC
-#	 	WickedEngine::WickedEngine_Windows
-#		Dev
-#	)
+	add_library(Gameplay_DEV SHARED ${GAMEPLAY_FILES})
+	target_link_libraries(Gameplay_DEV PUBLIC
+	 	WickedEngine::WickedEngine_Windows
+		Dev
+	)
 else()
 	list (APPEND SOURCE_FILES Source/main_Linux.cpp)
 	add_executable(Game ${SOURCE_FILES})
