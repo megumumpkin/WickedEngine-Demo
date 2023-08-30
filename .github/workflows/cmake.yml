@@ -79,7 +79,7 @@ jobs:
           Dev.bin
           Dev
           Game.bin
-          Dev
+          Game
           libGameplay.so
           libGameplay_DEV.so
   
