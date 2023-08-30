@@ -60,8 +60,10 @@ jobs:
         mv 'build/libGameplay.so' './'
         mv 'build/libGameplay_DEV.so' './'
         mv 'build/Library/efsw/libefsw.so' './'
-        mv 'build/Dev' './'
-        mv 'build/Game' './'
+        mv 'build/Dev' './Dev.bin'
+        mv 'build/Game' './Game.bin'
+        echo -e '#!'"/bin/bash \nexport LD_LIBRARY_PATH=LD_LIBRARY_PATH:\"\$PWD\"\n\"\$PWD\"/Game.bin \"\$@\"" >> Game
+        echo -e '#!'"/bin/bash \nexport LD_LIBRARY_PATH=LD_LIBRARY_PATH:\"\$PWD\"\n\"\$PWD\"/Dev.bin \"\$@\"" >> Dev
 
     - name: Package Programs
       uses: actions/upload-artifact@v2
@@ -74,8 +76,10 @@ jobs:
           libWickedEngine_Linux.so
           libdxcompiler.so
           libefsw.so
+          Dev.bin
           Dev
-          Game
+          Game.bin
+          Dev
           libGameplay.so
           libGameplay_DEV.so
   
