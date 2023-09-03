@@ -457,10 +457,14 @@ namespace Game{
         archiveID = wi::ecs::CreateEntity();
 
         std::string preview_actual_file = Filesystem::GetActualPath(wi::helper::ReplaceExtension(file, "preview"));
+        std::string bounds_file = wi::helper::ReplaceExtension(preview_actual_file, "bounds");
 
-        wi::ecs::EntitySerializer seri;
-        wi::Archive ar_bounds = wi::Archive(wi::helper::ReplaceExtension(preview_actual_file, "bounds"));
-        bounds.Serialize(ar_bounds, seri);
+        if(wi::helper::FileExists(bounds_file))
+        {
+            wi::ecs::EntitySerializer seri;
+            wi::Archive ar_bounds = wi::Archive(wi::helper::ReplaceExtension(preview_actual_file, "bounds"));
+            bounds.Serialize(ar_bounds, seri);
+        }
 
         stream_task.stream_type = _internal_Stream_Task::STREAM_TYPE::INIT;
         stream_task.archiveID = archiveID;
@@ -487,13 +491,35 @@ namespace Game{
                 Prefab* prefab = GetScene().prefabs.GetComponent(prefabID);
 
                 // Add data to stream task
-                stream_task.stream_type = (is_root) ? _internal_Stream_Task::STREAM_TYPE::ROOT : _internal_Stream_Task::STREAM_TYPE::FULL;
-                stream_task.archiveID = archiveID;
-                stream_task.file = file;
-                stream_task.actual_file = Filesystem::GetActualPath(file);
-                stream_task.remap.insert(remap.begin(), remap.end());
+                std::string actual_file = Filesystem::GetActualPath(file);
+                if(wi::helper::FileExists(actual_file))
+                {
+                    stream_task.stream_type = (is_root) ? _internal_Stream_Task::STREAM_TYPE::ROOT : _internal_Stream_Task::STREAM_TYPE::FULL;
+                    stream_task.archiveID = archiveID;
+                    stream_task.file = file;
+                    stream_task.actual_file = actual_file;
+                    stream_task.remap.insert(remap.begin(), remap.end());
 
-                load_state = LoadState::LOADING;
+                    load_state = LoadState::LOADING;
+                }
+                else
+                {
+                    wi::ecs::Entity new_noasset = GetScene().wiscene.Entity_CreateCube("NOASSET");
+                    wi::scene::MaterialComponent* material = GetScene().wiscene.materials.GetComponent(new_noasset);
+                    
+                    wi::resourcemanager::Flags flags = material->GetTextureSlotResourceFlags(wi::scene::MaterialComponent::TEXTURESLOT(0));
+                    material->shaderType = wi::scene::MaterialComponent::SHADERTYPE_UNLIT;
+                    material->textures[0].name = Filesystem::GetActualPath("content/NOASSET.png");
+                    material->textures[0].resource = wi::resourcemanager::Load(material->textures[0].name, flags);
+                    material->SetDirty();
+
+                    GetScene().wiscene.Component_Attach(new_noasset, archiveID, true);
+                    GetScene().Entity_Disable(new_noasset);
+                    
+                    entities.insert(new_noasset);
+
+                    load_state = LoadState::LOADED;
+                }
             }
 
             if(load_state == LoadState::UNINITIALIZED)
